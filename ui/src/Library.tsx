@@ -14,6 +14,7 @@ interface Props {
   layout: string;
   toggleLayout: () => void;
 }
+const songs = (n: number) => n + (n === 1 ? " song" : " songs");
 export default function Library(p: Props) {
   const [view, setView] = useState("songs"),
     [limit, setLimit] = useState(100),
@@ -57,7 +58,7 @@ export default function Library(p: Props) {
               {p.tracks.length}
             </span>
           </h2>
-          <p>{p.tracks.length} songs, ready to listen.</p>
+          <p>{songs(p.tracks.length)}, ready to listen.</p>
         </div>
         <div className="toolbar-controls">
           <label className="search-label">
@@ -169,8 +170,8 @@ export default function Library(p: Props) {
                         {view === "songs"
                           ? t.artist + " · " + t.album
                           : view === "albums"
-                            ? t.artist + " · " + group.length + " songs"
-                            : group.length + " songs"}
+                            ? t.artist + " · " + songs(group.length)
+                            : songs(group.length)}
                       </p>
                     </div>
                     <button

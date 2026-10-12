@@ -22,6 +22,12 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
     const timer = setInterval(() => refresh().catch(() => {}), 5000);
     return () => clearInterval(timer);
   }, []);
+  const importing = profiles.some((p) => p.importing);
+  useEffect(() => {
+    if (!importing) return;
+    const timer = setInterval(() => refresh().catch(() => {}), 1000);
+    return () => clearInterval(timer);
+  }, [importing]);
   useEffect(() => {
     let disposed = false,
       unlisten: (() => void) | undefined;
@@ -45,7 +51,9 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
         try {
           await rpc("start", { id });
           await rpc("import", { id, paths: e.payload.paths });
-          notice("Music imported. Press Listen to open the library.");
+          notice(
+            "Importing music. Songs appear in the library as they are copied.",
+          );
           await refresh();
         } catch (error) {
           notice(String(error));
@@ -236,6 +244,18 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
               <dd>{p.lan ? "Same Wi-Fi" : "Off"}</dd>
             </dl>
             {p.error && <p className="error">{p.error}</p>}
+            {(p.importing || p.imported > 0 || p.importError) && (
+              <p
+                className={p.importError ? "error" : "profile-import"}
+                role="status"
+              >
+                {p.importing ? "Importing… " : "Import finished: "}
+                {p.imported} {p.imported === 1 ? "song" : "songs"} added
+                {p.importSkipped > 0 &&
+                  `, ${p.importSkipped} skipped (unreadable or not audio)`}
+                {p.importError && ` — ${p.importError}`}
+              </p>
+            )}
             <div className="profile-actions">
               <button
                 className="primary"

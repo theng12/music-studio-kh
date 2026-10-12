@@ -59,14 +59,15 @@ func (l *Library) checkedRoot() (*os.Root, error) {
 		return nil, errors.New("music folder unavailable or replaced")
 	}
 	if l.handle != nil {
-		if !os.SameFile(l.rootInfo, info) {
-			return nil, errors.New("music folder identity changed")
+		if os.SameFile(l.rootInfo, info) {
+			if marker, err := readMarker(l.handle); err == nil && marker == l.marker {
+				return l.handle, nil
+			}
 		}
-		marker, err := readMarker(l.handle)
-		if err != nil || marker != l.marker {
-			return nil, errors.New("music folder identity missing or changed")
-		}
-		return l.handle, nil
+		// The folder was disconnected or replaced. Drop the stale handle and
+		// reopen below, which accepts only a folder carrying this library's marker.
+		l.handle.Close()
+		l.handle, l.rootInfo = nil, nil
 	}
 	lock, err := folderLock(l.root)
 	if err != nil {

@@ -16,70 +16,74 @@ func (l *Library) Import(name string, source io.Reader) (Track, error) {
 	if name == "" || strings.HasPrefix(name, ".") || filepath.Base(name) != name || strings.ContainsAny(name, "/\\\x00") || audioFormat(name) == "" {
 		return Track{}, errors.New("choose an MP3, M4A, AAC, FLAC, Ogg, Opus, or WAV file")
 	}
-	root, err := l.checkedRoot()
+	final, err := l.finalizeImport(name, source)
 	if err != nil {
 		return Track{}, err
+	}
+	// The file is already in the library; report it even if indexing fails so a
+	// retry never creates a numbered duplicate. The next scan indexes it.
+	track, err := l.indexFile(final)
+	if err != nil {
+		name := filepath.Base(final)
+		return Track{ID: trackID(final), Title: strings.TrimSuffix(name, filepath.Ext(name)), Artist: "Unknown artist", Album: "Unknown album", Path: final, Format: audioFormat(name)}, nil
+	}
+	return track, nil
+}
+
+// finalizeImport stores source under a unique, never-overwritten name while
+// holding the cross-process folder lock and returns the library-relative path.
+func (l *Library) finalizeImport(name string, source io.Reader) (string, error) {
+	root, err := l.checkedRoot()
+	if err != nil {
+		return "", err
 	}
 	lock, err := folderLock(l.root)
 	if err != nil {
-		return Track{}, err
+		return "", err
 	}
 	if err := lock.Lock(); err != nil {
-		return Track{}, err
+		return "", err
 	}
 	defer lock.Unlock()
 	suffix, err := randomID()
 	if err != nil {
-		return Track{}, err
+		return "", err
 	}
 	temp := ".tuneharbor-import-" + suffix
 	f, err := root.OpenFile(temp, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
-		return Track{}, err
+		return "", err
 	}
 	defer root.Remove(temp)
 	n, err := io.Copy(f, io.LimitReader(source, MaxImportBytes+1))
 	if err != nil {
 		f.Close()
-		return Track{}, err
+		return "", err
 	}
 	if n > MaxImportBytes {
 		f.Close()
-		return Track{}, errors.New("music file exceeds 512 MiB")
+		return "", errors.New("music file exceeds 512 MiB")
 	}
 	if err = f.Sync(); err != nil {
 		f.Close()
-		return Track{}, err
+		return "", err
 	}
 	f.Close()
 	if !validAudio(root, temp, audioFormat(name)) {
-		return Track{}, errors.New("file contents do not match the audio format")
+		return "", errors.New("file contents do not match the audio format")
 	}
 	final := name
 	ext := filepath.Ext(name)
 	for i := 1; ; i++ {
 		err = root.Link(temp, final)
 		if err == nil {
-			break
+			return final, nil
 		}
 		if !os.IsExist(err) {
-			return Track{}, err
+			return "", err
 		}
 		final = fmt.Sprintf("%s (%d)%s", strings.TrimSuffix(name, ext), i, ext)
 	}
-	if err = l.Scan(); err != nil {
-		return Track{}, err
-	}
-	tracks, err := l.Tracks("")
-	if err != nil {
-		return Track{}, err
-	}
-	for _, t := range tracks {
-		if t.Path == final {
-			return t, nil
-		}
-	}
-	return Track{}, errors.New("imported file not indexed")
 }
 func validAudio(root *os.Root, path, format string) bool {
 	f, e := root.Open(path)
