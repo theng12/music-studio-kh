@@ -59,6 +59,8 @@ Streaming uses authenticated track identifiers rather than arbitrary paths and s
 
 ## Local-network access and authentication
 
+Passwords require a minimum of six characters; numbers-only passwords such as 123456 are accepted. Usernames are case-insensitive in browser and Subsonic authentication. Preserve their display spelling.
+
 Alongside the browser player, support existing Subsonic/OpenSubsonic mobile clients, as with Navidrome. Setup creates an owner username and password. Settings show the full server URL (IP address and port) and username to enter in a compatible client. General-purpose App Store music apps are not automatically compatible.
 
 Implement a documented compatibility subset covering ping, server/license information, music folders, artists, albums, tracks, search, artwork, and streaming with seeking. Match protocol response envelopes, identifiers, errors, and supported authentication modes. Advertise only implemented OpenSubsonic extensions. Saved playlists, scrobbling, favorites, and other optional APIs remain outside the first version; do not claim complete Navidrome parity.
