@@ -2,6 +2,7 @@ package server
 
 import (
 	"embed"
+	"github.com/theng12/tuneharbor/internal/downloads"
 	"github.com/theng12/tuneharbor/internal/library"
 	"github.com/theng12/tuneharbor/internal/profiles"
 	"io/fs"
@@ -14,21 +15,29 @@ import (
 var web embed.FS
 
 type Server struct {
-	profile  profiles.Profile
-	library  *library.Library
-	mu       sync.Mutex
-	sessions map[string]time.Time
-	attempts map[string]attempt
-	handler  http.Handler
+	downloads *downloads.Queue
+	profile   profiles.Profile
+	library   *library.Library
+	mu        sync.Mutex
+	sessions  map[string]time.Time
+	attempts  map[string]attempt
+	handler   http.Handler
 }
 type attempt struct {
 	count int
 	until time.Time
 }
 
-func New(p profiles.Profile, l *library.Library) *Server {
+func New(p profiles.Profile, l *library.Library, options ...Option) *Server {
 	s := &Server{profile: p, library: l, sessions: map[string]time.Time{}, attempts: map[string]attempt{}}
+	for _, option := range options {
+		option(s)
+	}
 	m := http.NewServeMux()
+	m.HandleFunc("GET /api/downloads", s.authorize(s.downloadJobs))
+	m.HandleFunc("POST /api/downloads", s.authorize(s.submitDownload))
+	m.HandleFunc("POST /api/downloads/{id}/cancel", s.authorize(s.cancelDownload))
+	m.HandleFunc("POST /api/downloads/{id}/retry", s.authorize(s.retryDownload))
 	m.HandleFunc("POST /api/login", s.login)
 	m.HandleFunc("POST /api/logout", s.authorize(s.logout))
 	m.HandleFunc("GET /api/me", s.authorize(s.me))
