@@ -132,3 +132,15 @@ func audioFormat(name string) string {
 	}
 	return ""
 }
+
+// Forget clears a stopped profile's index and folder identity so it can adopt
+// a replacement music folder. Artwork overrides and settings are kept.
+func Forget(dataDir string) error {
+	db, err := sql.Open("sqlite", filepath.Join(dataDir, "library.sqlite"))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	_, err = db.Exec("DELETE FROM settings WHERE key='library_identity'; DELETE FROM tracks;")
+	return err
+}
