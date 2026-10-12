@@ -4,23 +4,24 @@
 
 TuneHarbor is a music library and server for Windows, macOS, and Linux. The approved product will offer a desktop installer, yt-dlp downloads, artwork, profiles, and Subsonic-compatible listening without Docker.
 
-## Current build: development foundation
+## Current build: release candidate (unsigned)
 
-Implemented:
+TuneHarbor is a desktop app with its own music server. Install it, create a profile, choose a music folder, and listen in the app, in a browser, or in a Subsonic phone app such as Amperfy on the same Wi-Fi. Docker, a terminal and separately installed tools are not needed: yt-dlp, FFmpeg and Deno ship inside the app.
 
-- Independently authenticated server profiles running concurrently on separate ports.
-- Shared or separate music folders, with separate databases and artwork per profile.
-- SQLite indexing, metadata extraction, search, and periodic/manual library scans.
-- No-overwrite file imports and drag-and-drop browser uploads.
-- Embedded/folder artwork and custom song artwork with reset.
-- Browser player with seeking, volume, previous/next, responsive layout, and appearance settings.
-- Six-character minimum passwords, including numbers-only passwords; case-insensitive usernames.
-- Expiring browser sessions, failed-login throttling, bounded uploads, and path-contained streaming.
-- A documented Subsonic API subset using password authentication.
+What works:
 
-Still to build: yt-dlp/FFmpeg download jobs and transcoding, a Tauri desktop profile manager and native folder picker, custom album artwork, cross-device appearance defaults, OS-keychain-backed token authentication, mobile-client interoperability checks, and signed installers. This build requires development setup; it is **not yet the simple drag-and-drop desktop release**.
+- **Profiles:** independently authenticated servers running at the same time on separate ports, with shared or separate music folders. Each profile has its own database, artwork, downloads, settings and logs. If a folder disappears, the profile can switch to a replacement folder.
+- **Adding music:** drag-and-drop imports of files and folders (never overwriting or moving the originals; works on exFAT/FAT drives). Persistent YouTube download queues with progress, cancel and retry, and playlists split into individual songs.
+- **Library:** SQLite indexing that keeps going past unreadable folders, recovers after a drive reconnects, and handles 10,000-track libraries. Search, albums and artists.
+- **Artwork and appearance:** embedded, folder and custom song or album artwork, plus light/dark/system themes, accent colors, density and layout.
+- **Player:** browser and desktop player with seeking, a queue and FFmpeg conversion for formats the browser cannot play.
+- **Phone apps:** Subsonic/OpenSubsonic API subset with password and token-and-salt sign-in. The mobile secret is encrypted with a key held in the OS keychain.
+- **Security:** expiring browser sessions, separate failed-login throttling for the browser and phone apps, origin checks, and path-contained streaming.
+- **Desktop app:** tray behavior with a first-close explanation, optional start at login, single instance, and a clean quit that stops every server and tool.
 
-No code was copied from Navidrome or MeTube. Third-party dependency notices and redistribution licenses must be completed before releases.
+Installers come from the **Desktop installers (unsigned development)** workflow: Windows (NSIS), macOS Apple Silicon and Intel (DMG, ad-hoc signed), and Linux (.deb and AppImage). They are not signed with a Developer ID or Authenticode certificate. macOS and Windows will warn about an unidentified developer until release credentials are added. [docs/RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md) lists every requirement with its evidence and the checks that need real devices.
+
+No code was copied from Navidrome or MeTube.
 
 ## Run the development build
 
@@ -34,7 +35,9 @@ go build -o bin/tuneharbor ./cmd/tuneharbor
 
 On Windows the executable is `bin/tuneharbor.exe`. Use the executable from PowerShell with your Windows music-folder path. Profile creation prompts for a password, hidden in an interactive terminal. The minimum is six characters; no symbols or mixed-case requirement. Passwords are case-sensitive, usernames are not.
 
-Open `http://127.0.0.1:4747` and sign in. Add existing audio files through the file picker or drop them into the collection area. Imports preserve source files. Browsers directly play supported formats; automatic conversion is not implemented yet.
+Open `http://127.0.0.1:4747` and sign in. Add existing audio files through the file picker or drop them into the collection area. Imports preserve source files. Browsers directly play supported formats. Conversion and downloads need FFmpeg and yt-dlp: pass `serve --tools DIR` with a folder holding `ffmpeg`, `ffprobe`, `yt-dlp` and `deno` (the desktop app bundles them).
+
+To build the desktop app, run `python scripts/prepare-runtime.py` and `scripts/build-ffmpeg.sh` as the desktop workflow does, then `npm run build:desktop`. `npm run desktop` starts it in development mode.
 
 Profile data defaults to the operating system's user configuration directory under `TuneHarbor/profiles`. To use another location, put `--data /path/to/profiles` **before** the command.
 
@@ -48,17 +51,17 @@ Create a second profile with another port:
 ./bin/tuneharbor serve
 ```
 
-Use the same music folder to share files, or choose a different folder for a separate collection. Each profile has its own credentials, database, artwork overrides, and port. Open port 4747 for Personal and 4748 for Family. Imported music appears in other profiles sharing that folder on their next scan (within 20 seconds). Profiles are currently managed through the command line; the desktop profile manager is a later milestone.
+Use the same music folder to share files, or choose a different folder for a separate collection. Each profile has its own credentials, database, artwork overrides, and port. Open port 4747 for Personal and 4748 for Family. Imported music appears in other profiles sharing that folder on their next scan (within 20 seconds). The desktop app manages the same profiles without the command line.
 
 A hidden `.tuneharbor-library-id` marker identifies the selected folder; preserve it when moving or backing up the library. Existing indexed profiles stay online with their last index while a folder is disconnected, and resume scanning when the original folder returns.
 
-Stop the server with Ctrl+C. Music files remain in place. Import finalization uses hard links on the local library filesystem; filesystems lacking hard-link support are not supported by this initial implementation.
+Stop the server with Ctrl+C. Music files remain in place. Imports finalize with a hard link, or an exclusive copy on drives without hard links (exFAT, FAT32). Network-mounted folders are not supported for shared libraries. Each profile keeps a small log in its data folder under `logs/tuneharbor.log`.
 
 ## Local-network listening
 
 Add `--lan` when creating a profile to enable listening on network interfaces. The server prints usable IPv4 addresses. An OS firewall rule may also be needed. LAN mode uses unencrypted HTTP, intended for trusted networks. The host computer must stay awake and the server must keep running. No public internet access is configured.
 
-Subsonic password mode is implemented, including `enc:` hex-encoded password input (encoding is not encryption). Token-and-salt authentication is **not implemented**. Clients that require it cannot connect yet. Endpoints include `ping`, `getLicense`, `getMusicFolders`, `getArtists`, `getArtist`, `getAlbumList2`, `getAlbum`, `getSong`, `search3`, `getCoverArt`, `stream`, and `download`. Saved playlists, scrobbling, favorites, pagination, duration metadata, and complete client compatibility remain outstanding. No real iOS/Android client interoperability is claimed yet.
+Phone apps sign in with the profile's server address (shown in Settings), username and password. Both Subsonic password mode (including `enc:` hex encoding, which is not encryption) and token-and-salt mode are supported. Token mode needs the password saved, encrypted, through the OS keychain; if the keychain was locked when the profile was created, enter the password once in the profile settings. Endpoints include `ping`, `getLicense`, `getMusicFolders`, `getArtists`, `getArtist`, `getAlbumList2`, `getAlbum`, `getSong`, `getRandomSongs`, `search3`, `getCoverArt`, `stream`, and `download`, plus empty responses for genres, starred items, playlists and radio. Saved playlists, scrobbling and favorites are not implemented. Interoperability with real iOS and Android clients is a release gate that still needs a run on real devices (see the checklist).
 
 ## Verification
 
@@ -72,7 +75,7 @@ npx playwright install chromium
 npm run test:browser
 ```
 
-The browser smoke script currently runs on Linux/macOS; the Go CI matrix also tests Windows. Browser testing creates temporary profiles and real audio/image fixtures, checks login/import/playback/search/artwork/theme behavior, and removes the temporary data afterward. It writes desktop/mobile screenshots under `artifacts/`.
+`scripts/desktop-e2e.sh` drives an installed Linux package under a virtual display: first-run profile creation through the real folder dialog, the signed-in library window, import, playback, close-to-tray and server cleanup. CI runs it after building the `.deb`. The browser smoke script runs on Linux/macOS; the Go CI matrix also tests Windows. Browser testing creates temporary profiles and real audio/image fixtures, checks login/import/playback/search/artwork/theme behavior, and removes the temporary data afterward. It writes desktop/mobile screenshots under `artifacts/`.
 
 Go sources are cross-compiled for Windows x64 and macOS Intel/Apple Silicon during development. Native runtime tests, mobile interoperability, installer signing, and notarization are distinct release checks.
 
@@ -81,3 +84,5 @@ Go sources are cross-compiled for Windows x64 and macOS Intel/Apple Silicon duri
 - [Approved design](docs/superpowers/specs/2026-10-12-music-app-design.md)
 - [Foundation plan and follow-up milestones](docs/superpowers/plans/2026-10-12-foundation.md)
 - [Execution record](docs/superpowers/plans/foundation-progress.md)
+- [Release plan](docs/superpowers/plans/2026-10-12-release.md) and [release progress](docs/superpowers/plans/release/progress.md)
+- [Release checklist](docs/RELEASE-CHECKLIST.md)
