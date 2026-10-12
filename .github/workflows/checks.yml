@@ -5,6 +5,10 @@ on:
   pull_request:
 permissions:
   contents: read
+# A newer push to the same branch supersedes runs still in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   server:
     strategy:
