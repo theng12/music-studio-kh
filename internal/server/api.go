@@ -54,6 +54,27 @@ func (s *Server) serveTrack(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 	defer f.Close()
+	format := r.URL.Query().Get("format")
+	if format == "mp3" && t.Format != "mp3" {
+		if s.converter == nil {
+			fail(w, 503, "audio conversion unavailable")
+			return
+		}
+		converted, err := s.converter.MP3(r.Context(), id)
+		if err != nil {
+			fail(w, 400, "could not convert this track")
+			return
+		}
+		defer converted.Close()
+		info, e := converted.Stat()
+		if e != nil {
+			fail(w, 500, "converted audio unavailable")
+			return
+		}
+		w.Header().Set("Content-Type", "audio/mpeg")
+		http.ServeContent(w, r, t.Title+".mp3", info.ModTime(), converted)
+		return
+	}
 	info, e := f.Stat()
 	if e != nil {
 		fail(w, 404, "track unavailable")

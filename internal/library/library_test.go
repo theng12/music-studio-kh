@@ -226,3 +226,49 @@ func detachWindowsDirectory(t *testing.T, l *Library) {
 		t.Fatal(err)
 	}
 }
+func TestAlbumArtworkAndProfileSettings(t *testing.T) {
+	l, _ := openTest(t)
+	a, e := l.Import("One.wav", bytes.NewReader(wav()))
+	if e != nil {
+		t.Fatal(e)
+	}
+	b, e := l.Import("Two.wav", bytes.NewReader(wav()))
+	if e != nil {
+		t.Fatal(e)
+	}
+	var data bytes.Buffer
+	png.Encode(&data, image.NewRGBA(image.Rect(0, 0, 1000, 1000)))
+	if e = l.SetAlbumArtwork(a.ID, bytes.NewReader(data.Bytes())); e != nil {
+		t.Fatal(e)
+	}
+	art, _, e := l.Artwork(b.ID)
+	if e != nil || len(art) == 0 {
+		t.Fatal("album cover not applied")
+	}
+	settings := Appearance{Theme: "light", Accent: "violet", Density: "compact", Layout: "list"}
+	if e = l.SaveSettings(settings); e != nil {
+		t.Fatal(e)
+	}
+	got, e := l.Settings()
+	if e != nil || got != settings {
+		t.Fatal("appearance not persisted")
+	}
+}
+func TestWaveDurationAndMetadataSurviveScan(t *testing.T) {
+	l, _ := openTest(t)
+	track, e := l.Import("Song.wav", bytes.NewReader(wav()))
+	if e != nil {
+		t.Fatal(e)
+	}
+	if track.Duration <= 0 {
+		t.Fatal("duration not indexed")
+	}
+	if e = l.SetDuration(track.ID, 1.5); e != nil {
+		t.Fatal(e)
+	}
+	l.Scan()
+	saved, e := l.Track(track.ID)
+	if e != nil || saved.Duration != 1.5 {
+		t.Fatal("duration lost on rescan")
+	}
+}

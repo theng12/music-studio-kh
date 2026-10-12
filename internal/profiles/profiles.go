@@ -29,6 +29,7 @@ type Profile struct {
 	DataDir      string `json:"-"`
 	Port         int    `json:"port"`
 	LAN          bool   `json:"lan"`
+	AutoStart    bool   `json:"autoStart"`
 }
 
 func Create(root string, i Input) (Profile, error) {
@@ -63,6 +64,9 @@ func Create(root string, i Input) (Profile, error) {
 	path, err = filepath.EvalSymlinks(path)
 	if err != nil {
 		return Profile{}, fmt.Errorf("music folder unavailable: %w", err)
+	}
+	if nested(path, root) {
+		return Profile{}, errors.New("choose a music folder outside application profile data")
 	}
 	info, err := os.Stat(path)
 	if err != nil || !info.IsDir() {

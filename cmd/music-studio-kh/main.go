@@ -106,6 +106,8 @@ func run(args []string, input io.Reader, output io.Writer) error {
 		default:
 			return errors.New("unknown profile command")
 		}
+	case "desktop":
+		return runDesktop(*root, args[1:], input, output)
 	case "serve":
 		return serve(*root, output)
 	default:
