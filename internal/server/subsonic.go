@@ -194,7 +194,7 @@ func identifier(value string) string {
 	return hex.EncodeToString(h[:16])
 }
 func song(t library.Track, parent string) map[string]any {
-	return map[string]any{"id": t.ID, "parent": parent, "isDir": false, "title": t.Title, "artist": t.Artist, "album": t.Album, "artistId": identifier(t.Artist), "albumId": parent, "coverArt": t.ID, "suffix": t.Format, "contentType": contentType(t.Format), "size": t.Size, "duration": t.Duration, "bitRate": 128}
+	return map[string]any{"id": t.ID, "parent": parent, "isDir": false, "title": t.Title, "artist": t.Artist, "album": t.Album, "artistId": identifier(t.Artist), "albumId": parent, "coverArt": t.ID, "suffix": t.Format, "contentType": contentType(t.Format), "size": t.Size, "duration": int(t.Duration), "bitRate": 128}
 }
 func ordered(items map[string]map[string]any) []any {
 	keys := []string{}

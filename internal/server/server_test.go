@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -151,15 +152,19 @@ func TestLoginThrottlesFailedAttempts(t *testing.T) {
 		t.Fatalf("login limiter: %d", w.Code)
 	}
 }
-func TestPlayerContainsImportSearchAndPlaybackControls(t *testing.T) {
+func TestPlayerServesJavascriptAssets(t *testing.T) {
 	s, _ := fixture(t)
 	w := request(s, "GET", "/", "", nil)
-	for _, label := range []string{`id="search"`, `id="audio"`, `id="music-files"`, `id="artwork-file"`} {
-		if !strings.Contains(w.Body.String(), label) {
-			t.Fatalf("missing %s", label)
-		}
+	match := regexp.MustCompile(`src="([^"]+)"`).FindStringSubmatch(w.Body.String())
+	if len(match) != 2 {
+		t.Fatal("embedded player has no module script")
+	}
+	w = request(s, "GET", match[1], "", nil)
+	if w.Code != 200 || !strings.Contains(w.Header().Get("Content-Type"), "javascript") {
+		t.Fatal("embedded JavaScript asset not served")
 	}
 }
+
 func TestUsernameIsCaseInsensitive(t *testing.T) {
 	s, _ := fixture(t)
 	w := request(s, "POST", "/api/login", `{"username":"OWNER","password":"long-password"}`, nil)
