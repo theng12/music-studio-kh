@@ -127,3 +127,6 @@ func (l *Library) checkedRoot() (*os.Root, error) {
 	keep = true
 	return handle, nil
 }
+
+// Ready checks that operations still target the originally selected library.
+func (l *Library) Ready() error { _, e := l.checkedRoot(); return e }

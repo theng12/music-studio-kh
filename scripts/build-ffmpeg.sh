@@ -16,7 +16,9 @@ cd "$BUILD_DIR/lame"
 make -j2 > "$BUILD_DIR/lame-build.log" 2>&1
 make install > /dev/null 2>&1
 cd "$BUILD_DIR/ffmpeg"
-PKG_CONFIG_PATH="$PREFIX_DIR/lib/pkgconfig" ./configure --prefix="$PREFIX_DIR" --disable-shared --enable-static --disable-doc --disable-debug --disable-ffplay --disable-network --disable-x86asm --enable-libmp3lame --extra-cflags="-I$PREFIX_DIR/include" --extra-ldflags="-L$PREFIX_DIR/lib" > "$BUILD_DIR/ffmpeg-config.log" 2>&1
+STATIC_FLAGS=""
+case "$(uname -s)" in MINGW*|MSYS*) STATIC_FLAGS="-static";; esac
+PKG_CONFIG_PATH="$PREFIX_DIR/lib/pkgconfig" ./configure --prefix="$PREFIX_DIR" --disable-shared --enable-static --disable-doc --disable-debug --disable-ffplay --disable-network --disable-x86asm --enable-libmp3lame --extra-cflags="-I$PREFIX_DIR/include" --extra-ldflags="-L$PREFIX_DIR/lib $STATIC_FLAGS" > "$BUILD_DIR/ffmpeg-config.log" 2>&1
 make -j2 > "$BUILD_DIR/ffmpeg-build.log" 2>&1
 # Copy only the executable products, not object or source files.
 for name in ffmpeg ffprobe ffmpeg.exe ffprobe.exe; do if test -f "$name"; then cp "$name" "$OUTPUT_DIR/$name"; fi; done

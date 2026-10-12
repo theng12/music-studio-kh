@@ -64,7 +64,7 @@ func (q *Queue) expand(ctx context.Context, id, u string, r Resolver) error {
 }
 func (q *Queue) refreshParent(parent string) {
 	var total, done, active, bad, canceled int
-	q.db.QueryRow(`SELECT COUNT(*),COALESCE(SUM(state='completed'),0),COALESCE(SUM(state IN ('queued','running')),0),COALESCE(SUM(state IN ('failed','interrupted')),0),COALESCE(SUM(state='canceled'),0) FROM jobs WHERE parent=?`, parent).Scan(&total, &done, &active, &bad, &canceled)
+	q.db.QueryRow(`SELECT COUNT(*),COALESCE(SUM(state='completed'),0),COALESCE(SUM(state IN ('queued','running','paused')),0),COALESCE(SUM(state IN ('failed','interrupted')),0),COALESCE(SUM(state='canceled'),0) FROM jobs WHERE parent=?`, parent).Scan(&total, &done, &active, &bad, &canceled)
 	if total == 0 {
 		return
 	}
