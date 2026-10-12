@@ -15,48 +15,91 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
+// protocolAuthenticated verifies Subsonic credentials. Only failures count
+// toward throttling, in a bucket separate from browser login, so parallel
+// valid requests from a mobile client are never rejected.
+func (s *Server) protocolAuthenticated(r *http.Request) bool {
+	username, password, token, salt := r.Form.Get("u"), r.Form.Get("p"), r.Form.Get("t"), r.Form.Get("s")
+	digest := sha256.Sum256([]byte(strings.ToLower(username) + "\x00" + password + "\x00" + token + "\x00" + salt))
+	key := hex.EncodeToString(digest[:])
+	now := time.Now()
+	s.mu.Lock()
+	if expiry, ok := s.verified[key]; ok && now.Before(expiry) {
+		s.mu.Unlock()
+		return true
+	}
+	ip := clientIP(r)
+	failures := s.protocolFailures[ip]
+	if failures.count >= 20 && now.Before(failures.until) {
+		s.mu.Unlock()
+		return false
+	}
+	s.mu.Unlock()
+	authenticated := false
+	if strings.HasPrefix(password, "enc:") {
+		if b, e := hex.DecodeString(password[4:]); e == nil {
+			password = string(b)
+		} else {
+			password = ""
+		}
+	}
+	if strings.EqualFold(username, s.profile.Username) {
+		if token != "" {
+			if s.vault != nil && len(salt) > 0 && len(salt) <= 128 {
+				if stored, e := s.vault.Load(s.profile.ID); e == nil {
+					sum := md5.Sum([]byte(stored + salt))
+					supplied, e := hex.DecodeString(token)
+					authenticated = e == nil && subtle.ConstantTimeCompare(sum[:], supplied) == 1
+				}
+			}
+		} else if password != "" {
+			authenticated = bcrypt.CompareHashAndPassword([]byte(s.profile.PasswordHash), []byte(password)) == nil
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for k, expiry := range s.verified {
+		if now.After(expiry) {
+			delete(s.verified, k)
+		}
+	}
+	if authenticated {
+		if len(s.verified) < 1000 {
+			s.verified[key] = now.Add(10 * time.Minute)
+		}
+		return true
+	}
+	failures = s.protocolFailures[ip]
+	if now.After(failures.until) {
+		failures = attempt{until: now.Add(time.Minute)}
+	}
+	failures.count++
+	s.protocolFailures[ip] = failures
+	return false
+}
+func (s *Server) protocolThrottled(r *http.Request) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	failures := s.protocolFailures[clientIP(r)]
+	return failures.count >= 20 && time.Now().Before(failures.until)
+}
 func (s *Server) subsonic(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 8192)
 	if err := r.ParseForm(); err != nil {
 		s.protocol(w, r, nil, 10, "invalid request")
 		return
 	}
-	if !s.allowAttempt(r) {
-		s.protocol(w, r, nil, 40, "too many requests; try again shortly")
-		return
-	}
-	password := r.Form.Get("p")
-	if strings.HasPrefix(password, "enc:") {
-		b, e := hex.DecodeString(password[4:])
-		if e != nil {
-			s.protocol(w, r, nil, 40, "invalid credentials")
+	if !s.protocolAuthenticated(r) {
+		if s.protocolThrottled(r) {
+			s.protocol(w, r, nil, 0, "too many failed sign-in attempts; try again in a minute")
 			return
 		}
-		password = string(b)
-	}
-	authenticated := false
-	if strings.EqualFold(r.Form.Get("u"), s.profile.Username) {
-		if token := r.Form.Get("t"); token != "" {
-			salt := r.Form.Get("s")
-			if s.vault != nil && len(salt) > 0 && len(salt) <= 128 {
-				stored, e := s.vault.Load(s.profile.ID)
-				if e == nil {
-					sum := md5.Sum([]byte(stored + salt))
-					supplied, e := hex.DecodeString(token)
-					authenticated = e == nil && subtle.ConstantTimeCompare(sum[:], supplied) == 1
-				}
-			}
-		} else {
-			authenticated = bcrypt.CompareHashAndPassword([]byte(s.profile.PasswordHash), []byte(password)) == nil
-		}
-	}
-	if !authenticated {
 		s.protocol(w, r, nil, 40, "invalid credentials or secure mobile credentials unavailable")
 		return
 	}
-	s.refundAttempt(r)
 	action := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/rest/"), ".view")
 	id := r.Form.Get("id")
 	switch action {

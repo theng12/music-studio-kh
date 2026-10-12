@@ -145,10 +145,10 @@ func (m *Manager) Create(input profiles.Input) (Info, error) {
 	if e != nil {
 		return Info{}, e
 	}
+	// Phone-app sign-in needs the OS keychain. If it is locked or missing, the
+	// profile still works in the browser; Settings can enable phone access later.
 	if e = m.vault.Save(p.ID, input.Password); e != nil {
-		profiles.Remove(m.root, p.ID, true)
 		m.vault.Delete(p.ID)
-		return Info{}, e
 	}
 	return info(p), nil
 }

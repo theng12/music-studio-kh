@@ -241,7 +241,13 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
               <dt>Port</dt>
               <dd>{p.port}</dd>
               <dt>Phone access</dt>
-              <dd>{p.lan ? "Same Wi-Fi" : "Off"}</dd>
+              <dd>
+                {!p.lan
+                  ? "Off"
+                  : p.mobileReady
+                    ? "Same Wi-Fi"
+                    : "Same Wi-Fi · phone app sign-in needs setup in ⚙︎"}
+              </dd>
             </dl>
             {p.error && <p className="error">{p.error}</p>}
             {(p.importing || p.imported > 0 || p.importError) && (
@@ -440,7 +446,7 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
             </label>
             {!editing.mobileReady && (
               <label>
-                Enable Amperfy token login
+                Enable phone app sign-in
                 <input
                   type="password"
                   value={mobilePassword}
@@ -449,8 +455,9 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
                   autoComplete="current-password"
                 />
                 <small>
-                  Existing command-line profiles need the password once to save
-                  encrypted mobile credentials in your OS keychain.
+                  Phone apps such as Amperfy need this profile's password saved,
+                  encrypted, in your computer's keychain. If saving failed
+                  before, unlock the keychain and enter the password here.
                 </small>
               </label>
             )}

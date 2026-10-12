@@ -26,7 +26,12 @@ func TestMain(m *testing.M) {
 		if dir != "" {
 			path := filepath.Join(dir, "Fixture.wav")
 			os.WriteFile(path, audio(), 0600)
-			fmt.Println("progress:50%")
+			// Like yt-dlp, --print implies --quiet unless --progress is also given.
+			for _, a := range os.Args {
+				if a == "--progress" {
+					fmt.Println("progress:50%")
+				}
+			}
 			fmt.Println("file:" + path)
 		}
 		os.Exit(0)

@@ -20,7 +20,7 @@ func (r YTDLP) Run(ctx context.Context, u, dir string, progress func(float64)) (
 	if r.Path == "" || r.FFmpeg == "" {
 		return Result{}, errors.New("download tools unavailable")
 	}
-	args := []string{"--ignore-config", "--no-playlist", "--no-cache-dir", "--no-colors", "--newline", "--restrict-filenames", "--playlist-end", "1000", "--max-filesize", "512M", "--extract-audio", "--audio-format", "mp3", "--audio-quality", "0", "--embed-metadata", "--embed-thumbnail", "--ffmpeg-location", filepath.Dir(r.FFmpeg), "--paths", dir, "--output", "%(title).160B [%(id)s].%(ext)s", "--progress-template", "download:progress:%(progress._percent_str)s", "--print", "after_move:file:%(filepath)s"}
+	args := []string{"--ignore-config", "--no-playlist", "--no-cache-dir", "--no-colors", "--newline", "--progress", "--restrict-filenames", "--playlist-end", "1000", "--max-filesize", "512M", "--extract-audio", "--audio-format", "mp3", "--audio-quality", "0", "--embed-metadata", "--embed-thumbnail", "--ffmpeg-location", filepath.Dir(r.FFmpeg), "--paths", dir, "--output", "%(title).160B [%(id)s].%(ext)s", "--progress-template", "download:progress:%(progress._percent_str)s", "--print", "after_move:file:%(filepath)s"}
 	if r.Deno != "" {
 		args = append(args, "--js-runtimes", "deno:"+r.Deno)
 	}
