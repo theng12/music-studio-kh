@@ -26,8 +26,11 @@ if args.ffmpeg_dir:
  for name in ['ffmpeg','ffprobe']:shutil.copy2(source/(name+exe),out/(name+exe))
  for name in ['notices','sources']:
   if (source/name).exists():shutil.copytree(source/name,out/name,dirs_exist_ok=True)
+source=manifest['ytDlp']['source'];archive=download(source['url'],source['sha256'],'yt-dlp-'+manifest['ytDlp']['version']+'.tar.gz');(out/'sources').mkdir(exist_ok=True);shutil.copy2(archive,out/'sources'/archive.name)
 notices=out/'notices';notices.mkdir(exist_ok=True)
 (notices/'DEPENDENCIES.txt').write_text('yt-dlp standalone 2026.08.19: GPL-3.0-or-later; upstream source: https://github.com/yt-dlp/yt-dlp/tree/2026.08.19\nDeno 2.9.7: MIT with third-party notices; source: https://github.com/denoland/deno/tree/v2.9.7\nFFmpeg 9.0.2: LGPL-2.1-or-later, built without GPL/nonfree codecs or networking. Source archives and build configuration accompany this package. LAME 3.100: LGPL.\nReview the full dependency/source obligations before public distribution.\n')
 with urllib.request.urlopen('https://raw.githubusercontent.com/denoland/deno/v2.9.7/LICENSE.md',timeout=30) as response:(notices/'Deno-LICENSE-MIT.txt').write_bytes(response.read())
+shutil.copy2(root/'scripts/build-ffmpeg.sh',out/'sources/build-ffmpeg.sh')
+shutil.copy2(root/'packaging/THIRD-PARTY-NOTICES.md',notices/'THIRD-PARTY-NOTICES.md')
 (out/'provenance.json').write_text(json.dumps(manifest,indent=2)+'\n')
 print('Verified runtime tools prepared for '+args.target)

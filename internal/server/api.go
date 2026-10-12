@@ -118,9 +118,9 @@ func (s *Server) serveArt(w http.ResponseWriter, r *http.Request, id string) {
 	data, mime, e := s.library.Artwork(id)
 	if e != nil {
 		if os.IsNotExist(e) {
-			w.Header().Set("Content-Type", "image/svg+xml")
+			w.Header().Set("Content-Type", "image/png")
 			w.Header().Set("Cache-Control", "private, no-cache")
-			w.Write([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300"><rect width="300" height="300" rx="12" fill="#253a3d"/><circle cx="150" cy="150" r="91" fill="#18272e"/><circle cx="150" cy="150" r="61" fill="none" stroke="#344c4e" stroke-width="2"/><circle cx="150" cy="150" r="33" fill="#b9dfb9"/><circle cx="150" cy="150" r="6" fill="#18272e"/></svg>`))
+			w.Write(placeholderArtwork)
 			return
 		}
 		http.NotFound(w, r)

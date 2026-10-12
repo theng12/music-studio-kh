@@ -49,3 +49,24 @@ func TestVaultEncryptsAndIsolatesProfiles(t *testing.T) {
 		t.Fatal(e)
 	}
 }
+func TestFailedCredentialUpdatePreservesOldSecret(t *testing.T) {
+	root := t.TempDir()
+	v := New(root, store{})
+	id := "0123456789abcdef0123456789abcdef"
+	if e := v.Save(id, "123456"); e != nil {
+		t.Fatal(e)
+	}
+	// Force finalization failure after encryption and key-store access.
+	path := filepath.Join(root, id, "mobile-secret")
+	old, _ := os.ReadFile(path)
+	os.Remove(path)
+	os.Mkdir(path, 0700)
+	if e := v.Save(id, "654321"); e == nil {
+		t.Fatal("expected storage failure")
+	}
+	os.Remove(path)
+	os.WriteFile(path, old, 0600)
+	if value, e := v.Load(id); e != nil || value != "123456" {
+		t.Fatal("failed update destroyed existing credentials")
+	}
+}

@@ -37,9 +37,23 @@ func (v *Vault) Save(id, password string) error {
 	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	key := make([]byte, 32)
-	if _, e := rand.Read(key); e != nil {
-		return e
+	key := []byte(nil)
+	encoded, getErr := v.store.Get(id)
+	if getErr == nil {
+		key, _ = base64.StdEncoding.DecodeString(encoded)
+	}
+	_, existingErr := os.Stat(filepath.Join(v.root, id, "mobile-secret"))
+	if len(key) != 32 {
+		if existingErr == nil {
+			return errors.New("existing mobile key unavailable; unlock the OS keychain and try again")
+		}
+		if !os.IsNotExist(existingErr) {
+			return existingErr
+		}
+		key = make([]byte, 32)
+		if _, e := rand.Read(key); e != nil {
+			return e
+		}
 	}
 	block, e := aes.NewCipher(key)
 	if e != nil {
@@ -70,8 +84,13 @@ func (v *Vault) Save(id, password string) error {
 		f.Close()
 		return e
 	}
-	f.Sync()
-	f.Close()
+	if e = f.Sync(); e != nil {
+		f.Close()
+		return e
+	}
+	if e = f.Close(); e != nil {
+		return e
+	}
 	return os.Rename(f.Name(), filepath.Join(dir, "mobile-secret"))
 }
 func (v *Vault) Load(id string) (string, error) {

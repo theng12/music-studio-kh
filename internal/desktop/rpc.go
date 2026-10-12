@@ -46,6 +46,8 @@ func Run(input io.Reader, output io.Writer, m *Manager) error {
 }
 func (m *Manager) Call(method string, raw json.RawMessage) (any, error) {
 	switch method {
+	case "doctor":
+		return map[string]bool{"ok": true}, m.Doctor()
 	case "profiles":
 		return m.List()
 	case "create":
@@ -58,6 +60,12 @@ func (m *Manager) Call(method string, raw json.RawMessage) (any, error) {
 			return nil, e
 		}
 		return m.Create(profiles.Input{Name: input.Name, Library: input.Library, Username: input.Username, Password: input.Password, Port: input.Port, LAN: input.LAN})
+	case "enable_mobile":
+		var input struct{ ID, Password string }
+		if e := json.Unmarshal(raw, &input); e != nil {
+			return nil, e
+		}
+		return map[string]bool{"ok": true}, m.EnableMobile(input.ID, input.Password)
 	case "start":
 		var input struct{ ID string }
 		if e := json.Unmarshal(raw, &input); e != nil {
