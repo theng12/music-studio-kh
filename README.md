@@ -1,8 +1,8 @@
-# Tunestead
+# TuneHarbor
 
 Your music, at home.
 
-Tunestead is a planned standalone desktop music library and server for Windows, macOS, and Linux. Install it, choose a music folder, import files or download audio with yt-dlp, and listen on your computer or through compatible Subsonic/OpenSubsonic mobile clients on your local network.
+TuneHarbor is a planned standalone desktop music library and server for Windows, macOS, and Linux. Install it, choose a music folder, import files or download audio with yt-dlp, and listen on your computer or through compatible Subsonic/OpenSubsonic mobile clients on your local network.
 
 ## Approved first-version scope
 
