@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"errors"
 	"fmt"
 	"github.com/theng12/tuneharbor/internal/profiles"
 	"github.com/theng12/tuneharbor/internal/secrets"
@@ -61,5 +62,30 @@ func TestPortConflictDoesNotStartWorker(t *testing.T) {
 	defer listener.Close()
 	if _, e = m.Start(p.ID); e == nil {
 		t.Fatal("port conflict ignored")
+	}
+}
+
+type lockedStore struct{}
+
+func (lockedStore) Get(string) (string, error) { return "", errors.New("keychain locked") }
+func (lockedStore) Set(string, string) error   { return errors.New("keychain locked") }
+func (lockedStore) Delete(string) error        { return nil }
+
+// Without a working OS keychain, the profile still works in the browser; only
+// phone-app sign-in waits until the keychain is available.
+func TestCreateWithoutKeychainKeepsProfile(t *testing.T) {
+	root := t.TempDir()
+	m := New(root, Tools{}, secrets.New(root, lockedStore{}))
+	defer m.Close()
+	p, e := m.Create(profiles.Input{Name: "P", Library: t.TempDir(), Username: "owner", Password: "123456"})
+	if e != nil {
+		t.Fatal("keychain failure blocked profile creation:", e)
+	}
+	rows, _ := m.List()
+	if len(rows) != 1 || rows[0].ID != p.ID || rows[0].MobileReady {
+		t.Fatalf("profile state: %+v", rows)
+	}
+	if _, e = m.Start(p.ID); e != nil {
+		t.Fatal(e)
 	}
 }

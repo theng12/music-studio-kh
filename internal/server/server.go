@@ -26,7 +26,10 @@ type Server struct {
 	bootstrap map[string]time.Time
 	sessions  map[string]time.Time
 	attempts  map[string]attempt
-	handler   http.Handler
+	// Failed Subsonic sign-ins per client, and recently verified protocol credentials.
+	protocolFailures map[string]attempt
+	verified         map[string]time.Time
+	handler          http.Handler
 }
 type attempt struct {
 	count int
@@ -34,7 +37,7 @@ type attempt struct {
 }
 
 func New(p profiles.Profile, l *library.Library, options ...Option) *Server {
-	s := &Server{profile: p, library: l, bootstrap: map[string]time.Time{}, sessions: map[string]time.Time{}, attempts: map[string]attempt{}}
+	s := &Server{profile: p, library: l, bootstrap: map[string]time.Time{}, sessions: map[string]time.Time{}, attempts: map[string]attempt{}, protocolFailures: map[string]attempt{}, verified: map[string]time.Time{}}
 	for _, option := range options {
 		option(s)
 	}

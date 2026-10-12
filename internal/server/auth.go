@@ -131,21 +131,10 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, 200, map[string]bool{"ok": true})
 }
 
-// Successful protocol requests must not count against failed-login throttling.
-func (s *Server) refundAttempt(r *http.Request) {
+func clientIP(r *http.Request) string {
 	ip, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		ip = r.RemoteAddr
+		return r.RemoteAddr
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	a := s.attempts[ip]
-	if a.count > 0 {
-		a.count--
-	}
-	if a.count == 0 {
-		delete(s.attempts, ip)
-	} else {
-		s.attempts[ip] = a
-	}
+	return ip
 }

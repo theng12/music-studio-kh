@@ -62,6 +62,20 @@ func TestURLValidation(t *testing.T) {
 		}
 	}
 }
+
+// A song link copied while a playlist or Mix plays carries list=...; it must
+// download that one song, not the whole playlist.
+func TestWatchLinkFromPlaylistIsOneSong(t *testing.T) {
+	for _, raw := range []string{"https://www.youtube.com/watch?v=abcdefghijk&list=RDabcdefghijk&index=2", "https://youtu.be/abcdefghijk?list=PLx", "https://music.youtube.com/watch?v=abcdefghijk&list=OLAK5uy"} {
+		u, e := ValidateURL(raw)
+		if e != nil || isPlaylist(u) {
+			t.Errorf("%s became %q (playlist=%v, %v)", raw, u, isPlaylist(u), e)
+		}
+	}
+	if u, e := ValidateURL("https://www.youtube.com/playlist?list=PLx"); e != nil || !isPlaylist(u) {
+		t.Errorf("playlist link: %q %v", u, e)
+	}
+}
 func TestCompletionPersistsAndImports(t *testing.T) {
 	dir, root := t.TempDir(), t.TempDir()
 	l, e := library.Open(t.TempDir(), root)
@@ -214,4 +228,52 @@ func TestPlaylistBecomesIndividualJobs(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("playlist was not split into independently tracked songs")
+}
+
+// Pressing Retry while a canceled download is still stopping must not let the
+// stopping worker overwrite the retried job as failed or completed.
+func TestRetryWhileCanceledJobStops(t *testing.T) {
+	l, e := library.Open(t.TempDir(), t.TempDir())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer l.Close()
+	started, release := make(chan struct{}), make(chan struct{})
+	var calls atomic.Int32
+	q, e := Open(t.TempDir(), l, runnerFunc(func(ctx context.Context, u, dir string, p func(float64)) (Result, error) {
+		if calls.Add(1) == 1 {
+			close(started)
+			<-ctx.Done()
+			<-release
+			return Result{}, ctx.Err()
+		}
+		return completeRunner().Run(ctx, u, dir, p)
+	}))
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer q.Close()
+	job, e := q.Submit("https://youtu.be/abcdefghijk")
+	if e != nil {
+		t.Fatal(e)
+	}
+	<-started
+	if e = q.Cancel(job.ID); e != nil {
+		t.Fatal(e)
+	}
+	retryErr := q.Retry(job.ID)
+	close(release)
+	if retryErr == nil {
+		waitJob(t, q, job.ID, "completed")
+		return
+	}
+	waitJob(t, q, job.ID, "canceled")
+	deadline := time.Now().Add(5 * time.Second)
+	for q.Retry(job.ID) != nil {
+		if time.Now().After(deadline) {
+			t.Fatal("job never became retryable")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	waitJob(t, q, job.ID, "completed")
 }

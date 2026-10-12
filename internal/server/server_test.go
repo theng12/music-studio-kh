@@ -249,3 +249,40 @@ func TestDesktopBootstrapIsPrivateAndOneUse(t *testing.T) {
 		t.Fatal("remote bootstrap accepted")
 	}
 }
+
+// Mobile clients load many covers in parallel; valid requests must never be
+// rejected as if the password were wrong.
+func TestSubsonicParallelValidRequestsAreNotThrottled(t *testing.T) {
+	s, _ := fixture(t)
+	q := url.Values{"u": {"owner"}, "p": {"long-password"}, "f": {"json"}}
+	results := make(chan string, 40)
+	for i := 0; i < 40; i++ {
+		go func() { results <- request(s, "GET", "/rest/ping.view?"+q.Encode(), "", nil).Body.String() }()
+	}
+	for i := 0; i < 40; i++ {
+		if body := <-results; !strings.Contains(body, `"status":"ok"`) {
+			t.Fatal("valid parallel request rejected:", body)
+		}
+	}
+}
+
+// Failed protocol attempts are throttled with an error that is not "wrong
+// password", and they do not lock the browser login on the same device.
+func TestSubsonicFailuresThrottleSeparatelyFromBrowserLogin(t *testing.T) {
+	s, _ := fixture(t)
+	bad := url.Values{"u": {"owner"}, "p": {"wrong"}, "f": {"json"}}
+	for i := 0; i < 20; i++ {
+		request(s, "GET", "/rest/ping.view?"+bad.Encode(), "", nil)
+	}
+	body := request(s, "GET", "/rest/ping.view?"+bad.Encode(), "", nil).Body.String()
+	if !strings.Contains(body, `"status":"failed"`) || strings.Contains(body, `"code":40`) || !strings.Contains(body, "too many") {
+		t.Fatal("throttled protocol response:", body)
+	}
+	good := url.Values{"u": {"owner"}, "p": {"long-password"}, "f": {"json"}}
+	if body = request(s, "GET", "/rest/ping.view?"+good.Encode(), "", nil).Body.String(); strings.Contains(body, `"status":"ok"`) {
+		t.Fatal("correct password accepted while throttled")
+	}
+	if w := request(s, "POST", "/api/login", `{"username":"owner","password":"long-password"}`, nil); w.Code != 200 {
+		t.Fatalf("protocol failures locked browser login: %d", w.Code)
+	}
+}

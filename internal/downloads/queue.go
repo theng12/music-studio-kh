@@ -192,6 +192,13 @@ func (q *Queue) Retry(id string) error {
 	if q.closing {
 		return errors.New("download service is stopping")
 	}
+	if q.activeID != "" {
+		var activeParent string
+		q.db.QueryRow("SELECT parent FROM jobs WHERE id=?", q.activeID).Scan(&activeParent)
+		if q.activeID == id || activeParent == id {
+			return errors.New("this download is still stopping; retry in a moment")
+		}
+	}
 	var children int
 	q.db.QueryRow("SELECT COUNT(*) FROM jobs WHERE parent=?", id).Scan(&children)
 	if children > 0 {

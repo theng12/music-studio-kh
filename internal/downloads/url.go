@@ -33,6 +33,11 @@ func ValidateURL(raw string) (string, error) {
 			q.Set(key, v)
 		}
 	}
+	// Only /playlist links are playlists. A song link copied while a playlist
+	// or Mix plays also carries list=..., but the user means that one song.
+	if u.Path != "/playlist" {
+		q.Del("list")
+	}
 	u.RawQuery = q.Encode()
 	if host == "youtu.be" {
 		if strings.Trim(u.Path, "/") == "" {
