@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Software compositing is required in the virtual CI desktop.
+export WEBKIT_DISABLE_COMPOSITING_MODE=1
 openbox > /tmp/tuneharbor-windowmanager.log 2>&1 &
 WINDOWMANAGER_PID=$!
 dbus-update-activation-environment DISPLAY XAUTHORITY
 mkdir -p /home/tuneharbor-user/Music
 printf 'fixture-keyring-password' | gnome-keyring-daemon --unlock --components=secrets > /tmp/tuneharbor-keyring.log 2>&1
+python3 /workspace/tunestead/scripts/native-rpc-smoke.py
 APP_BINARY=/workspace/tunestead/src-tauri/target/debug/tuneharbor
 "$APP_BINARY" > /tmp/tuneharbor-native.log 2>&1 &
 APP_PID=$!

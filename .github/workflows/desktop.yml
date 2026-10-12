@@ -1,0 +1,100 @@
+name: Desktop installers (unsigned development)
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            runtime: linux-x64
+            bundles: deb,appimage
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            runtime: windows-x64
+            bundles: nsis
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            runtime: macos-x64
+            bundles: dmg
+          - os: macos-15
+            target: aarch64-apple-darwin
+            runtime: macos-arm64
+            bundles: dmg
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: make mingw-w64-x86_64-gcc mingw-w64-x86_64-pkg-config
+      - uses: actions/cache@v4
+        id: ffmpeg
+        with:
+          path: artifacts/native-ffmpeg
+          key: ffmpeg-lgpl-v2-${{ matrix.runtime }}-${{ hashFiles('packaging/runtime-tools.json', 'scripts/build-ffmpeg.sh') }}
+      - if: steps.ffmpeg.outputs.cache-hit != 'true'
+        run: python scripts/prepare-runtime.py --target ${{ matrix.runtime }} --sources-only
+      - if: steps.ffmpeg.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        shell: bash
+        run: bash scripts/build-ffmpeg.sh "$PWD/artifacts/tool-cache/ffmpeg-9.0.2.tar.gz" "$PWD/artifacts/tool-cache/lame-3.100.tar.gz" "$PWD/artifacts/native-ffmpeg"
+      - if: steps.ffmpeg.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        shell: msys2 {0}
+        run: bash scripts/build-ffmpeg.sh "$PWD/artifacts/tool-cache/ffmpeg-9.0.2.tar.gz" "$PWD/artifacts/tool-cache/lame-3.100.tar.gz" "$PWD/artifacts/native-ffmpeg"
+      - run: python scripts/prepare-runtime.py --target ${{ matrix.runtime }} --ffmpeg-dir artifacts/native-ffmpeg
+      - shell: bash
+        run: |
+          src-tauri/runtime-tools/ffmpeg -version
+          src-tauri/runtime-tools/ffprobe -version
+          src-tauri/runtime-tools/yt-dlp --version
+          src-tauri/runtime-tools/deno --version
+      - run: npm ci
+      - run: npm run build:web
+      - shell: bash
+        run: |
+          mkdir -p src-tauri/binaries
+          suffix=""
+          if [ "$RUNNER_OS" = Windows ]; then suffix=.exe; fi
+          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "src-tauri/binaries/tuneharbor-server-${{ matrix.target }}$suffix" ./cmd/tuneharbor
+          chmod +x src-tauri/binaries/*
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
+      - run: npm run build:desktop -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TuneHarbor-unsigned-dev-${{ matrix.runtime }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
+          if-no-files-found: error
+          retention-days: 14

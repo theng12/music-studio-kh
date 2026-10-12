@@ -1,7 +1,7 @@
 name: Checks
 on:
   push:
-    branches: [main, 'feat/**']
+    branches: [main]
   pull_request:
 permissions:
   contents: read
@@ -35,4 +35,7 @@ jobs:
       - run: go build -o bin/tuneharbor ./cmd/tuneharbor
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - run: npm run build:web
+      - run: go build -o bin/fixture-server ./tests/fixtures/server
       - run: npm run test:browser
+      - run: node scripts/downloads-smoke.mjs

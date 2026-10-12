@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prepare verified runtime executables; FFmpeg is built separately from pinned sources."""
 import argparse,hashlib,json,os,pathlib,shutil,subprocess,urllib.request,zipfile
-parser=argparse.ArgumentParser();parser.add_argument('--target',required=True);parser.add_argument('--output',default='src-tauri/runtime-tools');parser.add_argument('--ffmpeg-dir');args=parser.parse_args()
+parser=argparse.ArgumentParser();parser.add_argument('--target',required=True);parser.add_argument('--output',default='src-tauri/runtime-tools');parser.add_argument('--ffmpeg-dir');parser.add_argument('--sources-only',action='store_true');args=parser.parse_args()
 root=pathlib.Path(__file__).resolve().parents[1];manifest=json.loads((root/'packaging/runtime-tools.json').read_text());out=pathlib.Path(args.output).resolve();out.mkdir(parents=True,exist_ok=True);cache=root/'artifacts/tool-cache';cache.mkdir(parents=True,exist_ok=True)
 def download(url,digest,name):
  path=cache/name
@@ -11,6 +11,9 @@ def download(url,digest,name):
   if hashlib.sha256(temporary.read_bytes()).hexdigest()!=digest:temporary.unlink();raise RuntimeError('Checksum mismatch for '+name)
   temporary.replace(path)
  return path
+for key in ['ffmpeg','lame']:
+ info=manifest[key];download(info['url'],info['sha256'],key+'-'+info['version']+'.tar.gz')
+if args.sources_only:print('Verified source archives ready');raise SystemExit(0)
 exe='.exe' if args.target.startswith('windows') else ''
 for tool,key in [('yt-dlp','ytDlp'),('deno','deno')]:
  info=manifest[key];asset,digest=info['assets'][args.target];path=download(info['base']+asset,digest,asset);dest=out/(tool+exe)
@@ -18,8 +21,6 @@ for tool,key in [('yt-dlp','ytDlp'),('deno','deno')]:
   with zipfile.ZipFile(path) as archive:dest.write_bytes(archive.read('deno'+exe))
  else:shutil.copyfile(path,dest)
  dest.chmod(0o755)
-for key in ['ffmpeg','lame']:
- info=manifest[key];download(info['url'],info['sha256'],key+'-'+info['version']+'.tar.gz')
 if args.ffmpeg_dir:
  source=pathlib.Path(args.ffmpeg_dir)
  for name in ['ffmpeg','ffprobe']:shutil.copy2(source/(name+exe),out/(name+exe))

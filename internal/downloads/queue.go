@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"github.com/gofrs/flock"
 	"github.com/theng12/tuneharbor/internal/library"
 	"io"
 	_ "modernc.org/sqlite"
@@ -45,6 +47,7 @@ type Queue struct {
 	activeID string
 	cancel   context.CancelFunc
 	closing  bool
+	lease    *flock.Flock
 }
 
 func Open(dataDir string, importer Importer, runner Runner) (*Queue, error) {
@@ -54,6 +57,20 @@ func Open(dataDir string, importer Importer, runner Runner) (*Queue, error) {
 	if e := os.MkdirAll(dataDir, 0700); e != nil {
 		return nil, e
 	}
+	lease := flock.New(filepath.Join(dataDir, ".downloads.lock"))
+	owned, e := lease.TryLock()
+	if e != nil {
+		return nil, e
+	}
+	if !owned {
+		return nil, errors.New("this profile download queue is already running")
+	}
+	keepLease := false
+	defer func() {
+		if !keepLease {
+			lease.Unlock()
+		}
+	}()
 	db, e := sql.Open("sqlite", filepath.Join(dataDir, "downloads.sqlite"))
 	if e != nil {
 		return nil, e
@@ -66,7 +83,22 @@ func Open(dataDir string, importer Importer, runner Runner) (*Queue, error) {
 	}
 	os.Chmod(filepath.Join(dataDir, "downloads.sqlite"), 0600)
 	ctx, stop := context.WithCancel(context.Background())
-	q := &Queue{db: db, dir: dataDir, importer: importer, runner: runner, ctx: ctx, stop: stop, wake: make(chan struct{}, 1)}
+	q := &Queue{db: db, dir: dataDir, importer: importer, runner: runner, ctx: ctx, stop: stop, wake: make(chan struct{}, 1), lease: lease}
+	keepLease = true
+	rows, err := db.Query("SELECT DISTINCT parent FROM jobs WHERE parent!=''")
+	if err == nil {
+		parents := []string{}
+		for rows.Next() {
+			var parent string
+			if rows.Scan(&parent) == nil {
+				parents = append(parents, parent)
+			}
+		}
+		rows.Close()
+		for _, parent := range parents {
+			q.refreshParent(parent)
+		}
+	}
 	q.wg.Add(1)
 	go q.worker()
 	return q, nil
@@ -87,7 +119,7 @@ func (q *Queue) Submit(raw string) (Job, error) {
 		return Job{}, errors.New("download service is stopping")
 	}
 	var n int
-	if e = q.db.QueryRow("SELECT COUNT(*) FROM jobs WHERE state IN ('queued','running')").Scan(&n); e != nil {
+	if e = q.db.QueryRow("SELECT COUNT(*) FROM jobs WHERE state IN ('queued','running','paused')").Scan(&n); e != nil {
 		return Job{}, e
 	}
 	if n >= 1000 {
@@ -109,7 +141,7 @@ func (q *Queue) signal() {
 	}
 }
 func (q *Queue) Jobs() ([]Job, error) {
-	rows, e := q.db.Query("SELECT id,url,state,error,progress,created,parent,title FROM jobs ORDER BY created DESC,id LIMIT 1000")
+	rows, e := q.db.Query("SELECT id,url,state,error,progress,created,parent,title FROM jobs ORDER BY created DESC,id LIMIT 3000")
 	if e != nil {
 		return nil, e
 	}
@@ -127,7 +159,7 @@ func (q *Queue) Jobs() ([]Job, error) {
 func (q *Queue) Cancel(id string) error {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	result, e := q.db.Exec("UPDATE jobs SET state='canceled',error='' WHERE id=? AND state IN ('queued','running','waiting')", id)
+	result, e := q.db.Exec("UPDATE jobs SET state='canceled',error='' WHERE id=? AND state IN ('queued','running','waiting','paused')", id)
 	if e != nil {
 		return e
 	}
@@ -135,7 +167,7 @@ func (q *Queue) Cancel(id string) error {
 	if n == 0 {
 		return errors.New("only queued or running downloads can be canceled")
 	}
-	q.db.Exec("UPDATE jobs SET state='canceled',error='' WHERE parent=? AND state IN ('queued','running')", id)
+	q.db.Exec("UPDATE jobs SET state='canceled',error='' WHERE parent=? AND state IN ('queued','running','paused')", id)
 	var activeParent string
 	if q.activeID != "" {
 		q.db.QueryRow("SELECT parent FROM jobs WHERE id=?", q.activeID).Scan(&activeParent)
@@ -143,6 +175,15 @@ func (q *Queue) Cancel(id string) error {
 	if (q.activeID == id || activeParent == id) && q.cancel != nil {
 		q.cancel()
 	}
+	var parent string
+	q.db.QueryRow("SELECT parent FROM jobs WHERE id=?", id).Scan(&parent)
+	if parent != "" {
+		q.refreshParent(parent)
+	}
+	if q.activeID != id {
+		os.RemoveAll(filepath.Join(q.dir, "staging", id))
+	}
+	q.signal()
 	return nil
 }
 func (q *Queue) Retry(id string) error {
@@ -192,7 +233,9 @@ func (q *Queue) Close() error {
 	}
 	q.mu.Unlock()
 	q.wg.Wait()
-	return q.db.Close()
+	err := q.db.Close()
+	q.lease.Unlock()
+	return err
 }
 func (q *Queue) worker() {
 	defer q.wg.Done()
@@ -222,57 +265,75 @@ func (q *Queue) next() bool {
 		return false
 	}
 	var id, u, parent string
-	e := q.db.QueryRow("SELECT id,url,parent FROM jobs WHERE state='queued' ORDER BY created,id LIMIT 1").Scan(&id, &u, &parent)
+	e := q.db.QueryRow("SELECT id,url,parent FROM jobs WHERE state IN ('queued','paused') ORDER BY created,id LIMIT 1").Scan(&id, &u, &parent)
 	if e != nil {
 		q.mu.Unlock()
 		return false
 	}
+	if ready, ok := q.importer.(interface{ Ready() error }); ok {
+		if ready.Ready() != nil {
+			q.db.Exec("UPDATE jobs SET state='paused',error=? WHERE state IN ('queued','paused')", "Music folder unavailable. Reconnect the original folder to continue.")
+			q.mu.Unlock()
+			return false
+		}
+	}
 	ctx, cancel := context.WithTimeout(q.ctx, 4*time.Hour)
 	q.activeID = id
 	q.cancel = cancel
-	_, e = q.db.Exec("UPDATE jobs SET state='running',error='' WHERE id=? AND state='queued'", id)
+	_, e = q.db.Exec("UPDATE jobs SET state='running',error='' WHERE id=? AND state IN ('queued','paused')", id)
 	q.mu.Unlock()
 	if e != nil {
 		cancel()
 		return false
 	}
 	dir := filepath.Join(q.dir, "staging", id)
-	e = os.RemoveAll(dir)
-	if e == nil {
-		e = os.MkdirAll(dir, 0700)
-	}
 	result := Result{}
+	manifest := filepath.Join(dir, "result.json")
+	stored, readErr := os.ReadFile(manifest)
+	retained := readErr == nil && json.Unmarshal(stored, &result) == nil
 	expanded := false
-	if e == nil && isPlaylist(u) {
-		if resolver, ok := q.runner.(Resolver); ok {
-			e = q.expand(ctx, id, u, resolver)
-			expanded = e == nil
-		} else {
-			e = errors.New("playlist resolver unavailable")
+	if !retained {
+		e = os.RemoveAll(dir)
+		if e == nil {
+			e = os.MkdirAll(dir, 0700)
+		}
+		if e == nil && isPlaylist(u) {
+			if resolver, ok := q.runner.(Resolver); ok {
+				e = q.expand(ctx, id, u, resolver)
+				expanded = e == nil
+			} else {
+				e = errors.New("playlist resolver unavailable")
+			}
+		}
+		if e == nil && !expanded {
+			result, e = q.runner.Run(ctx, u, dir, func(value float64) {
+				value = max(0, min(100, value))
+				q.db.Exec("UPDATE jobs SET progress=? WHERE id=? AND state='running'", value, id)
+			})
+		}
+		if e == nil && !expanded {
+			data, err := json.Marshal(result)
+			if err == nil {
+				err = os.WriteFile(manifest, data, 0600)
+			}
+			e = err
 		}
 	}
-	if e == nil && !expanded {
-		result, e = q.runner.Run(ctx, u, dir, func(value float64) {
-			if value < 0 {
-				value = 0
-			}
-			if value > 100 {
-				value = 100
-			}
-			q.db.Exec("UPDATE jobs SET progress=? WHERE id=? AND state='running'", value, id)
-		})
+	paused := false
+	if ready, ok := q.importer.(interface{ Ready() error }); ok && e == nil && !expanded && ready.Ready() != nil {
+		paused = true
 	}
 	imported := 0
-	if e == nil && !expanded && len(result.Files) == 0 {
+	if e == nil && !expanded && !retained && len(result.Files) == 0 {
 		e = errors.New("no downloadable audio found")
 	}
-	if e == nil && !expanded {
+	if e == nil && !expanded && !paused {
 		root, rootErr := os.OpenRoot(dir)
 		if rootErr != nil {
 			e = rootErr
 		} else {
 
-			for _, path := range result.Files {
+			for index, path := range result.Files {
 				if ctx.Err() != nil {
 					e = ctx.Err()
 					break
@@ -297,9 +358,17 @@ func (q *Queue) next() bool {
 				f.Close()
 				if err != nil {
 					e = err
+					if ready, ok := q.importer.(interface{ Ready() error }); ok && ready.Ready() != nil {
+						paused = true
+					}
 					break
 				}
 				imported++
+				remaining, _ := json.Marshal(Result{Files: result.Files[index+1:]})
+				if err := os.WriteFile(manifest, remaining, 0600); err != nil {
+					e = err
+					break
+				}
 				if len(result.Files) > 1 {
 					child, err := jobID()
 					if err != nil {
@@ -319,7 +388,6 @@ func (q *Queue) next() bool {
 		}
 	}
 	cancel()
-	os.RemoveAll(dir)
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	var state string
@@ -327,6 +395,8 @@ func (q *Queue) next() bool {
 	if state != "canceled" {
 		if q.closing {
 			state = "interrupted"
+		} else if paused {
+			state = "paused"
 		} else if e != nil {
 			state = "failed"
 		} else if expanded {
@@ -338,6 +408,9 @@ func (q *Queue) next() bool {
 		if e != nil {
 			message = "Download could not finish. Check the source, connection, available storage, and music folder, then retry."
 		}
+		if state == "paused" {
+			message = "Music folder unavailable. Finished audio is saved; reconnect the original folder to continue."
+		}
 		if state == "interrupted" {
 			message = "The app stopped during this download. Retry to continue."
 		}
@@ -346,6 +419,9 @@ func (q *Queue) next() bool {
 			progress = 100
 		}
 		q.db.Exec("UPDATE jobs SET state=?,error=?,progress=? WHERE id=?", state, message, progress, id)
+	}
+	if state == "completed" || state == "canceled" || expanded {
+		os.RemoveAll(dir)
 	}
 	if parent != "" {
 		q.refreshParent(parent)

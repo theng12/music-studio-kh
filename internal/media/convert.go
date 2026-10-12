@@ -12,20 +12,23 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 )
 
 type Converter struct {
-	dir, tool string
-	library   *library.Library
-	slots     chan struct{}
-	mu        sync.Mutex
-	locks     map[string]*sync.Mutex
+	dir, tool  string
+	library    *library.Library
+	slots      chan struct{}
+	mu         sync.Mutex
+	locks      map[string]*conversionLock
+	cacheBytes int64
 }
 
 func New(dir, tool string, l *library.Library) *Converter {
-	return &Converter{dir: dir, tool: tool, library: l, slots: make(chan struct{}, 2), locks: map[string]*sync.Mutex{}}
+	return &Converter{dir: dir, tool: tool, library: l, slots: make(chan struct{}, 2), locks: map[string]*conversionLock{}, cacheBytes: 1 << 30}
 }
 func (c *Converter) MP3(ctx context.Context, id string) (*os.File, error) {
 	if e := ctx.Err(); e != nil {
@@ -52,12 +55,25 @@ func (c *Converter) MP3(ctx context.Context, id string) (*os.File, error) {
 	c.mu.Lock()
 	lock := c.locks[key]
 	if lock == nil {
-		lock = &sync.Mutex{}
+		lock = &conversionLock{token: make(chan struct{}, 1)}
 		c.locks[key] = lock
 	}
+	lock.users++
 	c.mu.Unlock()
-	lock.Lock()
-	defer lock.Unlock()
+	defer func() {
+		c.mu.Lock()
+		lock.users--
+		if lock.users == 0 {
+			delete(c.locks, key)
+		}
+		c.mu.Unlock()
+	}()
+	select {
+	case lock.token <- struct{}{}:
+		defer func() { <-lock.token }()
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 	if f, e := os.Open(dest); e == nil {
 		return f, nil
 	}
@@ -103,7 +119,11 @@ func (c *Converter) MP3(ctx context.Context, id string) (*os.File, error) {
 	if e = os.Rename(output, dest); e != nil {
 		return nil, e
 	}
-	return os.Open(dest)
+	file, err := os.Open(dest)
+	if err == nil {
+		c.prune(dest)
+	}
+	return file, err
 }
 
 type contextReader struct {
@@ -116,4 +136,48 @@ func (r *contextReader) Read(p []byte) (int, error) {
 		return 0, e
 	}
 	return r.reader.Read(p)
+}
+
+type conversionLock struct {
+	token chan struct{}
+	users int
+}
+
+// Completed cache entries are disposable. Never remove the file just returned.
+func (c *Converter) prune(keep string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entries, _ := os.ReadDir(c.dir)
+	type item struct {
+		path     string
+		size     int64
+		modified time.Time
+	}
+	files := []item{}
+	var total int64
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() || !strings.HasSuffix(entry.Name(), ".mp3") {
+			continue
+		}
+		info, e := entry.Info()
+		if e != nil {
+			continue
+		}
+		files = append(files, item{filepath.Join(c.dir, entry.Name()), info.Size(), info.ModTime()})
+		total += info.Size()
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].modified.Before(files[j].modified) })
+	count := len(files)
+	for _, file := range files {
+		if total <= c.cacheBytes && count <= 128 {
+			break
+		}
+		if file.path == keep {
+			continue
+		}
+		if os.Remove(file.path) == nil {
+			total -= file.size
+			count--
+		}
+	}
 }
