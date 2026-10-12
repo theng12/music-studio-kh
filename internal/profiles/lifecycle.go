@@ -93,3 +93,12 @@ func Remove(root, id string, confirmed bool) error {
 	}
 	return os.RemoveAll(p.DataDir)
 }
+
+// SetLibrary points a profile at a different music folder.
+func SetLibrary(root, id, library string) error {
+	path, e := validLibrary(root, library)
+	if e != nil {
+		return e
+	}
+	return rewrite(root, id, func(p *Profile) error { p.Library = path; return nil })
+}

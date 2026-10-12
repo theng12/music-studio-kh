@@ -135,9 +135,41 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
       return;
     try {
       await rpc("remove", { id: p.id, confirmed: true });
-      await refresh();
+      const rows: Profile[] = await rpc("profiles");
+      setProfiles(rows);
+      // Launch at sign-in only while some remaining profile asks for it.
+      if (!rows.some((r) => r.autoStart)) await disable().catch(() => {});
     } catch (e) {
       notice(String(e));
+    }
+  };
+  const relocate = async (p: Profile) => {
+    try {
+      const path = await open({
+        directory: true,
+        multiple: false,
+        title: "Choose a replacement music folder",
+      });
+      if (typeof path !== "string" || path === p.library) return;
+      if (
+        !confirm(
+          "Use " +
+            path +
+            " for " +
+            p.name +
+            "? The profile restarts and indexes the new folder. Files in the old folder stay where they are.",
+        )
+      )
+        return;
+      setBusy(true);
+      await rpc("relocate", { id: p.id, library: path });
+      setEditing(null);
+      await refresh();
+      notice("Music folder changed. Press Listen to open the library.");
+    } catch (e) {
+      notice(String(e));
+    } finally {
+      setBusy(false);
     }
   };
   const save = async (e: React.FormEvent) => {
@@ -410,6 +442,19 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
                 }
                 required
               />
+            </label>
+            <label>
+              Music folder
+              <div className="folder-input">
+                <input value={editing.library} readOnly />
+                <button
+                  className="secondary"
+                  type="button"
+                  onClick={() => relocate(editing)}
+                >
+                  Change…
+                </button>
+              </div>
             </label>
             <label>
               Listening port

@@ -57,31 +57,10 @@ func Create(root string, i Input) (Profile, error) {
 			return Profile{}, errors.New("port already assigned to another profile")
 		}
 	}
-	path, err := filepath.Abs(i.Library)
+	path, err := validLibrary(root, i.Library)
 	if err != nil {
 		return Profile{}, err
 	}
-	path, err = filepath.EvalSymlinks(path)
-	if err != nil {
-		return Profile{}, fmt.Errorf("music folder unavailable: %w", err)
-	}
-	root, err = filepath.EvalSymlinks(root)
-	if err != nil {
-		return Profile{}, err
-	}
-	if nested(path, root) || nested(root, path) {
-		return Profile{}, errors.New("choose a music folder outside application profile data")
-	}
-	info, err := os.Stat(path)
-	if err != nil || !info.IsDir() {
-		return Profile{}, errors.New("choose an existing music folder")
-	}
-	probe, err := os.CreateTemp(path, ".tuneharbor-access-")
-	if err != nil {
-		return Profile{}, errors.New("music folder must be writable")
-	}
-	probe.Close()
-	os.Remove(probe.Name())
 	hash, err := bcrypt.GenerateFromPassword([]byte(i.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return Profile{}, err
@@ -165,4 +144,35 @@ func List(root string) ([]Profile, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
+}
+
+// validLibrary resolves a chosen music folder and checks that it exists, is
+// writable and lies outside application profile data.
+func validLibrary(root, library string) (string, error) {
+	path, err := filepath.Abs(library)
+	if err != nil {
+		return "", err
+	}
+	path, err = filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", fmt.Errorf("music folder unavailable: %w", err)
+	}
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	if nested(path, root) || nested(root, path) {
+		return "", errors.New("choose a music folder outside application profile data")
+	}
+	info, err := os.Stat(path)
+	if err != nil || !info.IsDir() {
+		return "", errors.New("choose an existing music folder")
+	}
+	probe, err := os.CreateTemp(path, ".tuneharbor-access-")
+	if err != nil {
+		return "", errors.New("music folder must be writable")
+	}
+	probe.Close()
+	os.Remove(probe.Name())
+	return path, nil
 }

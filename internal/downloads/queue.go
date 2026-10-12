@@ -279,7 +279,7 @@ func (q *Queue) next() bool {
 	}
 	if ready, ok := q.importer.(interface{ Ready() error }); ok {
 		if ready.Ready() != nil {
-			q.db.Exec("UPDATE jobs SET state='paused',error=? WHERE state IN ('queued','paused')", "Music folder unavailable. Reconnect the original folder to continue.")
+			q.db.Exec("UPDATE jobs SET state='paused',error=? WHERE state IN ('queued','paused')", "Music folder unavailable. Reconnect it, or choose a replacement in the profile settings, to continue.")
 			q.mu.Unlock()
 			return false
 		}
@@ -416,7 +416,7 @@ func (q *Queue) next() bool {
 			message = "Download could not finish. Check the source, connection, available storage, and music folder, then retry."
 		}
 		if state == "paused" {
-			message = "Music folder unavailable. Finished audio is saved; reconnect the original folder to continue."
+			message = "Music folder unavailable. Finished audio is saved; reconnect the folder or choose a replacement in the profile settings to continue."
 		}
 		if state == "interrupted" {
 			message = "The app stopped during this download. Retry to continue."

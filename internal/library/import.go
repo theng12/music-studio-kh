@@ -7,7 +7,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 )
 
 const MaxImportBytes int64 = 512 << 20
@@ -52,13 +54,17 @@ func (l *Library) finalizeImport(name string, source io.Reader) (string, error) 
 	temp := ".tuneharbor-import-" + suffix
 	f, err := root.OpenFile(temp, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
-		return "", err
+		return "", storageError(err)
 	}
 	defer root.Remove(temp)
-	n, err := io.Copy(f, io.LimitReader(source, MaxImportBytes+1))
+	out := &trackedWriter{w: f}
+	n, err := io.Copy(out, io.LimitReader(source, MaxImportBytes+1))
 	if err != nil {
 		f.Close()
-		return "", err
+		if out.err != nil {
+			return "", storageError(out.err)
+		}
+		return "", errors.New("the music file could not be read completely")
 	}
 	if n > MaxImportBytes {
 		f.Close()
@@ -66,7 +72,7 @@ func (l *Library) finalizeImport(name string, source io.Reader) (string, error) 
 	}
 	if err = f.Sync(); err != nil {
 		f.Close()
-		return "", err
+		return "", storageError(err)
 	}
 	f.Close()
 	if !validAudio(root, temp, audioFormat(name)) {
@@ -75,15 +81,68 @@ func (l *Library) finalizeImport(name string, source io.Reader) (string, error) 
 	final := name
 	ext := filepath.Ext(name)
 	for i := 1; ; i++ {
-		err = root.Link(temp, final)
+		err = linkFile(root, temp, final)
+		if err != nil && !os.IsExist(err) {
+			// exFAT and FAT32 drives have no hard links; copy without overwriting.
+			err = copyExclusive(root, temp, final)
+		}
 		if err == nil {
 			return final, nil
 		}
 		if !os.IsExist(err) {
-			return "", err
+			return "", storageError(err)
 		}
 		final = fmt.Sprintf("%s (%d)%s", strings.TrimSuffix(name, ext), i, ext)
 	}
+}
+
+// linkFile is replaceable in tests to simulate drives without hard links.
+var linkFile = func(root *os.Root, oldname, newname string) error { return root.Link(oldname, newname) }
+
+func copyExclusive(root *os.Root, from, to string) error {
+	source, err := root.Open(from)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+	target, err := root.OpenFile(to, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(target, source)
+	if err == nil {
+		err = target.Sync()
+	}
+	if closeErr := target.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		root.Remove(to)
+	}
+	return err
+}
+
+type trackedWriter struct {
+	w   io.Writer
+	err error
+}
+
+func (t *trackedWriter) Write(b []byte) (int, error) {
+	n, err := t.w.Write(b)
+	if err != nil {
+		t.err = err
+	}
+	return n, err
+}
+
+// storageError turns file-system failures into messages for the owner without
+// exposing paths.
+func storageError(err error) error {
+	var errno syscall.Errno
+	if errors.As(err, &errno) && (errno == syscall.ENOSPC || runtime.GOOS == "windows" && (errno == 112 || errno == 39)) {
+		return errors.New("not enough free disk space to import this music; free some space and try again")
+	}
+	return errors.New("could not save to your music folder; check that it is connected and writable")
 }
 func validAudio(root *os.Root, path, format string) bool {
 	f, e := root.Open(path)

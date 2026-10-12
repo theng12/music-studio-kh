@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const markerName = ".tuneharbor-library-id"
@@ -112,7 +113,7 @@ func (l *Library) checkedRoot() (*os.Root, error) {
 		}
 	}
 	if err != nil {
-		return nil, errors.New("music folder identity unavailable; reconnect the original folder")
+		return nil, errors.New("music folder unavailable; reconnect it or choose a replacement in the profile settings")
 	}
 	if l.marker != "" && marker != l.marker {
 		return nil, errors.New("music folder differs from this profile's library")
@@ -123,6 +124,7 @@ func (l *Library) checkedRoot() (*os.Root, error) {
 		}
 		l.marker = marker
 	}
+	removeStaleImports(handle)
 	l.handle = handle
 	l.rootInfo = openedInfo
 	keep = true
@@ -131,3 +133,19 @@ func (l *Library) checkedRoot() (*os.Root, error) {
 
 // Ready checks that operations still target the originally selected library.
 func (l *Library) Ready() error { _, e := l.checkedRoot(); return e }
+
+// removeStaleImports deletes temporary import files left by a crash. Imports
+// hold the folder lock for a temporary file's whole life, and so does the caller.
+func removeStaleImports(root *os.Root) {
+	dir, err := root.Open(".")
+	if err != nil {
+		return
+	}
+	entries, _ := dir.ReadDir(-1)
+	dir.Close()
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".tuneharbor-import-") && entry.Type().IsRegular() {
+			root.Remove(entry.Name())
+		}
+	}
+}

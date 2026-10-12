@@ -66,6 +66,7 @@ type instance struct {
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
 	music   string
+	log     *profileLog
 	status  sync.Mutex
 	imports ImportStatus
 }
@@ -170,18 +171,21 @@ func (m *Manager) Start(id string) (Opened, error) {
 	if p.LAN {
 		host = "0.0.0.0"
 	}
+	plog := openLog(p.DataDir)
 	listener, e := net.Listen("tcp", fmt.Sprintf("%s:%d", host, p.Port))
 	if e != nil {
+		plog.Printf("could not start: port %d is busy", p.Port)
 		m.failures[id] = "Port is busy. Choose another port in profile settings."
 		return Opened{}, errors.New(m.failures[id])
 	}
 	l, e := library.Open(p.DataDir, p.Library)
 	if e != nil {
+		plog.Printf("could not start: %v", e)
 		listener.Close()
 		return Opened{}, e
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	instance := &instance{library: l, ctx: ctx, cancel: cancel, music: p.Library}
+	instance := &instance{library: l, ctx: ctx, cancel: cancel, music: p.Library, log: plog}
 	changes, _ := l.Watch(ctx)
 	options := []server.Option{server.WithVault(m.vault)}
 	if m.tools.FFmpeg != "" {
@@ -202,17 +206,30 @@ func (m *Manager) Start(id string) (Opened, error) {
 	instance.http = &http.Server{Handler: instance.server.Handler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 << 10}
 	m.running[id] = instance
 	delete(m.failures, id)
+	plog.Printf("started on port %d (local network: %v)", p.Port, p.LAN)
 	instance.wg.Add(2)
 	go func() { defer instance.wg.Done(); instance.http.Serve(listener) }()
 	go func() {
 		defer instance.wg.Done()
 		ticker := time.NewTicker(20 * time.Second)
 		defer ticker.Stop()
+		lastScanError := ""
 		for {
 			if ctx.Err() != nil {
 				return
 			}
-			if e := l.Scan(); e == nil && m.tools.FFprobe != "" {
+			e := l.Scan()
+			if e != nil && e.Error() != lastScanError {
+				plog.Printf("library scan paused: %v", e)
+			}
+			if e == nil && lastScanError != "" {
+				plog.Printf("library scan resumed")
+			}
+			lastScanError = ""
+			if e != nil {
+				lastScanError = e.Error()
+			}
+			if e == nil && m.tools.FFprobe != "" {
 				tracks, e := l.Tracks("")
 				if e == nil {
 					count := 0
@@ -273,6 +290,7 @@ func (m *Manager) Stop(id string) error {
 	i.wg.Wait()
 	i.library.Close()
 	delete(m.running, id)
+	i.log.Printf("stopped")
 	return nil
 }
 func (m *Manager) Rename(id, name string) error {
@@ -286,6 +304,22 @@ func (m *Manager) Configure(id string, port int, lan, autostart bool) error {
 		return e
 	}
 	return profiles.Configure(m.root, id, port, lan, autostart)
+}
+
+// Relocate stops a profile and moves it to a replacement music folder. The
+// previous folder and its files are left untouched.
+func (m *Manager) Relocate(id, folder string) error {
+	if e := m.Stop(id); e != nil {
+		return e
+	}
+	p, e := profiles.Open(m.root, id)
+	if e != nil {
+		return e
+	}
+	if e = profiles.SetLibrary(m.root, id, folder); e != nil {
+		return e
+	}
+	return library.Forget(p.DataDir)
 }
 func (m *Manager) Remove(id string, confirmed bool) error {
 	if !confirmed {
@@ -351,6 +385,7 @@ func (m *Manager) ImportPaths(id string, paths []string) error {
 		defer i.wg.Done()
 		err := i.importPaths(paths)
 		i.status.Lock()
+		i.log.Printf("import finished: %d added, %d skipped, error: %v", i.imports.Imported, i.imports.ImportSkipped, err)
 		i.imports.Importing = false
 		if err != nil {
 			i.imports.ImportError = err.Error()

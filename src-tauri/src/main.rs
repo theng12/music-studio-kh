@@ -9,6 +9,7 @@ use std::sync::{
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tuneharbor::bridge::{validate_profile_url, Bridge};
 struct Backend(Mutex<Result<Bridge, String>>);
 struct Closing(AtomicBool);
@@ -135,6 +136,28 @@ fn quit(app: &tauri::AppHandle) {
         app.exit(0);
     });
 }
+/// The first time the window closes, say that servers keep running in the tray.
+fn explain_tray_once(app: &tauri::AppHandle) {
+    let Ok(dir) = app.path().app_config_dir() else {
+        return;
+    };
+    let marker = dir.join("close-to-tray-explained");
+    if marker.exists()
+        || std::fs::create_dir_all(&dir).is_err()
+        || std::fs::write(&marker, b"1").is_err()
+    {
+        return;
+    }
+    app.dialog()
+        .message(
+            "TuneHarbor is still running in the tray so your music stays available to your \
+             browser and phone. To stop all servers, choose “Quit and stop servers” from the \
+             tray icon.",
+        )
+        .title("TuneHarbor keeps playing in the background")
+        .kind(MessageDialogKind::Info)
+        .show(|_| {});
+}
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
@@ -192,6 +215,7 @@ fn main() {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     let _ = window.hide();
+                    explain_tray_once(window.app_handle());
                 }
             }
         })

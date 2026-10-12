@@ -94,6 +94,12 @@ func (m *Manager) Call(method string, raw json.RawMessage) (any, error) {
 			return nil, e
 		}
 		return map[string]bool{"ok": true}, m.Configure(input.ID, input.Port, input.LAN, input.AutoStart)
+	case "relocate":
+		var input struct{ ID, Library string }
+		if e := json.Unmarshal(raw, &input); e != nil {
+			return nil, e
+		}
+		return map[string]bool{"ok": true}, m.Relocate(input.ID, input.Library)
 	case "remove":
 		var input struct {
 			ID        string

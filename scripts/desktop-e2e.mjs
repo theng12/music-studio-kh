@@ -41,7 +41,9 @@ async function until(what, check, timeout = 20000) {
 }
 function servers() {
   try {
-    return execFileSync("pgrep", ["-f", "tuneharbor-server.*desktop"], { encoding: "utf8" }).trim().split("\n").filter(Boolean);
+    // Only this run's server: its data lives under the isolated config directory.
+    const pattern = "tuneharbor-server --data " + (process.env.XDG_CONFIG_HOME || "") + ".* desktop";
+    return execFileSync("pgrep", ["-f", pattern], { encoding: "utf8" }).trim().split("\n").filter(Boolean);
   } catch {
     return [];
   }
@@ -82,7 +84,7 @@ let passed = false;
 try {
   // First launch: the profile manager is the main window and starts its server sidecar.
   await until("profile manager", () => byText("h1", "A harbor for every collection."));
-  await until("server sidecar", () => servers().length === 1);
+  await until("server sidecar", () => servers().length === 1, 30000);
   await screenshot("desktop-manager.png");
 
   // Choose the folder in the real native dialog by typing its path (GTK file chooser).
@@ -130,9 +132,13 @@ try {
   await screenshot("desktop-library.png");
 
   // Closing the manager hides it to the tray; the server keeps running.
-  await wd("POST", s + "/window", { handle: manager });
-  await wd("DELETE", s + "/window").catch(() => {});
-  await sleep(1000);
+  // Close the manager as a user would, through the window manager (Alt+F4).
+  const managerWindow = execFileSync("xdotool", ["search", "--onlyvisible", "--name", "^TuneHarbor$"], { encoding: "utf8" }).trim().split("\n")[0];
+  execFileSync("xdotool", ["windowactivate", "--sync", managerWindow]);
+  execFileSync("xdotool", ["key", "--clearmodifiers", "alt+F4"]);
+  await until("tray explanation on first close", () =>
+    execFileSync("xdotool", ["search", "--onlyvisible", "--name", "TuneHarbor keeps playing in the background"], { encoding: "utf8" }).trim(),
+  );
   assert.equal(servers().length, 1, "server keeps running after closing the window");
   passed = true;
 } finally {

@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -112,5 +114,59 @@ func TestReconnectedFolderResumes(t *testing.T) {
 	}
 	if _, e := os.Stat(filepath.Join(root, "New.wav")); e != nil {
 		t.Fatal("import did not reach the reconnected folder:", e)
+	}
+}
+
+// A crash during an import leaves a hidden temporary file of up to 512 MiB;
+// the next start removes it.
+func TestOpenRemovesStaleImportFiles(t *testing.T) {
+	root, dir := t.TempDir(), t.TempDir()
+	stale := filepath.Join(root, ".tuneharbor-import-0123456789abcdef")
+	os.WriteFile(stale, wav(), 0600)
+	l, e := Open(dir, root)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer l.Close()
+	if _, e = os.Stat(stale); !os.IsNotExist(e) {
+		t.Fatal("stale import file kept:", e)
+	}
+}
+
+// exFAT and FAT32 drives cannot hard-link; imports fall back to an exclusive copy.
+func TestImportWithoutHardLinkSupport(t *testing.T) {
+	l, root := openTest(t)
+	original := linkFile
+	linkFile = func(*os.Root, string, string) error { return syscall.EPERM }
+	t.Cleanup(func() { linkFile = original })
+	first, e := l.Import("Song.wav", bytes.NewReader(wav()))
+	if e != nil {
+		t.Fatal(e)
+	}
+	second, e := l.Import("Song.wav", bytes.NewReader(wav()))
+	if e != nil || first.Path != "Song.wav" || second.Path != "Song (1).wav" {
+		t.Fatal(first, second, e)
+	}
+	for _, name := range []string{"Song.wav", "Song (1).wav"} {
+		if data, e := os.ReadFile(filepath.Join(root, name)); e != nil || !bytes.Equal(data, wav()) {
+			t.Fatal(name, e)
+		}
+	}
+	entries, _ := os.ReadDir(root)
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".tuneharbor-import-") {
+			t.Fatal("temporary file left behind")
+		}
+	}
+}
+
+func TestStorageErrorsAreExplained(t *testing.T) {
+	full := &os.PathError{Op: "write", Path: "/music/.tuneharbor-import-x", Err: syscall.ENOSPC}
+	if e := storageError(full); !strings.Contains(e.Error(), "free disk space") || strings.Contains(e.Error(), "/music") {
+		t.Fatal(e)
+	}
+	other := &os.PathError{Op: "open", Path: "/music/secret", Err: syscall.EACCES}
+	if e := storageError(other); strings.Contains(e.Error(), "/music") {
+		t.Fatal("raw path exposed:", e)
 	}
 }

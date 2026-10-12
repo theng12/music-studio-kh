@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -87,5 +88,70 @@ func TestCreateWithoutKeychainKeepsProfile(t *testing.T) {
 	}
 	if _, e = m.Start(p.ID); e != nil {
 		t.Fatal(e)
+	}
+}
+
+// When the original music folder is gone for good, the owner can point the
+// profile at a replacement; the old folder is never modified.
+func TestRelocateToReplacementFolder(t *testing.T) {
+	root, old, replacement := t.TempDir(), t.TempDir(), t.TempDir()
+	m := New(root, Tools{}, secrets.New(root, memoryStore{}))
+	defer m.Close()
+	p, e := m.Create(profiles.Input{Name: "P", Library: old, Username: "owner", Password: "123456"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = m.Start(p.ID); e != nil {
+		t.Fatal(e)
+	}
+	os.WriteFile(filepath.Join(replacement, "Moved.wav"), testWAV, 0600)
+	if e = m.Relocate(p.ID, filepath.Join(root, "inside")); e == nil {
+		t.Fatal("missing folder accepted")
+	}
+	if e = m.Relocate(p.ID, replacement); e != nil {
+		t.Fatal(e)
+	}
+	rows, _ := m.List()
+	if rows[0].Library == old || rows[0].Running {
+		t.Fatalf("profile after relocation: %+v", rows[0])
+	}
+	if _, e = m.Start(p.ID); e != nil {
+		t.Fatal("relocated profile did not start:", e)
+	}
+	m.mu.Lock()
+	l := m.running[p.ID].library
+	m.mu.Unlock()
+	if e = l.Scan(); e != nil {
+		t.Fatal(e)
+	}
+	if tracks, _ := l.Tracks(""); len(tracks) != 1 || tracks[0].Title != "Moved" {
+		t.Fatalf("tracks: %+v", tracks)
+	}
+	if entries, _ := os.ReadDir(old); len(entries) != 1 {
+		t.Fatalf("old folder changed: %v", entries)
+	}
+}
+
+func TestProfileLogRecordsLifecycleWithoutSecrets(t *testing.T) {
+	root := t.TempDir()
+	m := New(root, Tools{}, secrets.New(root, memoryStore{}))
+	defer m.Close()
+	p, e := m.Create(profiles.Input{Name: "P", Library: t.TempDir(), Username: "owner", Password: "secret-pass-123"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	opened, e := m.Start(p.ID)
+	if e != nil {
+		t.Fatal(e)
+	}
+	m.Stop(p.ID)
+	stored, _ := profiles.Open(root, p.ID)
+	data, e := os.ReadFile(filepath.Join(stored.DataDir, "logs", "tuneharbor.log"))
+	text := string(data)
+	if e != nil || !strings.Contains(text, "started") || !strings.Contains(text, "stopped") {
+		t.Fatalf("log: %q %v", text, e)
+	}
+	if strings.Contains(text, "secret-pass-123") || strings.Contains(text, opened.Bootstrap) {
+		t.Fatal("log contains a secret")
 	}
 }
