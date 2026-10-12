@@ -1,13 +1,25 @@
 package server
 
 import (
+	"fmt"
 	"github.com/theng12/tuneharbor/internal/library"
+	"net"
 	"net/http"
 	"os"
 )
 
 func (s *Server) me(w http.ResponseWriter, r *http.Request) {
-	jsonResponse(w, 200, map[string]any{"id": s.profile.ID, "name": s.profile.Name, "username": s.profile.Username, "library": s.profile.Library, "port": s.profile.Port, "lan": s.profile.LAN})
+	addresses := []string{}
+	if s.profile.LAN {
+		interfaces, _ := net.InterfaceAddrs()
+		for _, address := range interfaces {
+			if subnet, ok := address.(*net.IPNet); ok && !subnet.IP.IsLoopback() && subnet.IP.To4() != nil {
+				addresses = append(addresses, fmt.Sprintf("http://%s:%d", subnet.IP.String(), s.profile.Port))
+			}
+		}
+	}
+
+	jsonResponse(w, 200, map[string]any{"id": s.profile.ID, "name": s.profile.Name, "username": s.profile.Username, "library": s.profile.Library, "port": s.profile.Port, "lan": s.profile.LAN, "addresses": addresses})
 }
 func (s *Server) tracks(w http.ResponseWriter, r *http.Request) {
 	tracks, e := s.library.Tracks(r.URL.Query().Get("q"))

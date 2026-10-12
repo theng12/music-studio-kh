@@ -9,3 +9,6 @@ bin/
 .DS_Store
 artifacts/
 .superpowers/
+src-tauri/binaries/
+src-tauri/runtime-tools/
+src-tauri/gen/
