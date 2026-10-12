@@ -168,3 +168,14 @@ func TestUsernameIsCaseInsensitive(t *testing.T) {
 		t.Fatal(w.Body.String())
 	}
 }
+func TestDownloadsAPIRequiresAuthenticationAndPersists(t *testing.T) {
+	s, _ := fixture(t)
+	if w := request(s, "GET", "/api/downloads", "", nil); w.Code != 401 {
+		t.Fatalf("queue exposed: %d", w.Code)
+	}
+	c := login(t, s)
+	w := request(s, "GET", "/api/downloads", "", c)
+	if w.Code != 200 {
+		t.Fatalf("queue missing: %d", w.Code)
+	}
+}
