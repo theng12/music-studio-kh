@@ -3,7 +3,6 @@ package library
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"github.com/dhowden/tag"
 	"io/fs"
 	"os"
@@ -14,17 +13,16 @@ import (
 func (l *Library) Scan() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	// Abort before modifying the index when a folder is missing or replaced.
-	current, err := filepath.EvalSymlinks(l.root)
-	if err != nil || current != l.root {
-		return errors.New("music folder unavailable or changed")
+	root, err := l.checkedRoot()
+	if err != nil {
+		return err
 	}
 	tracks := []Track{}
-	err = filepath.WalkDir(l.root, func(path string, d fs.DirEntry, walkErr error) error {
+	err = fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		if path == l.root {
+		if path == "." {
 			return nil
 		}
 		if strings.HasPrefix(d.Name(), ".") {
@@ -50,11 +48,8 @@ func (l *Library) Scan() error {
 		if !info.Mode().IsRegular() {
 			return nil
 		}
-		rel, e := filepath.Rel(l.root, path)
-		if e != nil {
-			return e
-		}
-		f, e := os.OpenInRoot(l.root, rel)
+		rel := filepath.FromSlash(path)
+		f, e := root.Open(rel)
 		if e != nil {
 			return e
 		}
@@ -76,6 +71,9 @@ func (l *Library) Scan() error {
 		return nil
 	})
 	if err != nil {
+		return err
+	}
+	if _, err = l.checkedRoot(); err != nil {
 		return err
 	}
 	tx, err := l.db.Begin()

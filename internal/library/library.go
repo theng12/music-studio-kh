@@ -21,23 +21,18 @@ type Track struct {
 	Artwork bool   `json:"artwork"`
 }
 type Library struct {
-	db        *sql.DB
-	root, dir string
-	mu        sync.Mutex
+	db                *sql.DB
+	root, dir, marker string
+	mu                sync.Mutex
+	rootMu            sync.Mutex
+	handle            *os.Root
+	rootInfo          os.FileInfo
 }
 
 func Open(dataDir, root string) (*Library, error) {
 	root, err := filepath.Abs(root)
 	if err != nil {
 		return nil, err
-	}
-	root, err = filepath.EvalSymlinks(root)
-	if err != nil {
-		return nil, err
-	}
-	info, err := os.Stat(root)
-	if err != nil || !info.IsDir() {
-		return nil, errors.New("music folder unavailable")
 	}
 	if err = os.MkdirAll(dataDir, 0700); err != nil {
 		return nil, err
@@ -49,15 +44,36 @@ func Open(dataDir, root string) (*Library, error) {
 	db.SetMaxOpenConns(1)
 	_, err = db.Exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
  CREATE TABLE IF NOT EXISTS tracks (id TEXT PRIMARY KEY,title TEXT NOT NULL,artist TEXT NOT NULL,album TEXT NOT NULL,path TEXT UNIQUE NOT NULL,format TEXT NOT NULL,size INTEGER NOT NULL);
+ CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
  PRAGMA user_version=1;`)
 	if err != nil {
 		db.Close()
 		return nil, err
 	}
 	os.Chmod(filepath.Join(dataDir, "library.sqlite"), 0600)
-	return &Library{db: db, root: root, dir: dataDir}, nil
+	l := &Library{db: db, root: root, dir: dataDir}
+	err = db.QueryRow("SELECT value FROM settings WHERE key='library_identity'").Scan(&l.marker)
+	if err != nil && err != sql.ErrNoRows {
+		db.Close()
+		return nil, err
+	}
+	if _, err = l.checkedRoot(); err != nil && l.marker == "" {
+		db.Close()
+		return nil, err
+	}
+	// Existing profiles stay online with the last index while the volume is away.
+	return l, nil
 }
-func (l *Library) Close() error { return l.db.Close() }
+func (l *Library) Close() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.rootMu.Lock()
+	defer l.rootMu.Unlock()
+	if l.handle != nil {
+		l.handle.Close()
+	}
+	return l.db.Close()
+}
 func (l *Library) Tracks(query string) ([]Track, error) {
 	rows, err := l.db.Query(`SELECT id,title,artist,album,path,format,size FROM tracks WHERE title LIKE ? OR artist LIKE ? OR album LIKE ? ORDER BY artist,album,title`, "%"+query+"%", "%"+query+"%", "%"+query+"%")
 	if err != nil {
@@ -84,7 +100,11 @@ func (l *Library) OpenTrack(id string) (*os.File, Track, error) {
 	if err != nil {
 		return nil, t, err
 	}
-	f, err := os.OpenInRoot(l.root, t.Path)
+	root, err := l.checkedRoot()
+	if err != nil {
+		return nil, t, err
+	}
+	f, err := root.Open(t.Path)
 	if err != nil {
 		return nil, t, err
 	}

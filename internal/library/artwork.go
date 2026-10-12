@@ -82,7 +82,11 @@ func (l *Library) Artwork(id string) ([]byte, string, error) {
 	}
 	for _, name := range []string{"cover.jpg", "cover.png", "folder.jpg", "folder.png"} {
 		rel := filepath.Join(filepath.Dir(t.Path), name)
-		f, e := os.OpenInRoot(l.root, rel)
+		root, rootErr := l.checkedRoot()
+		if rootErr != nil {
+			return nil, "", rootErr
+		}
+		f, e := root.Open(rel)
 		if e != nil {
 			continue
 		}
