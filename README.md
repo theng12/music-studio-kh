@@ -50,6 +50,8 @@ Create a second profile with another port:
 
 Use the same music folder to share files, or choose a different folder for a separate collection. Each profile has its own credentials, database, artwork overrides, and port. Open port 4747 for Personal and 4748 for Family. Imported music appears in other profiles sharing that folder on their next scan (within 20 seconds). Profiles are currently managed through the command line; the desktop profile manager is a later milestone.
 
+A hidden `.tuneharbor-library-id` marker identifies the selected folder; preserve it when moving or backing up the library. Existing indexed profiles stay online with their last index while a folder is disconnected, and resume scanning when the original folder returns.
+
 Stop the server with Ctrl+C. Music files remain in place. Import finalization uses hard links on the local library filesystem; filesystems lacking hard-link support are not supported by this initial implementation.
 
 ## Local-network listening
@@ -70,7 +72,7 @@ npx playwright install chromium
 npm run test:browser
 ```
 
-Browser testing creates temporary profiles and real audio/image fixtures, checks login/import/playback/search/artwork/theme behavior, and removes the temporary data afterward. It writes desktop/mobile screenshots under `artifacts/`.
+The browser smoke script currently runs on Linux/macOS; the Go CI matrix also tests Windows. Browser testing creates temporary profiles and real audio/image fixtures, checks login/import/playback/search/artwork/theme behavior, and removes the temporary data afterward. It writes desktop/mobile screenshots under `artifacts/`.
 
 Go sources are cross-compiled for Windows x64 and macOS Intel/Apple Silicon during development. Native runtime tests, mobile interoperability, installer signing, and notarization are distinct release checks.
 

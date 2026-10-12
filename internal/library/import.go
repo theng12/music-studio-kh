@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/gofrs/flock"
 	"io"
 	"os"
 	"path/filepath"
@@ -17,17 +16,28 @@ func (l *Library) Import(name string, source io.Reader) (Track, error) {
 	if name == "" || strings.HasPrefix(name, ".") || filepath.Base(name) != name || strings.ContainsAny(name, "/\\\x00") || audioFormat(name) == "" {
 		return Track{}, errors.New("choose an MP3, M4A, AAC, FLAC, Ogg, Opus, or WAV file")
 	}
-	lock := flock.New(filepath.Join(l.root, ".tuneharbor-import.lock"))
+	root, err := l.checkedRoot()
+	if err != nil {
+		return Track{}, err
+	}
+	lock, err := folderLock(l.root)
+	if err != nil {
+		return Track{}, err
+	}
 	if err := lock.Lock(); err != nil {
 		return Track{}, err
 	}
 	defer lock.Unlock()
-	f, err := os.CreateTemp(l.root, ".tuneharbor-import-")
+	suffix, err := randomID()
 	if err != nil {
 		return Track{}, err
 	}
-	temp := f.Name()
-	defer os.Remove(temp)
+	temp := ".tuneharbor-import-" + suffix
+	f, err := root.OpenFile(temp, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return Track{}, err
+	}
+	defer root.Remove(temp)
 	n, err := io.Copy(f, io.LimitReader(source, MaxImportBytes+1))
 	if err != nil {
 		f.Close()
@@ -42,13 +52,13 @@ func (l *Library) Import(name string, source io.Reader) (Track, error) {
 		return Track{}, err
 	}
 	f.Close()
-	if !validAudio(temp, audioFormat(name)) {
+	if !validAudio(root, temp, audioFormat(name)) {
 		return Track{}, errors.New("file contents do not match the audio format")
 	}
 	final := name
 	ext := filepath.Ext(name)
 	for i := 1; ; i++ {
-		err = os.Link(temp, filepath.Join(l.root, final))
+		err = root.Link(temp, final)
 		if err == nil {
 			break
 		}
@@ -71,8 +81,8 @@ func (l *Library) Import(name string, source io.Reader) (Track, error) {
 	}
 	return Track{}, errors.New("imported file not indexed")
 }
-func validAudio(path, format string) bool {
-	f, e := os.Open(path)
+func validAudio(root *os.Root, path, format string) bool {
+	f, e := root.Open(path)
 	if e != nil {
 		return false
 	}

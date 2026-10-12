@@ -124,3 +124,76 @@ func TestArtworkAndInvalidImports(t *testing.T) {
 		t.Fatal("oversized art accepted")
 	}
 }
+
+func TestReplacedRootCannotStreamOrImportOutside(t *testing.T) {
+	l, root := openTest(t)
+	os.WriteFile(filepath.Join(root, "Song.wav"), wav(), 0600)
+	l.Scan()
+	tracks, _ := l.Tracks("")
+	outside := t.TempDir()
+	os.WriteFile(filepath.Join(outside, "Song.wav"), []byte("PRIVATE OUTSIDE CONTENT"), 0600)
+	saved := root + "-saved"
+	if e := os.Rename(root, saved); e != nil {
+		t.Fatal(e)
+	}
+	defer func() { os.Remove(root); os.Rename(saved, root) }()
+	if e := os.Symlink(outside, root); e != nil {
+		t.Skip("symlink unavailable:", e)
+	}
+	f, _, e := l.OpenTrack(tracks[0].ID)
+	if e == nil {
+		f.Close()
+		t.Error("replacement folder was streamed")
+	}
+	l.Import("New.wav", bytes.NewReader(wav()))
+	if _, e = os.Stat(filepath.Join(outside, "New.wav")); e == nil {
+		t.Error("import escaped into replacement folder")
+	}
+}
+func TestEmptyReplacementRootPreservesIndex(t *testing.T) {
+	l, root := openTest(t)
+	os.WriteFile(filepath.Join(root, "Song.wav"), wav(), 0600)
+	l.Scan()
+	saved := root + "-saved"
+	os.Rename(root, saved)
+	os.Mkdir(root, 0700)
+	defer func() { os.RemoveAll(root); os.Rename(saved, root) }()
+	if e := l.Scan(); e == nil {
+		t.Error("replacement folder accepted")
+	}
+	tracks, _ := l.Tracks("")
+	if len(tracks) != 1 {
+		t.Error("index lost after folder replacement")
+	}
+}
+func TestRootIdentityPersistsAcrossRestart(t *testing.T) {
+	root, dir := t.TempDir(), t.TempDir()
+	l, e := Open(dir, root)
+	if e != nil {
+		t.Fatal(e)
+	}
+	os.WriteFile(filepath.Join(root, "Song.wav"), wav(), 0600)
+	l.Scan()
+	l.Close()
+	saved := root + "-saved"
+	os.Rename(root, saved)
+	os.Mkdir(root, 0700)
+	defer func() { os.RemoveAll(root); os.Rename(saved, root) }()
+	l, e = Open(dir, root)
+	if e != nil {
+		t.Fatal("profile should remain available with its previous index:", e)
+	}
+	defer l.Close()
+	if e = l.Scan(); e == nil {
+		t.Error("restart accepted a replacement library")
+	}
+	tracks, _ := l.Tracks("")
+	if len(tracks) != 1 {
+		t.Error("restart erased original index")
+	}
+	os.RemoveAll(root)
+	os.Rename(saved, root)
+	if e = l.Scan(); e != nil {
+		t.Error("restored folder did not resume:", e)
+	}
+}

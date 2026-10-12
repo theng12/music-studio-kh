@@ -13,3 +13,7 @@ Task 4: embedded browser player and CLI implemented. Browser tests PASS for uppe
 User steering: allow minimum six-character numeric passwords and case-insensitive usernames. Added failing tests, implemented, Go/browser suites PASS. Unicode password minimum counts characters rather than bytes (RED→GREEN).
 Verification harness fixes: replace corrupt PNG fixture with CRC-valid PNG; use an explicit Playwright context to test multiple pages sharing cookies. No product code changed for these harness failures.
 Cross-platform compilation and race checks remain in progress; native Windows/macOS runtime and installers remain unverified.
+
+Independent review: two Important findings — path-replaced library roots could escape containment; empty replacement roots could erase the index. Added three regression tests, watched all fail, implemented retained os.Root handles plus folder identity and persistent marker, library suite PASS. Existing indexed profiles now stay online while disconnected and resume on reconnect, including restart with an unavailable mountpoint.
+Deferred minor: browser smoke executable path is Unix-only; documented explicitly, Windows uses Go runtime CI.
+An initial race run failed because production imports changed while compilation was in flight. A fresh stable-source race run passed all packages; rerun again after the root fixes before declaring final verification.
