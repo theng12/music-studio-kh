@@ -59,6 +59,11 @@ jobs:
           msystem: MINGW64
           update: true
           install: make mingw-w64-x86_64-gcc mingw-w64-x86_64-pkg-config
+      # Pinned, checksum-verified downloads; reuse them instead of refetching each run.
+      - uses: actions/cache@v4
+        with:
+          path: artifacts/tool-cache
+          key: tool-downloads-${{ matrix.runtime }}-${{ hashFiles('packaging/runtime-tools.json') }}
       - uses: actions/cache@v4
         id: ffmpeg
         with:
