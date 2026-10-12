@@ -2,9 +2,12 @@ package server
 
 import (
 	"bytes"
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"github.com/theng12/tuneharbor/internal/library"
 	"github.com/theng12/tuneharbor/internal/profiles"
+	"github.com/theng12/tuneharbor/internal/secrets"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -177,5 +180,65 @@ func TestDownloadsAPIRequiresAuthenticationAndPersists(t *testing.T) {
 	w := request(s, "GET", "/api/downloads", "", c)
 	if w.Code != 200 {
 		t.Fatalf("queue missing: %d", w.Code)
+	}
+}
+func TestAmperfyTokenAuthentication(t *testing.T) {
+	s, _ := fixture(t)
+	v := secrets.New(t.TempDir(), credentialStore{})
+	if e := v.Save(s.profile.ID, "long-password"); e != nil {
+		t.Fatal(e)
+	}
+	s.vault = v
+	token := md5.Sum([]byte("long-password" + "abc123"))
+	u := "/rest/ping.view?u=OWNER&s=abc123&t=" + hex.EncodeToString(token[:]) + "&f=json"
+	w := request(s, "GET", u, "", nil)
+	if !strings.Contains(w.Body.String(), `"status":"ok"`) {
+		t.Fatal(w.Body.String())
+	}
+}
+
+type credentialStore map[string]string
+
+func (s credentialStore) Get(id string) (string, error) { return s[id], nil }
+func (s credentialStore) Set(id, value string) error    { s[id] = value; return nil }
+func (s credentialStore) Delete(id string) error        { delete(s, id); return nil }
+func TestAmperfySearchAndPagination(t *testing.T) {
+	s, _ := fixture(t)
+	base := "/rest/search3.view?u=owner&p=long-password&f=json&query=Unknown&artistCount=40&songCount=0&albumCount=0"
+	w := request(s, "GET", base, "", nil)
+	if !strings.Contains(w.Body.String(), `"name":"Unknown artist"`) {
+		t.Fatal("artist search missing:", w.Body.String())
+	}
+	w = request(s, "GET", "/rest/getAlbumList2.view?u=owner&p=long-password&f=json&type=alphabeticalByName&offset=1&size=10", "", nil)
+	if !strings.Contains(w.Body.String(), `"album":[]`) {
+		t.Fatal("album pagination ignored:", w.Body.String())
+	}
+}
+func TestDesktopBootstrapIsPrivateAndOneUse(t *testing.T) {
+	s, _ := fixture(t)
+	token, e := s.DesktopToken()
+	if e != nil {
+		t.Fatal(e)
+	}
+	r := httptest.NewRequest("POST", "/api/desktop-bootstrap", strings.NewReader(`{"token":"`+token+`"}`))
+	r.RemoteAddr = "127.0.0.1:23456"
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, r)
+	if w.Code != 200 || len(w.Result().Cookies()) == 0 {
+		t.Fatal("desktop session not established")
+	}
+	w = httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, r)
+	if w.Code == 200 {
+		t.Fatal("bootstrap replay accepted")
+	}
+	token, _ = s.DesktopToken()
+	r = httptest.NewRequest("POST", "/api/desktop-bootstrap", strings.NewReader(`{"token":"`+token+`"}`))
+	r.RemoteAddr = "192.168.1.5:12345"
+	w = httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, r)
+	if w.Code != 403 {
+		t.Fatal("remote bootstrap accepted")
 	}
 }

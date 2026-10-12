@@ -4,7 +4,9 @@ import (
 	"embed"
 	"github.com/theng12/tuneharbor/internal/downloads"
 	"github.com/theng12/tuneharbor/internal/library"
+	"github.com/theng12/tuneharbor/internal/media"
 	"github.com/theng12/tuneharbor/internal/profiles"
+	"github.com/theng12/tuneharbor/internal/secrets"
 	"io/fs"
 	"net/http"
 	"sync"
@@ -15,10 +17,13 @@ import (
 var web embed.FS
 
 type Server struct {
+	vault     *secrets.Vault
+	converter *media.Converter
 	downloads *downloads.Queue
 	profile   profiles.Profile
 	library   *library.Library
 	mu        sync.Mutex
+	bootstrap map[string]time.Time
 	sessions  map[string]time.Time
 	attempts  map[string]attempt
 	handler   http.Handler
@@ -29,11 +34,17 @@ type attempt struct {
 }
 
 func New(p profiles.Profile, l *library.Library, options ...Option) *Server {
-	s := &Server{profile: p, library: l, sessions: map[string]time.Time{}, attempts: map[string]attempt{}}
+	s := &Server{profile: p, library: l, bootstrap: map[string]time.Time{}, sessions: map[string]time.Time{}, attempts: map[string]attempt{}}
 	for _, option := range options {
 		option(s)
 	}
 	m := http.NewServeMux()
+	m.HandleFunc("POST /api/desktop-bootstrap", s.desktopBootstrap)
+	m.HandleFunc("POST /api/logout-all", s.authorize(s.logoutAll))
+	m.HandleFunc("GET /api/settings", s.authorize(s.getSettings))
+	m.HandleFunc("PUT /api/settings", s.authorize(s.saveSettings))
+	m.HandleFunc("PUT /api/album-artwork/{id}", s.authorize(s.setAlbumArtwork))
+	m.HandleFunc("DELETE /api/album-artwork/{id}", s.authorize(s.resetAlbumArtwork))
 	m.HandleFunc("GET /api/downloads", s.authorize(s.downloadJobs))
 	m.HandleFunc("POST /api/downloads", s.authorize(s.submitDownload))
 	m.HandleFunc("POST /api/downloads/{id}/cancel", s.authorize(s.cancelDownload))

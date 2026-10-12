@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"github.com/dhowden/tag"
+	"golang.org/x/image/draw"
+	_ "golang.org/x/image/webp"
 	"image"
 	_ "image/jpeg"
 	"image/png"
@@ -18,6 +20,9 @@ func (l *Library) SetArtwork(id string, source io.Reader) error {
 	if _, err := l.Track(id); err != nil {
 		return err
 	}
+	return l.writeArtwork(id, source)
+}
+func (l *Library) writeArtwork(id string, source io.Reader) error {
 	data, err := io.ReadAll(io.LimitReader(source, MaxArtworkBytes+1))
 	if err != nil {
 		return err
@@ -27,7 +32,7 @@ func (l *Library) SetArtwork(id string, source io.Reader) error {
 	}
 	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
-		return errors.New("choose a valid JPEG or PNG image")
+		return errors.New("choose a valid JPEG, PNG, or WebP image")
 	}
 	if cfg.Width < 1 || cfg.Height < 1 || cfg.Width > 8192 || cfg.Height > 8192 || int64(cfg.Width)*int64(cfg.Height) > 16_000_000 {
 		return errors.New("artwork dimensions exceed 16 megapixels")
@@ -35,6 +40,26 @@ func (l *Library) SetArtwork(id string, source io.Reader) error {
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return err
+	}
+	bounds := img.Bounds()
+	width, height := bounds.Dx(), bounds.Dy()
+	if width > 600 || height > 600 {
+		if width >= height {
+			height = height * 600 / width
+			width = 600
+		} else {
+			width = width * 600 / height
+			height = 600
+		}
+		if width < 1 {
+			width = 1
+		}
+		if height < 1 {
+			height = 1
+		}
+		thumb := image.NewRGBA(image.Rect(0, 0, width, height))
+		draw.CatmullRom.Scale(thumb, thumb.Bounds(), img, bounds, draw.Over, nil)
+		img = thumb
 	}
 	dir := filepath.Join(l.dir, "artwork")
 	if err = os.MkdirAll(dir, 0700); err != nil {
@@ -68,6 +93,10 @@ func (l *Library) Artwork(id string) ([]byte, string, error) {
 		return nil, "", err
 	}
 	data, err := os.ReadFile(filepath.Join(l.dir, "artwork", id+".png"))
+	if err == nil {
+		return data, "image/png", nil
+	}
+	data, err = os.ReadFile(filepath.Join(l.dir, "artwork", "album-"+albumID(t)+".png"))
 	if err == nil {
 		return data, "image/png", nil
 	}

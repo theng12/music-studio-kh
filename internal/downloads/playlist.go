@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/theng12/tuneharbor/internal/process"
 	"net/url"
 	"os/exec"
 	"strings"
@@ -94,7 +95,7 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 }
 func (r YTDLP) Resolve(ctx context.Context, u string) ([]Entry, error) {
 	cmd := exec.CommandContext(ctx, r.Path, "--ignore-config", "--flat-playlist", "--dump-single-json", "--skip-download", "--no-warnings", "--playlist-end", "1000", "--", u)
-	configureProcess(cmd)
+	process.Configure(cmd)
 	out := &limitedBuffer{max: 8 << 20}
 	cmd.Stdout = out
 	cmd.Stderr = &limitedBuffer{max: 1 << 20}

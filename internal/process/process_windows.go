@@ -1,6 +1,6 @@
 //go:build windows
 
-package downloads
+package process
 
 import (
 	"os"
@@ -10,7 +10,7 @@ import (
 	"syscall"
 )
 
-func configureProcess(cmd *exec.Cmd) {
+func Configure(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x08000000}
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/theng12/tuneharbor/internal/process"
 	"io"
 	"os/exec"
 	"path/filepath"
@@ -25,7 +26,7 @@ func (r YTDLP) Run(ctx context.Context, u, dir string, progress func(float64)) (
 	}
 	args = append(args, "--", u)
 	cmd := exec.CommandContext(ctx, r.Path, args...)
-	configureProcess(cmd)
+	process.Configure(cmd)
 	cmd.WaitDelay = 5 * time.Second
 	pipe, writer := io.Pipe()
 	cmd.Stdout = writer

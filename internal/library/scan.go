@@ -17,6 +17,14 @@ func (l *Library) Scan() error {
 	if err != nil {
 		return err
 	}
+	previous, e := l.Tracks("")
+	if e != nil {
+		return e
+	}
+	known := map[string]Track{}
+	for _, track := range previous {
+		known[track.ID] = track
+	}
 	tracks := []Track{}
 	err = fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -56,6 +64,11 @@ func (l *Library) Scan() error {
 		defer f.Close()
 		hash := sha256.Sum256([]byte(rel))
 		t := Track{ID: hex.EncodeToString(hash[:16]), Title: strings.TrimSuffix(d.Name(), filepath.Ext(d.Name())), Artist: "Unknown artist", Album: "Unknown album", Path: rel, Format: format, Size: info.Size()}
+		t.Modified = float64(info.ModTime().Unix())
+		t.Duration = basicDuration(f)
+		if old, ok := known[t.ID]; ok && old.Size == t.Size && old.Modified == t.Modified {
+			t.Duration = old.Duration
+		}
 		if m, e := tag.ReadFrom(f); e == nil {
 			if m.Title() != "" {
 				t.Title = m.Title()
@@ -84,13 +97,13 @@ func (l *Library) Scan() error {
 	if _, err = tx.Exec("DELETE FROM tracks"); err != nil {
 		return err
 	}
-	stmt, err := tx.Prepare("INSERT INTO tracks VALUES(?,?,?,?,?,?,?)")
+	stmt, err := tx.Prepare("INSERT INTO tracks(id,title,artist,album,path,format,size,duration,modified) VALUES(?,?,?,?,?,?,?,?,?)")
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	for _, t := range tracks {
-		if _, err = stmt.Exec(t.ID, t.Title, t.Artist, t.Album, t.Path, t.Format, t.Size); err != nil {
+		if _, err = stmt.Exec(t.ID, t.Title, t.Artist, t.Album, t.Path, t.Format, t.Size, t.Duration, t.Modified); err != nil {
 			return err
 		}
 	}
