@@ -56,6 +56,10 @@ export interface Profile {
   running: boolean;
   mobileReady: boolean;
   error?: string;
+  importing: boolean;
+  imported: number;
+  importSkipped: number;
+  importError?: string;
 }
 export interface Appearance {
   theme: string;

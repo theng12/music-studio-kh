@@ -42,6 +42,15 @@ type Info struct {
 	MobileReady bool   `json:"mobileReady"`
 	Running     bool   `json:"running"`
 	Error       string `json:"error,omitempty"`
+	ImportStatus
+}
+
+// ImportStatus reports the latest background import into a running profile.
+type ImportStatus struct {
+	Importing     bool   `json:"importing"`
+	Imported      int    `json:"imported"`
+	ImportSkipped int    `json:"importSkipped"`
+	ImportError   string `json:"importError,omitempty"`
 }
 type Opened struct {
 	URL       string `json:"url"`
@@ -53,8 +62,12 @@ type instance struct {
 	server  *server.Server
 	library *library.Library
 	queue   *downloads.Queue
+	ctx     context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
+	music   string
+	status  sync.Mutex
+	imports ImportStatus
 }
 type Manager struct {
 	root     string
@@ -85,7 +98,12 @@ func (m *Manager) List() ([]Info, error) {
 	out := []Info{}
 	for _, p := range items {
 		view := info(p)
-		_, view.Running = m.running[p.ID]
+		if i, ok := m.running[p.ID]; ok {
+			view.Running = true
+			i.status.Lock()
+			view.ImportStatus = i.imports
+			i.status.Unlock()
+		}
 		view.Error = m.failures[p.ID]
 		_, secretErr := os.Stat(filepath.Join(p.DataDir, "mobile-secret"))
 		view.MobileReady = secretErr == nil
@@ -163,7 +181,7 @@ func (m *Manager) Start(id string) (Opened, error) {
 		return Opened{}, e
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	instance := &instance{library: l, cancel: cancel}
+	instance := &instance{library: l, ctx: ctx, cancel: cancel, music: p.Library}
 	changes, _ := l.Watch(ctx)
 	options := []server.Option{server.WithVault(m.vault)}
 	if m.tools.FFmpeg != "" {
@@ -306,6 +324,9 @@ func (m *Manager) Restore() error {
 	}
 	return nil
 }
+
+// ImportPaths copies audio files and folders into a running profile's library
+// in the background. Progress appears in List; stopping the profile cancels it.
 func (m *Manager) ImportPaths(id string, paths []string) error {
 	m.mu.Lock()
 	i := m.running[id]
@@ -313,10 +334,49 @@ func (m *Manager) ImportPaths(id string, paths []string) error {
 	if i == nil {
 		return errors.New("start this profile before importing")
 	}
+	for _, path := range paths {
+		if within(i.music, path) {
+			return errors.New("these files are already in this profile's music folder")
+		}
+	}
+	i.status.Lock()
+	if i.imports.Importing {
+		i.status.Unlock()
+		return errors.New("an import is already in progress; wait for it to finish")
+	}
+	i.imports = ImportStatus{Importing: true}
+	i.status.Unlock()
+	i.wg.Add(1)
+	go func() {
+		defer i.wg.Done()
+		err := i.importPaths(paths)
+		i.status.Lock()
+		i.imports.Importing = false
+		if err != nil {
+			i.imports.ImportError = err.Error()
+		}
+		i.status.Unlock()
+	}()
+	return nil
+}
+func (i *instance) importPaths(paths []string) error {
 	count := 0
+	skip := func() {
+		i.status.Lock()
+		i.imports.ImportSkipped++
+		i.status.Unlock()
+	}
 	importOne := func(path string, entry os.DirEntry, walkErr error) error {
+		if e := i.ctx.Err(); e != nil {
+			return errors.New("import stopped before it finished")
+		}
 		if walkErr != nil {
-			return walkErr
+			// Unreadable files and folders are skipped and counted, not fatal.
+			skip()
+			if entry != nil && entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		if entry.Type()&os.ModeSymlink != 0 {
 			return nil
@@ -341,11 +401,21 @@ func (m *Manager) ImportPaths(id string, paths []string) error {
 		}
 		f, e := os.Open(path)
 		if e != nil {
-			return e
+			skip()
+			return nil
 		}
 		defer f.Close()
-		_, e = i.library.Import(filepath.Base(path), f)
-		return e
+		if _, e = i.library.Import(filepath.Base(path), f); e != nil {
+			if i.library.Ready() != nil {
+				return e
+			}
+			skip()
+			return nil
+		}
+		i.status.Lock()
+		i.imports.Imported++
+		i.status.Unlock()
+		return nil
 	}
 	for _, path := range paths {
 		if e := filepath.WalkDir(path, importOne); e != nil {
@@ -353,6 +423,21 @@ func (m *Manager) ImportPaths(id string, paths []string) error {
 		}
 	}
 	return nil
+}
+
+// within reports whether path is the library folder or inside it.
+func within(library, path string) bool {
+	resolve := func(p string) string {
+		if abs, e := filepath.Abs(p); e == nil {
+			p = abs
+		}
+		if real, e := filepath.EvalSymlinks(p); e == nil {
+			p = real
+		}
+		return p
+	}
+	rel, e := filepath.Rel(resolve(library), resolve(path))
+	return e == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }
 func (m *Manager) EnableMobile(id, password string) error {
 	m.mu.Lock()

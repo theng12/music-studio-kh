@@ -1266,6 +1266,10 @@ dialog small {
   font-size: 11px;
   overflow-wrap: anywhere;
 }
+.profile-import {
+  font-size: 12px;
+  color: var(--accent);
+}
 .profile-actions {
   display: flex;
   align-items: center;
