@@ -36,11 +36,11 @@ jobs:
           go-version-file: go.mod
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: "3.13"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -59,13 +59,15 @@ jobs:
         id: ffmpeg
         with:
           path: artifacts/native-ffmpeg
-          key: ffmpeg-lgpl-v2-${{ matrix.runtime }}-${{ hashFiles('packaging/runtime-tools.json', 'scripts/build-ffmpeg.sh') }}
-      - if: steps.ffmpeg.outputs.cache-hit != 'true'
+          key: ffmpeg-lgpl-v3-${{ matrix.runtime }}-9.0.2-lame3.100-${{ hashFiles('scripts/build-ffmpeg.sh') }}
+          # Exact legacy cache uses the same verified sources and build flags.
+          restore-keys: ffmpeg-lgpl-v2-${{ matrix.runtime }}-7e96a585d5fb73cb96967acf6898e005637aae89c110507880c1ba25ea593c8a
+      - if: steps.ffmpeg.outputs.cache-matched-key == ''
         run: python scripts/prepare-runtime.py --target ${{ matrix.runtime }} --sources-only
-      - if: steps.ffmpeg.outputs.cache-hit != 'true' && runner.os != 'Windows'
+      - if: steps.ffmpeg.outputs.cache-matched-key == '' && runner.os != 'Windows'
         shell: bash
         run: bash scripts/build-ffmpeg.sh "$PWD/artifacts/tool-cache/ffmpeg-9.0.2.tar.gz" "$PWD/artifacts/tool-cache/lame-3.100.tar.gz" "$PWD/artifacts/native-ffmpeg"
-      - if: steps.ffmpeg.outputs.cache-hit != 'true' && runner.os == 'Windows'
+      - if: steps.ffmpeg.outputs.cache-matched-key == '' && runner.os == 'Windows'
         shell: msys2 {0}
         run: bash scripts/build-ffmpeg.sh "$PWD/artifacts/tool-cache/ffmpeg-9.0.2.tar.gz" "$PWD/artifacts/tool-cache/lame-3.100.tar.gz" "$PWD/artifacts/native-ffmpeg"
       - run: python scripts/prepare-runtime.py --target ${{ matrix.runtime }} --ffmpeg-dir artifacts/native-ffmpeg
@@ -85,9 +87,11 @@ jobs:
           CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "src-tauri/binaries/tuneharbor-server-${{ matrix.target }}$suffix" ./cmd/tuneharbor
           chmod +x src-tauri/binaries/*
       - run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
+      - run: python scripts/collect-notices.py
       - run: npm run build:desktop -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
         env:
-          APPIMAGE_EXTRACT_AND_RUN: '1'
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+      - run: python scripts/install-smoke.py --target ${{ matrix.target }}
       - uses: actions/upload-artifact@v4
         with:
           name: TuneHarbor-unsigned-dev-${{ matrix.runtime }}

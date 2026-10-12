@@ -105,27 +105,21 @@ func (s *Server) subsonic(w http.ResponseWriter, r *http.Request) {
 	for _, t := range tracks {
 		aid := identifier(t.Artist)
 		bid := identifier(t.Artist + "\x00" + t.Album)
-		artists[aid] = map[string]any{"id": aid, "name": t.Artist}
+		if _, exists := artists[aid]; !exists {
+			artists[aid] = map[string]any{"id": aid, "name": t.Artist, "albumCount": 0}
+		}
 		if _, ok := albums[bid]; !ok {
-			albums[bid] = map[string]any{"id": bid, "name": t.Album, "artist": t.Artist, "artistId": aid, "coverArt": t.ID, "songCount": 0, "duration": 0.0}
+			artists[aid]["albumCount"] = artists[aid]["albumCount"].(int) + 1
+			albums[bid] = map[string]any{"id": bid, "name": t.Album, "artist": t.Artist, "artistId": aid, "coverArt": t.ID, "songCount": 0, "duration": 0}
 		}
 		albums[bid]["songCount"] = albums[bid]["songCount"].(int) + 1
-		albums[bid]["duration"] = albums[bid]["duration"].(float64) + t.Duration
+		albums[bid]["duration"] = albums[bid]["duration"].(int) + int(t.Duration)
 		songs = append(songs, song(t, bid))
 	}
 	switch action {
 	case "getArtists":
 		a := ordered(artists)
-		for _, entry := range a {
-			artist := entry.(map[string]any)
-			count := 0
-			for _, album := range albums {
-				if album["artistId"] == artist["id"] {
-					count++
-				}
-			}
-			artist["albumCount"] = count
-		}
+
 		s.protocol(w, r, map[string]any{"artists": map[string]any{"index": []any{map[string]any{"name": "All", "artist": a}}}}, 0, "")
 	case "getArtist":
 		a, ok := artists[id]

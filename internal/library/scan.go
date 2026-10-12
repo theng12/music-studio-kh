@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"github.com/dhowden/tag"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -69,7 +70,7 @@ func (l *Library) Scan() error {
 		if old, ok := known[t.ID]; ok && old.Size == t.Size && old.Modified == t.Modified {
 			t.Duration = old.Duration
 		}
-		if m, e := tag.ReadFrom(f); e == nil {
+		if m, e := tag.ReadFrom(io.NewSectionReader(f, 0, min(info.Size(), 16<<20))); e == nil {
 			if m.Title() != "" {
 				t.Title = m.Title()
 			}

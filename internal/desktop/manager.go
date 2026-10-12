@@ -10,11 +10,13 @@ import (
 	"github.com/theng12/tuneharbor/internal/profiles"
 	"github.com/theng12/tuneharbor/internal/secrets"
 	"github.com/theng12/tuneharbor/internal/server"
+	"golang.org/x/crypto/bcrypt"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 )
@@ -30,15 +32,16 @@ func ToolPaths(dir string) Tools {
 }
 
 type Info struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Library   string `json:"library"`
-	Username  string `json:"username"`
-	Port      int    `json:"port"`
-	LAN       bool   `json:"lan"`
-	AutoStart bool   `json:"autoStart"`
-	Running   bool   `json:"running"`
-	Error     string `json:"error,omitempty"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Library     string `json:"library"`
+	Username    string `json:"username"`
+	Port        int    `json:"port"`
+	LAN         bool   `json:"lan"`
+	AutoStart   bool   `json:"autoStart"`
+	MobileReady bool   `json:"mobileReady"`
+	Running     bool   `json:"running"`
+	Error       string `json:"error,omitempty"`
 }
 type Opened struct {
 	URL       string `json:"url"`
@@ -84,6 +87,8 @@ func (m *Manager) List() ([]Info, error) {
 		view := info(p)
 		_, view.Running = m.running[p.ID]
 		view.Error = m.failures[p.ID]
+		_, secretErr := os.Stat(filepath.Join(p.DataDir, "mobile-secret"))
+		view.MobileReady = secretErr == nil
 		out = append(out, view)
 	}
 	return out, nil
@@ -124,6 +129,7 @@ func (m *Manager) Create(input profiles.Input) (Info, error) {
 	}
 	if e = m.vault.Save(p.ID, input.Password); e != nil {
 		profiles.Remove(m.root, p.ID, true)
+		m.vault.Delete(p.ID)
 		return Info{}, e
 	}
 	return info(p), nil
@@ -158,6 +164,7 @@ func (m *Manager) Start(id string) (Opened, error) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	instance := &instance{library: l, cancel: cancel}
+	changes, _ := l.Watch(ctx)
 	options := []server.Option{server.WithVault(m.vault)}
 	if m.tools.FFmpeg != "" {
 		options = append(options, server.WithConverter(media.New(filepath.Join(p.DataDir, "converted"), m.tools.FFmpeg, l)))
@@ -222,6 +229,7 @@ func (m *Manager) Start(id string) (Opened, error) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+			case <-changes:
 			}
 		}
 	}()
@@ -305,26 +313,56 @@ func (m *Manager) ImportPaths(id string, paths []string) error {
 	if i == nil {
 		return errors.New("start this profile before importing")
 	}
-	for _, path := range paths {
-		info, e := os.Lstat(path)
-		if e != nil {
-			return e
+	count := 0
+	importOne := func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			continue
+		if entry.Type()&os.ModeSymlink != 0 {
+			return nil
 		}
-		if !info.Mode().IsRegular() {
-			continue
+		if entry.IsDir() {
+			if strings.HasPrefix(entry.Name(), ".") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !entry.Type().IsRegular() {
+			return nil
+		}
+		switch strings.ToLower(filepath.Ext(path)) {
+		case ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wav":
+		default:
+			return nil
+		}
+		count++
+		if count > 10000 {
+			return errors.New("import at most 10,000 songs at a time")
 		}
 		f, e := os.Open(path)
 		if e != nil {
 			return e
 		}
+		defer f.Close()
 		_, e = i.library.Import(filepath.Base(path), f)
-		f.Close()
-		if e != nil {
+		return e
+	}
+	for _, path := range paths {
+		if e := filepath.WalkDir(path, importOne); e != nil {
 			return e
 		}
 	}
 	return nil
+}
+func (m *Manager) EnableMobile(id, password string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p, e := profiles.Open(m.root, id)
+	if e != nil {
+		return e
+	}
+	if bcrypt.CompareHashAndPassword([]byte(p.PasswordHash), []byte(password)) != nil {
+		return errors.New("enter this profile's current password")
+	}
+	return m.vault.Save(id, password)
 }

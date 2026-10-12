@@ -24,6 +24,9 @@ type Track struct {
 }
 type Library struct {
 	db                *sql.DB
+	artMu             sync.Mutex
+	artCache          map[[32]byte][]byte
+	artBytes          int
 	root, dir, marker string
 	mu                sync.Mutex
 	rootMu            sync.Mutex

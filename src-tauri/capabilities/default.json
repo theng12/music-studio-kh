@@ -1,1 +1,7 @@
-{"$schema":"../gen/schemas/desktop-schema.json","identifier":"main","description":"Only the locally bundled profile manager may use native administration and folder dialogs.","windows":["main"],"permissions":["core:default","dialog:allow-open","autostart:default"]}
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Only the locally bundled profile manager may use native administration and folder dialogs.",
+  "windows": ["main"],
+  "permissions": ["core:default", "dialog:allow-open", "autostart:default"]
+}

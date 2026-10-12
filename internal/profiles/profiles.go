@@ -65,7 +65,11 @@ func Create(root string, i Input) (Profile, error) {
 	if err != nil {
 		return Profile{}, fmt.Errorf("music folder unavailable: %w", err)
 	}
-	if nested(path, root) {
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return Profile{}, err
+	}
+	if nested(path, root) || nested(root, path) {
 		return Profile{}, errors.New("choose a music folder outside application profile data")
 	}
 	info, err := os.Stat(path)

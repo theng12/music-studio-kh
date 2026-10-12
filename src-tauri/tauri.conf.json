@@ -1,7 +1,54 @@
 {
- "$schema":"https://schema.tauri.app/config/2",
- "productName":"TuneHarbor","version":"0.1.0","identifier":"app.tuneharbor.desktop",
- "build":{"beforeDevCommand":"npm run dev","devUrl":"http://localhost:1420","beforeBuildCommand":"npm run build:web","frontendDist":"../internal/server/web"},
- "app":{"windows":[{"label":"main","title":"TuneHarbor","width":1120,"height":820,"minWidth":700,"minHeight":550}],"security":{"csp":"default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'; script-src 'self'"}},
- "bundle":{"active":true,"targets":["deb","appimage","nsis","dmg"],"externalBin":["binaries/tuneharbor-server"],"resources":{"runtime-tools/":"runtime-tools/"},"icon":["icons/32x32.png","icons/128x128.png","icons/128x128@2x.png","icons/icon.icns","icons/icon.ico"],"linux":{"deb":{"depends":["libwebkit2gtk-4.1-0","libgtk-3-0","libayatana-appindicator3-1","gnome-keyring"]}},"macOS":{"minimumSystemVersion":"12.0","infoPlist":"Info.plist"},"windows":{"nsis":{"displayLanguageSelector":false,"installMode":"currentUser"}}}
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TuneHarbor",
+  "version": "0.1.0",
+  "identifier": "app.tuneharbor.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build:web",
+    "frontendDist": "../internal/server/web"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "TuneHarbor",
+        "width": 1120,
+        "height": 820,
+        "minWidth": 700,
+        "minHeight": 550
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb", "appimage", "nsis", "dmg"],
+    "externalBin": ["binaries/tuneharbor-server"],
+    "resources": { "runtime-tools/": "runtime-tools/" },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0",
+          "libayatana-appindicator3-1",
+          "gnome-keyring"
+        ]
+      }
+    },
+    "macOS": { "minimumSystemVersion": "12.0", "infoPlist": "Info.plist" },
+    "windows": {
+      "nsis": { "displayLanguageSelector": false, "installMode": "currentUser" }
+    }
+  }
 }

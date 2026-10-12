@@ -234,8 +234,10 @@ func TestDesktopBootstrapIsPrivateAndOneUse(t *testing.T) {
 		t.Fatal("desktop session not established")
 	}
 	w = httptest.NewRecorder()
+	r = httptest.NewRequest("POST", "/api/desktop-bootstrap", strings.NewReader(`{"token":"`+token+`"}`))
+	r.RemoteAddr = "127.0.0.1:23456"
 	s.Handler().ServeHTTP(w, r)
-	if w.Code == 200 {
+	if w.Code != 401 {
 		t.Fatal("bootstrap replay accepted")
 	}
 	token, _ = s.DesktopToken()

@@ -6,19 +6,15 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/theng12/tuneharbor/internal/library"
+	"github.com/theng12/tuneharbor/internal/desktop"
 	"github.com/theng12/tuneharbor/internal/profiles"
-	"github.com/theng12/tuneharbor/internal/server"
 	"golang.org/x/term"
 	"io"
-	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 )
 
 func main() {
@@ -109,12 +105,18 @@ func run(args []string, input io.Reader, output io.Writer) error {
 	case "desktop":
 		return runDesktop(*root, args[1:], input, output)
 	case "serve":
-		return serve(*root, output)
+		flags := flag.NewFlagSet("serve", flag.ContinueOnError)
+		toolDir := flags.String("tools", "", "optional bundled runtime tool folder")
+		if e := flags.Parse(args[1:]); e != nil {
+			return e
+		}
+		return serveTools(*root, *toolDir, output)
 	default:
 		return errors.New("unknown command; use profile create, profile list, or serve")
 	}
 }
-func serve(root string, output io.Writer) error {
+func serve(root string, output io.Writer) error { return serveTools(root, "", output) }
+func serveTools(root, toolDir string, output io.Writer) error {
 	items, e := profiles.List(root)
 	if e != nil {
 		return e
@@ -122,75 +124,32 @@ func serve(root string, output io.Writer) error {
 	if len(items) == 0 {
 		return errors.New("create a profile first with profile create --library PATH")
 	}
+	tools := desktop.Tools{}
+	if toolDir != "" {
+		tools = desktop.ToolPaths(toolDir)
+	}
+	manager := desktop.New(root, tools, nil)
+	defer manager.Close()
+	if e = manager.Doctor(); e != nil {
+		return e
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	type running struct {
-		http    *http.Server
-		library *library.Library
-	}
-	instances := []running{}
+	started := 0
 	for _, p := range items {
-		l, e := library.Open(p.DataDir, p.Library)
+		opened, e := manager.Start(p.ID)
 		if e != nil {
-			fmt.Fprintf(output, "%s: cannot open library; check folder access\n", p.Name)
+			fmt.Fprintf(output, "%s: could not start: %s\n", p.Name, e)
 			continue
 		}
-		if e = l.Scan(); e != nil {
-			fmt.Fprintf(output, "%s: scan failed; previous index preserved\n", p.Name)
-		}
-		host := "127.0.0.1"
-		if p.LAN {
-			host = "0.0.0.0"
-		}
-		listener, e := net.Listen("tcp", fmt.Sprintf("%s:%d", host, p.Port))
-		if e != nil {
-			l.Close()
-			fmt.Fprintf(output, "%s: port %d unavailable; other profiles can still start\n", p.Name, p.Port)
-			continue
-		}
-		h := &http.Server{Handler: server.New(p, l).Handler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 << 10}
-		instances = append(instances, running{h, l})
-		fmt.Fprintf(output, "%s → http://127.0.0.1:%d (username: %s)\n", p.Name, p.Port, p.Username)
-		if p.LAN {
-			addresses, _ := net.InterfaceAddrs()
-			for _, a := range addresses {
-				if n, ok := a.(*net.IPNet); ok && !n.IP.IsLoopback() && n.IP.To4() != nil {
-					fmt.Fprintf(output, "  LAN → http://%s:%d (HTTP; trusted networks only)\n", n.IP.String(), p.Port)
-				}
-			}
-		}
-		go func() {
-			if err := h.Serve(listener); err != nil && err != http.ErrServerClosed {
-				fmt.Fprintln(output, "Profile server stopped unexpectedly:", err)
-			}
-		}()
-		go func() {
-			ticker := time.NewTicker(20 * time.Second)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					if err := l.Scan(); err != nil {
-						fmt.Fprintln(output, "Library refresh failed; keeping last index")
-					}
-				}
-			}
-		}()
+		started++
+		fmt.Fprintf(output, "%s → %s (username: %s)\n", p.Name, opened.URL, p.Username)
 	}
-	if len(instances) == 0 {
+	if started == 0 {
 		return errors.New("no profile could start; check folders and ports")
 	}
 	<-ctx.Done()
-	shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	for _, instance := range instances {
-		if err := instance.http.Shutdown(shutdown); err != nil {
-			instance.http.Close()
-		}
-		instance.library.Close()
-	}
+	manager.Close()
 	fmt.Fprintln(output, "All profile servers stopped. Music files preserved.")
 	return nil
 }
