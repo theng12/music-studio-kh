@@ -2,15 +2,23 @@
 """Check packaged paths and install a private development package on CI."""
 import argparse,pathlib,platform,subprocess,os
 parser=argparse.ArgumentParser();parser.add_argument('--target',required=True);args=parser.parse_args();root=pathlib.Path(__file__).resolve().parents[1];bundle=root/'src-tauri/target'/args.target/'release/bundle'
-def run(*command):return subprocess.check_output(command,text=True,stderr=subprocess.STDOUT)
+def run(*command):
+ process=subprocess.run(command,capture_output=True,text=True,encoding='utf-8',errors='replace')
+ output=process.stdout+process.stderr
+ if process.returncode:raise SystemExit(f'FAIL ({process.returncode}): {" ".join(command)}\n{output}')
+ return output
 if platform.system()=='Linux':
  package=next(bundle.rglob('*.deb'));contents=run('dpkg-deb','--contents',str(package));assert 'tuneharbor-server' in contents and 'runtime-tools/ffmpeg' in contents and 'runtime-tools/yt-dlp' in contents
- print(run('sudo','dpkg','-i',str(package)));assert pathlib.Path('/usr/bin/tuneharbor').exists();print(run('sudo','dpkg','--remove','tuneharbor'))
+ # apt resolves declared dependencies (WebKitGTK, keyring) as a user's package manager would; dpkg -i does not.
+ print(run('sudo','env','DEBIAN_FRONTEND=noninteractive','apt-get','install','-y',str(package)));assert pathlib.Path('/usr/bin/tuneharbor').exists() and pathlib.Path('/usr/bin/tuneharbor-server').exists()
+ print(run('/usr/bin/tuneharbor-server'));name=run('dpkg-deb','--field',str(package),'Package').strip();print(run('sudo','apt-get','remove','-y',name));assert not pathlib.Path('/usr/bin/tuneharbor').exists()
 elif platform.system()=='Darwin':
  package=next(bundle.rglob('*.dmg'));mount=root/'artifacts/dmg-mount';mount.mkdir(parents=True,exist_ok=True)
  run('hdiutil','attach','-nobrowse','-mountpoint',str(mount),str(package))
  try:
-  app=next(mount.glob('*.app'));assert (app/'Contents/MacOS/tuneharbor-server').exists();ffmpeg=next(app.rglob('runtime-tools/ffmpeg'));print(run(str(ffmpeg),'-version').splitlines()[0]);print(run('codesign','--verify','--deep',str(app)))
+  app=next(mount.glob('*.app'));assert (app/'Contents/MacOS/tuneharbor-server').exists();ffmpeg=next(app.rglob('runtime-tools/ffmpeg'));print(run(str(ffmpeg),'-version').splitlines()[0])
+  # Development builds are ad-hoc signed; this checks the bundle seal, not a Developer ID or notarization.
+  print(run('codesign','--verify','--deep','--strict','--verbose=2',str(app)))
  finally:run('hdiutil','detach',str(mount))
 else:
  package=next(bundle.rglob('*.exe'));install=root/'artifacts/windows-installed';install.mkdir(parents=True,exist_ok=True)

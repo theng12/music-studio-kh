@@ -32,10 +32,12 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - run: go build -o bin/tuneharbor ./cmd/tuneharbor
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run build:web
+      - name: Embedded web assets match the UI source
+        run: git diff --exit-code -- internal/server/web && test -z "$(git status --porcelain -- internal/server/web)"
+      - run: go build -o bin/tuneharbor ./cmd/tuneharbor
       - run: go build -o bin/fixture-server ./tests/fixtures/server
       - run: npm run test:browser
       - run: node scripts/downloads-smoke.mjs
