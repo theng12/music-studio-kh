@@ -92,6 +92,20 @@ jobs:
         env:
           APPIMAGE_EXTRACT_AND_RUN: "1"
       - run: python scripts/install-smoke.py --target ${{ matrix.target }}
+      - name: Desktop end-to-end (installed package, virtual display)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y xvfb openbox gnome-keyring xdotool imagemagick webkit2gtk-driver
+          cargo install tauri-driver --locked
+          sudo apt-get install -y ./src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+          scripts/desktop-e2e.sh
+      - if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-e2e-screenshots
+          path: artifacts/desktop-*.png
+          if-no-files-found: ignore
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
           name: TuneHarbor-unsigned-dev-${{ matrix.runtime }}

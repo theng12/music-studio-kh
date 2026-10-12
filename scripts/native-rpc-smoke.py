@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Exercise the production sidecar and OS keychain in a desktop D-Bus session."""
-import hashlib,json,pathlib,subprocess,tempfile,urllib.request,urllib.parse
+"""Exercise the installed server sidecar and OS keychain in a desktop D-Bus session."""
+import hashlib,json,os,pathlib,subprocess,tempfile,urllib.request,urllib.parse
 root=pathlib.Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix='tuneharbor-native-') as folder:
  data=pathlib.Path(folder)/'profiles';music=pathlib.Path(folder)/'music';music.mkdir()
- backend=subprocess.Popen([str(root/'src-tauri/target/debug/tuneharbor-server'),'--data',str(data),'desktop','--tools',str(root/'src-tauri/runtime-tools')],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
+ backend=subprocess.Popen([os.environ.get('TUNEHARBOR_SERVER','/usr/bin/tuneharbor-server'),'--data',str(data),'desktop','--tools',os.environ.get('TUNEHARBOR_TOOLS','/usr/lib/TuneHarbor/runtime-tools')],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
  sequence=0
  def call(method,params={}):
   global sequence
