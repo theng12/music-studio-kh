@@ -1,0 +1,1 @@
+{"name":"tuneharbor","private":true,"version":"0.1.0","scripts":{"test:browser":"node scripts/browser-smoke.mjs"},"devDependencies":{"@playwright/test":"^1.56.0"}}
