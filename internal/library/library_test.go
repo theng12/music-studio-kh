@@ -7,6 +7,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 )
@@ -66,7 +67,10 @@ func TestUnavailableFolderPreservesIndex(t *testing.T) {
 	l, root := openTest(t)
 	os.WriteFile(filepath.Join(root, "Song.wav"), wav(), 0600)
 	l.Scan()
-	os.Rename(root, root+"-gone")
+	detachWindowsDirectory(t, l)
+	if e := os.Rename(root, root+"-gone"); e != nil {
+		t.Fatal(e)
+	}
 	defer os.Rename(root+"-gone", root)
 	if e := l.Scan(); e == nil {
 		t.Fatal("missing folder accepted")
@@ -133,6 +137,7 @@ func TestReplacedRootCannotStreamOrImportOutside(t *testing.T) {
 	outside := t.TempDir()
 	os.WriteFile(filepath.Join(outside, "Song.wav"), []byte("PRIVATE OUTSIDE CONTENT"), 0600)
 	saved := root + "-saved"
+	detachWindowsDirectory(t, l)
 	if e := os.Rename(root, saved); e != nil {
 		t.Fatal(e)
 	}
@@ -155,8 +160,13 @@ func TestEmptyReplacementRootPreservesIndex(t *testing.T) {
 	os.WriteFile(filepath.Join(root, "Song.wav"), wav(), 0600)
 	l.Scan()
 	saved := root + "-saved"
-	os.Rename(root, saved)
-	os.Mkdir(root, 0700)
+	detachWindowsDirectory(t, l)
+	if e := os.Rename(root, saved); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.Mkdir(root, 0700); e != nil {
+		t.Fatal(e)
+	}
 	defer func() { os.RemoveAll(root); os.Rename(saved, root) }()
 	if e := l.Scan(); e == nil {
 		t.Error("replacement folder accepted")
@@ -176,8 +186,12 @@ func TestRootIdentityPersistsAcrossRestart(t *testing.T) {
 	l.Scan()
 	l.Close()
 	saved := root + "-saved"
-	os.Rename(root, saved)
-	os.Mkdir(root, 0700)
+	if e := os.Rename(root, saved); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.Mkdir(root, 0700); e != nil {
+		t.Fatal(e)
+	}
 	defer func() { os.RemoveAll(root); os.Rename(saved, root) }()
 	l, e = Open(dir, root)
 	if e != nil {
@@ -195,5 +209,20 @@ func TestRootIdentityPersistsAcrossRestart(t *testing.T) {
 	os.Rename(saved, root)
 	if e = l.Scan(); e != nil {
 		t.Error("restored folder did not resume:", e)
+	}
+}
+
+// Windows directory handles prevent ordinary renames. Release only the test's
+// handle to simulate a volume being forcibly detached/replaced. Keep the stored
+// identity and handle reference so production's stale-root checks are exercised.
+func detachWindowsDirectory(t *testing.T, l *Library) {
+	t.Helper()
+	if runtime.GOOS != "windows" {
+		return
+	}
+	l.rootMu.Lock()
+	defer l.rootMu.Unlock()
+	if err := l.handle.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
