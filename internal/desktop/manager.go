@@ -78,13 +78,14 @@ type Manager struct {
 	running  map[string]*instance
 	failures map[string]string
 	closing  bool
+	log      *profileLog
 }
 
 func New(root string, tools Tools, vault *secrets.Vault) *Manager {
 	if vault == nil {
 		vault = secrets.New(root, secrets.OSStore(root))
 	}
-	return &Manager{root: root, tools: tools, vault: vault, running: map[string]*instance{}, failures: map[string]string{}}
+	return &Manager{root: root, tools: tools, vault: vault, running: map[string]*instance{}, failures: map[string]string{}, log: openLog(root)}
 }
 func info(p profiles.Profile) Info {
 	return Info{ID: p.ID, Name: p.Name, Library: p.Library, Username: p.Username, Port: p.Port, LAN: p.LAN, AutoStart: p.AutoStart}

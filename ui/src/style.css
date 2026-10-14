@@ -740,7 +740,8 @@ html[data-density="compact"] .track-grid.list {
   position: fixed;
   right: 24px;
   top: 24px;
-  z-index: 20;
+  /* Above dialogs, so messages are never hidden behind an open form. */
+  z-index: 40;
   background: var(--panel2);
   color: var(--text);
   padding: 15px 22px;
@@ -1526,4 +1527,7 @@ dialog small {
 }
 .volume {
   gap: 12px;
+}
+.manager-warning {
+  margin: 0 0 18px;
 }

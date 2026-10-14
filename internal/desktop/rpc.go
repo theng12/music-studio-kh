@@ -34,6 +34,8 @@ func Run(input io.Reader, output io.Writer, m *Manager) error {
 		res := response{ID: req.ID, Result: result}
 		if e != nil {
 			res.Error = e.Error()
+			// Errors are recorded so a failed setup can be diagnosed later.
+			m.log.Printf("%s failed: %v", req.Method, e)
 		}
 		if e = encoder.Encode(res); e != nil {
 			return e
