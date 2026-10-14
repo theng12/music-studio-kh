@@ -3,6 +3,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 # A newer push to the same branch supersedes runs still in progress.
@@ -14,7 +15,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-latest, macos-latest]
+        # Linux on every push; Windows and macOS (2x/10x minutes) when run by hand.
+        os: ${{ github.event_name == 'workflow_dispatch' && fromJSON('["ubuntu-24.04","windows-latest","macos-latest"]') || fromJSON('["ubuntu-24.04"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

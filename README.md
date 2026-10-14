@@ -23,6 +23,16 @@ Installers come from the **Desktop installers (unsigned development)** workflow:
 
 No code was copied from Navidrome or MeTube.
 
+## Build the app on your Mac
+
+`scripts/build-mac.sh` builds TuneHarbor.app on your own Mac and installs it in Applications, with no GitHub Actions minutes used. It needs Apple's command line tools and [Homebrew](https://brew.sh); the script installs everything else. From the project folder:
+
+```sh
+bash scripts/build-mac.sh
+```
+
+The first build takes roughly 15–20 minutes; later builds take a few. The result bundles Homebrew's FFmpeg and is for personal use, not redistribution. Installers for other people come from the **Desktop installers** workflow, which now runs only when started by hand (Actions → Desktop installers → Run workflow) or for a `v*` tag.
+
 ## Run the development build
 
 Install Go 1.27.2 or newer, then:

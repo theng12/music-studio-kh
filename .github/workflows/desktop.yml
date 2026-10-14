@@ -1,8 +1,9 @@
 name: Desktop installers (unsigned development)
+# Installer builds use macOS (10x) and Windows (2x) Actions minutes, so they
+# run on request (Actions → Run workflow) and for version tags, not every push.
 on:
-  pull_request:
   push:
-    branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
 permissions:
   contents: read
