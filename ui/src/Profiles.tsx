@@ -10,6 +10,10 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
     [busy, setBusy] = useState(false),
     [editing, setEditing] = useState<Profile | null>(null);
   const [mobilePassword, setMobilePassword] = useState("");
+  // Problems shown where the owner is looking: in the open dialog, or a
+  // lasting banner when bundled download tools cannot run.
+  const [formError, setFormError] = useState(""),
+    [toolProblem, setToolProblem] = useState("");
   const [name, setName] = useState("Personal"),
     [library, setLibrary] = useState(""),
     [username, setUsername] = useState("owner"),
@@ -17,7 +21,7 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
     [lan, setLAN] = useState(false);
   const refresh = async () => setProfiles(await rpc("profiles"));
   useEffect(() => {
-    rpc("doctor").catch((e) => notice(String(e)));
+    rpc("doctor").catch((e) => setToolProblem(String(e)));
     refresh().catch((e) => notice(String(e)));
     const timer = setInterval(() => refresh().catch(() => {}), 5000);
     return () => clearInterval(timer);
@@ -71,7 +75,6 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
   const listen = async (id: string) => {
     setBusy(true);
     try {
-      await rpc("doctor");
       const opened = await rpc("start", { id });
       await invoke("open_profile", { opened });
       await refresh();
@@ -96,8 +99,8 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
+    setFormError("");
     try {
-      await rpc("doctor");
       const p: Profile = await rpc("create", {
         name,
         library,
@@ -111,7 +114,7 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
       await refresh();
       await listen(p.id);
     } catch (e) {
-      notice(String(e));
+      setFormError(String(e));
     } finally {
       setBusy(false);
     }
@@ -226,10 +229,21 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
           <h1>A harbor for every collection.</h1>
           <p>Start a library, share one, or keep a little space of your own.</p>
         </div>
-        <button className="primary" onClick={() => setCreating(true)}>
+        <button
+          className="primary"
+          onClick={() => {
+            setFormError("");
+            setCreating(true);
+          }}
+        >
           ＋ New profile
         </button>
       </header>
+      {toolProblem && (
+        <p className="error manager-warning" role="alert">
+          {toolProblem} Profiles, imports and playback still work.
+        </p>
+      )}
       {!profiles.length && !creating && (
         <div className="hero manager-welcome">
           <div>
@@ -238,7 +252,13 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
               Choose a folder and a simple password. TuneHarbor handles the
               server for you.
             </p>
-            <button className="primary" onClick={() => setCreating(true)}>
+            <button
+              className="primary"
+              onClick={() => {
+                setFormError("");
+                setCreating(true);
+              }}
+            >
               Create your first profile ↗
             </button>
           </div>
@@ -409,6 +429,11 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
                 Local-network listening uses HTTP. Enable it on a trusted
                 network.
               </small>
+            )}
+            {formError && (
+              <p className="error" role="alert">
+                {formError}
+              </p>
             )}
             <button
               className="primary"

@@ -10,7 +10,8 @@ import (
 	"time"
 )
 
-// Doctor verifies actual bundled executables before first library use.
+// Doctor verifies the bundled download and conversion tools. Libraries and
+// playback work without them, so callers report a failure as a warning.
 func (m *Manager) Doctor() error {
 	for _, tool := range []struct{ name, path, arg string }{{"yt-dlp", m.tools.YTDLP, "--version"}, {"FFmpeg", m.tools.FFmpeg, "-version"}, {"ffprobe", m.tools.FFprobe, "-version"}, {"Deno", m.tools.Deno, "--version"}} {
 		if tool.path == "" {
@@ -18,7 +19,7 @@ func (m *Manager) Doctor() error {
 		}
 		info, e := os.Stat(tool.path)
 		if e != nil || !info.Mode().IsRegular() {
-			return errors.New(tool.name + " is missing from this installation. Reinstall TuneHarbor.")
+			return errors.New("Downloads and audio conversion are unavailable: " + tool.name + " is missing from this installation. Reinstall TuneHarbor.")
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		cmd := exec.CommandContext(ctx, tool.path, tool.arg)
@@ -29,7 +30,7 @@ func (m *Manager) Doctor() error {
 		e = cmd.Run()
 		cancel()
 		if e != nil {
-			return errors.New(tool.name + " could not start. Check app permissions or reinstall TuneHarbor.")
+			return errors.New("Downloads and audio conversion are unavailable: " + tool.name + " could not start. Check app permissions or reinstall TuneHarbor.")
 		}
 	}
 	return nil
