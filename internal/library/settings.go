@@ -7,10 +7,13 @@ import (
 )
 
 type Appearance struct {
-	Theme   string `json:"theme"`
-	Accent  string `json:"accent"`
-	Density string `json:"density"`
-	Layout  string `json:"layout"`
+	Theme         string `json:"theme"`
+	Accent        string `json:"accent"`
+	Density       string `json:"density"`
+	Layout        string `json:"layout"`
+	StreamQuality string `json:"streamQuality,omitempty"`
+	RepeatMode    string `json:"repeatMode,omitempty"`
+	DefaultTab    string `json:"defaultTab,omitempty"`
 }
 
 func (l *Library) Settings() (Appearance, error) {
@@ -38,6 +41,9 @@ func (l *Library) SaveSettings(a Appearance) error {
 	if !valid(a.Theme, "light", "dark", "system") || !valid(a.Accent, "mint", "violet", "amber") || !valid(a.Density, "comfortable", "compact") || !valid(a.Layout, "grid", "list") {
 		return errors.New("choose a supported appearance setting")
 	}
+	if !valid(a.StreamQuality, "", "original", "mp3") || !valid(a.RepeatMode, "", "all", "one", "off") || !valid(a.DefaultTab, "", "songs", "albums", "artists", "folders") {
+		return errors.New("choose a supported playback or library preference")
+	}
 	value, e := json.Marshal(a)
 	if e != nil {
 		return e
@@ -45,3 +51,4 @@ func (l *Library) SaveSettings(a Appearance) error {
 	_, e = l.db.Exec("INSERT INTO settings(key,value) VALUES('appearance',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", string(value))
 	return e
 }
+

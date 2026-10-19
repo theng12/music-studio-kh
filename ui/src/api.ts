@@ -82,4 +82,7 @@ export interface Appearance {
   accent: string;
   density: string;
   layout: string;
+  streamQuality?: string;
+  repeatMode?: string;
+  defaultTab?: string;
 }

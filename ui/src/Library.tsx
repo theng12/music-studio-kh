@@ -14,11 +14,12 @@ interface Props {
   importFiles: (files: (File | ImportItem)[]) => Promise<void>;
   version: number;
   layout: string;
+  defaultTab?: string;
   toggleLayout: () => void;
 }
 const songs = (n: number) => n + (n === 1 ? " song" : " songs");
 export default function Library(p: Props) {
-  const [view, setView] = useState("songs"),
+  const [view, setView] = useState(p.defaultTab || "songs"),
     [limit, setLimit] = useState(100),
     [album, setAlbum] = useState<Track[] | null>(null);
   const groups = useMemo(() => {

@@ -54,7 +54,8 @@ export default function App() {
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [whatsNew, setWhatsNew] = useState(false),
-    [customImport, setCustomImport] = useState(false);
+    [customImport, setCustomImport] = useState(false),
+    [settingsSection, setSettingsSection] = useState("all");
   const files = useRef<HTMLInputElement>(null),
     folders = useRef<HTMLInputElement>(null),
     messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -374,19 +375,35 @@ export default function App() {
           <button
             className={"nav-item " + (page === "settings" ? "active" : "")}
             id="settings-nav"
-            onClick={() => setPage("settings")}
+            onClick={() => {
+              setSettingsSection("all");
+              setPage("settings");
+            }}
           >
-            ⚙︎ <span>Appearance & access</span>
+            ⚙︎ <span>Settings & preferences</span>
           </button>
           <div className="sidebar-bottom">
-            <div className="profile-avatar">
-              {profile.name.slice(0, 2).toUpperCase()}
-            </div>
-            <strong id="profile-name">{profile.name}</strong>
-            <span className="status">
-              <i />
-              Server running
-            </span>
+            <button
+              type="button"
+              className="sidebar-profile-btn"
+              id="sidebar-profile-btn"
+              onClick={() => {
+                setSettingsSection("profile");
+                setPage("settings");
+              }}
+              aria-label="Open profile and account settings"
+            >
+              <div className="profile-avatar">
+                {profile.name.slice(0, 2).toUpperCase()}
+              </div>
+              <div className="sidebar-profile-text">
+                <strong id="profile-name">{profile.name}</strong>
+                <span className="status">
+                  <i />
+                  Profile & settings ›
+                </span>
+              </div>
+            </button>
             <div className="sidebar-meta">
               <span className="version-badge">v{APP_VERSION}</span>
               <button
@@ -398,9 +415,6 @@ export default function App() {
                 What’s new
               </button>
             </div>
-            <button className="subtle" id="logout" onClick={logout}>
-              Sign out ↗
-            </button>
           </div>
         </aside>
         <main>
@@ -411,7 +425,7 @@ export default function App() {
                 {page === "downloads"
                   ? "Downloads"
                   : page === "settings"
-                    ? "Your space"
+                    ? "Settings & preferences"
                     : "Music library"}
                 <span className="accent">.</span>
               </h1>
@@ -446,6 +460,7 @@ export default function App() {
               importFiles={importFiles}
               version={version}
               layout={appearance.layout}
+              defaultTab={appearance.defaultTab}
               toggleLayout={() =>
                 saveAppearance({
                   ...appearance,
@@ -461,10 +476,13 @@ export default function App() {
             <Settings
               notice={notify}
               profile={profile}
+              onProfileUpdated={setProfile}
               settings={appearance}
               save={saveAppearance}
               logout={logout}
               openWhatsNew={() => setWhatsNew(true)}
+              tracksCount={tracks.length}
+              initialSection={settingsSection}
             />
           )}
           <input
@@ -500,6 +518,8 @@ export default function App() {
           next={() => skip(1)}
           previous={() => skip(-1)}
           notice={notify}
+          streamQuality={appearance.streamQuality}
+          repeatMode={appearance.repeatMode}
         />
       </div>
       <Artwork

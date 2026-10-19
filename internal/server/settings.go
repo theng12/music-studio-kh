@@ -4,12 +4,36 @@ import (
 	"encoding/json"
 	"github.com/theng12/tuneharbor/internal/library"
 	"github.com/theng12/tuneharbor/internal/media"
+	"github.com/theng12/tuneharbor/internal/profiles"
 	"github.com/theng12/tuneharbor/internal/secrets"
 	"net/http"
 )
 
 func WithVault(v *secrets.Vault) Option       { return func(s *Server) { s.vault = v } }
 func WithConverter(c *media.Converter) Option { return func(s *Server) { s.converter = c } }
+func (s *Server) updateProfile(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	var body struct {
+		Name     string `json:"name"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if e := json.NewDecoder(r.Body).Decode(&body); e != nil {
+		fail(w, 400, "invalid profile update")
+		return
+	}
+	s.mu.Lock()
+	e := profiles.UpdateAccount(&s.profile, body.Name, body.Username, body.Password)
+	if e == nil && body.Password != "" && s.vault != nil {
+		_ = s.vault.Save(s.profile.ID, body.Password)
+	}
+	s.mu.Unlock()
+	if e != nil {
+		fail(w, 400, e.Error())
+		return
+	}
+	s.me(w, r)
+}
 func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 	a, e := s.library.Settings()
 	if e != nil {

@@ -18,6 +18,7 @@ export const WHATS_NEW: ReleaseEntry[] = [
       "Custom import & metadata editor: import or edit songs and albums with custom titles, artists, album names, versions/editions (Deluxe, Acoustic, Live, Remastered), release years, and cover artwork.",
       "Persistent YouTube song and playlist download queues powered by bundled yt-dlp, Deno, and static LGPL FFmpeg.",
       "Subsonic / OpenSubsonic mobile compatibility (Amperfy, Symfonium) over local Wi-Fi with OS Keychain secret encryption.",
+      "Industry-standard Profile, Preferences & Settings hub (account credentials, streaming quality, playback repeat mode, theme, default library view, and sign-out confirmation dialog).",
       "Refined button spacing, modal actions, responsive layouts, version badge, and in-app What’s new release notes.",
     ],
   },
