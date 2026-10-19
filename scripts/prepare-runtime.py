@@ -32,7 +32,8 @@ for tool,key in [('yt-dlp','ytDlp'),('deno','deno')]:
  dest.chmod(0o755)
 if args.ffmpeg_dir:
  source=pathlib.Path(args.ffmpeg_dir)
- for name in ['ffmpeg','ffprobe']:shutil.copy2(source/(name+exe),out/(name+exe))
+ for name in ['ffmpeg','ffprobe']:
+  dest=out/(name+exe);shutil.copy2(source/(name+exe),dest);dest.chmod(0o755)
  for name in ['notices','sources']:
   if (source/name).exists():shutil.copytree(source/name,out/name,dirs_exist_ok=True)
 source=manifest['ytDlp']['source'];archive=download(source['url'],source['sha256'],'yt-dlp-'+manifest['ytDlp']['version']+'.tar.gz');(out/'sources').mkdir(exist_ok=True);shutil.copy2(archive,out/'sources'/archive.name)

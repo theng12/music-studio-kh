@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export PATH="/opt/homebrew/opt/rustup/bin:/opt/homebrew/bin:$PATH"
+cd "$(git rev-parse --show-toplevel)"
+
+echo "==> [pre-push] Checking git object & ref integrity..."
+git fsck --full
+
+echo "==> [pre-push] Checking Go vet & race tests..."
+go vet ./...
+go test -race ./...
+
+echo "==> [pre-push] Checking UI build & embedded web assets sync..."
+npm run build:web
+if ! git diff --exit-code -- internal/server/web || [ -n "$(git status --porcelain -- internal/server/web)" ]; then
+  echo "FAIL: internal/server/web is out of sync with ui/. Commit the built assets." >&2
+  exit 1
+fi
+
+echo "==> [pre-push] Checking Rust / Tauri unit tests..."
+triple="$(rustc -vV | sed -n 's/^host: //p')"
+mkdir -p src-tauri/binaries src-tauri/runtime-tools
+if [ ! -f "src-tauri/binaries/tuneharbor-server-$triple" ]; then
+  CGO_ENABLED=0 go build -o "src-tauri/binaries/tuneharbor-server-$triple" ./cmd/tuneharbor
+fi
+cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
+
+echo "==> [pre-push] All checks passed."

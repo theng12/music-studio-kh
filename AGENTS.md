@@ -33,6 +33,8 @@ cd src-tauri && cargo test
 
 `cargo` needs `src-tauri/binaries/tuneharbor-server-<target-triple>` (build it with `go build -o …`). Routine tests use the fixture yt-dlp. Never make live YouTube or paid calls part of a routine test.
 
+A tracked `.githooks/pre-push` hook enforces `git fsck --full`, `go vet`, `go test -race`, `npm run build:web` + `internal/server/web` asset sync, and `cargo test` before any push (`git config core.hooksPath .githooks`). Never bypass it with `--no-verify`.
+
 GitHub Actions can be blocked by the account's billing. A job that "fails" in 2 seconds with no steps did not run. Never report CI as green without checking that the jobs actually ran.
 
 ## Owner's coding behaviour
