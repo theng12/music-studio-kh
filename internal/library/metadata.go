@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/binary"
 	"errors"
+	"github.com/dhowden/tag"
 	"io"
 	"math"
 	"os"
@@ -18,7 +19,10 @@ type MetadataUpdate struct {
 	Version     string `json:"version"`
 	Year        int    `json:"year"`
 	TrackNumber int    `json:"trackNumber"`
+	Lyrics      string `json:"lyrics,omitempty"`
 }
+
+type MetadataInput = MetadataUpdate
 
 func migrate(db *sql.DB) error {
 	rows, e := db.Query("PRAGMA table_info(tracks)")
@@ -46,6 +50,8 @@ func migrate(db *sql.DB) error {
 		{"year", "INTEGER NOT NULL DEFAULT 0"},
 		{"track_number", "INTEGER NOT NULL DEFAULT 0"},
 		{"folder", "TEXT NOT NULL DEFAULT ''"},
+		{"content_hash", "TEXT NOT NULL DEFAULT ''"},
+		{"lyrics", "TEXT NOT NULL DEFAULT ''"},
 	}
 	for _, col := range alterations {
 		if !columns[col.name] {
@@ -61,11 +67,28 @@ func migrate(db *sql.DB) error {
 		album TEXT NOT NULL DEFAULT '',
 		version TEXT NOT NULL DEFAULT '',
 		year INTEGER NOT NULL DEFAULT 0,
-		track_number INTEGER NOT NULL DEFAULT 0
+		track_number INTEGER NOT NULL DEFAULT 0,
+		lyrics TEXT NOT NULL DEFAULT ''
 	)`); e != nil {
 		return e
 	}
-	_, e = db.Exec("PRAGMA user_version=3")
+	ovRows, ovErr := db.Query("PRAGMA table_info(metadata_overrides)")
+	if ovErr == nil {
+		ovColumns := map[string]bool{}
+		for ovRows.Next() {
+			var index, notnull, primary int
+			var name, typ string
+			var defaultValue any
+			if ovRows.Scan(&index, &name, &typ, &notnull, &defaultValue, &primary) == nil {
+				ovColumns[name] = true
+			}
+		}
+		ovRows.Close()
+		if len(ovColumns) > 0 && !ovColumns["lyrics"] {
+			_, _ = db.Exec("ALTER TABLE metadata_overrides ADD COLUMN lyrics TEXT NOT NULL DEFAULT ''")
+		}
+	}
+	_, e = db.Exec("PRAGMA user_version=4")
 	return e
 }
 func (l *Library) SetDuration(id string, value float64) error {
@@ -112,12 +135,19 @@ func (l *Library) UpdateTrackMetadata(id string, m MetadataUpdate) (Track, error
 	if trackNum < 0 || trackNum > 9999 {
 		return Track{}, errors.New("enter a valid track number")
 	}
-	if _, e = l.db.Exec(`INSERT OR REPLACE INTO metadata_overrides(id,title,artist,album,version,year,track_number) VALUES(?,?,?,?,?,?,?)`,
-		id, title, artist, album, version, year, trackNum); e != nil {
+	lyrics := t.Lyrics
+	if m.Lyrics != "" {
+		lyrics = strings.TrimSpace(m.Lyrics)
+		if len(lyrics) > 64<<10 {
+			lyrics = lyrics[:64<<10]
+		}
+	}
+	if _, e = l.db.Exec(`INSERT OR REPLACE INTO metadata_overrides(id,title,artist,album,version,year,track_number,lyrics) VALUES(?,?,?,?,?,?,?,?)`,
+		id, title, artist, album, version, year, trackNum, lyrics); e != nil {
 		return Track{}, e
 	}
-	if _, e = l.db.Exec(`UPDATE tracks SET title=?,artist=?,album=?,version=?,year=?,track_number=? WHERE id=?`,
-		title, artist, album, version, year, trackNum, id); e != nil {
+	if _, e = l.db.Exec(`UPDATE tracks SET title=?,artist=?,album=?,version=?,year=?,track_number=?,lyrics=? WHERE id=?`,
+		title, artist, album, version, year, trackNum, lyrics, id); e != nil {
 		return Track{}, e
 	}
 	return l.Track(id)
@@ -143,7 +173,7 @@ func (l *Library) UpdateAlbumMetadata(id string, m MetadataUpdate) error {
 	if year < 0 || year > 9999 {
 		return errors.New("enter a valid four-digit release year")
 	}
-	rows, e := l.db.Query(`SELECT id,title,track_number,year FROM tracks WHERE artist=? AND album=? AND version=?`, ref.Artist, ref.Album, ref.Version)
+	rows, e := l.db.Query(`SELECT id,title,track_number,year,lyrics FROM tracks WHERE artist=? AND album=? AND version=?`, ref.Artist, ref.Album, ref.Version)
 	if e != nil {
 		return e
 	}
@@ -152,11 +182,12 @@ func (l *Library) UpdateAlbumMetadata(id string, m MetadataUpdate) error {
 		title       string
 		trackNumber int
 		year        int
+		lyrics      string
 	}
 	var matches []item
 	for rows.Next() {
 		var it item
-		if e = rows.Scan(&it.id, &it.title, &it.trackNumber, &it.year); e != nil {
+		if e = rows.Scan(&it.id, &it.title, &it.trackNumber, &it.year, &it.lyrics); e != nil {
 			rows.Close()
 			return e
 		}
@@ -173,8 +204,8 @@ func (l *Library) UpdateAlbumMetadata(id string, m MetadataUpdate) error {
 		if y == 0 {
 			y = it.year
 		}
-		if _, e = tx.Exec(`INSERT OR REPLACE INTO metadata_overrides(id,title,artist,album,version,year,track_number) VALUES(?,?,?,?,?,?,?)`,
-			it.id, it.title, artist, album, version, y, it.trackNumber); e != nil {
+		if _, e = tx.Exec(`INSERT OR REPLACE INTO metadata_overrides(id,title,artist,album,version,year,track_number,lyrics) VALUES(?,?,?,?,?,?,?,?)`,
+			it.id, it.title, artist, album, version, y, it.trackNumber, it.lyrics); e != nil {
 			return e
 		}
 		if _, e = tx.Exec(`UPDATE tracks SET artist=?,album=?,version=?,year=? WHERE id=?`,
@@ -195,7 +226,7 @@ func (l *Library) UpdateAlbumMetadata(id string, m MetadataUpdate) error {
 
 func (l *Library) loadOverrides() map[string]MetadataUpdate {
 	out := map[string]MetadataUpdate{}
-	rows, e := l.db.Query(`SELECT id,title,artist,album,version,year,track_number FROM metadata_overrides`)
+	rows, e := l.db.Query(`SELECT id,title,artist,album,version,year,track_number,lyrics FROM metadata_overrides`)
 	if e != nil {
 		return out
 	}
@@ -203,11 +234,61 @@ func (l *Library) loadOverrides() map[string]MetadataUpdate {
 	for rows.Next() {
 		var id string
 		var m MetadataUpdate
-		if rows.Scan(&id, &m.Title, &m.Artist, &m.Album, &m.Version, &m.Year, &m.TrackNumber) == nil {
+		if rows.Scan(&id, &m.Title, &m.Artist, &m.Album, &m.Version, &m.Year, &m.TrackNumber, &m.Lyrics) == nil {
 			out[id] = m
 		}
 	}
 	return out
+}
+
+func readMetadata(fullPath string) (MetadataUpdate, error) {
+	var meta MetadataUpdate
+	f, err := os.Open(fullPath)
+	if err != nil {
+		return meta, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return meta, err
+	}
+	if m, e := tag.ReadFrom(io.NewSectionReader(f, 0, min(info.Size(), 16<<20))); e == nil {
+		meta.Title = strings.TrimSpace(m.Title())
+		meta.Artist = strings.TrimSpace(m.Artist())
+		if meta.Artist == "" {
+			meta.Artist = strings.TrimSpace(m.AlbumArtist())
+		}
+		meta.Album = strings.TrimSpace(m.Album())
+		meta.Year = m.Year()
+		if trk, _ := m.Track(); trk > 0 {
+			meta.TrackNumber = trk
+		}
+		if raw := m.Raw(); raw != nil {
+			for _, k := range []string{"TIT3", "TT3", "SUBTITLE", "VERSION", "ST3", " description"} {
+				if val, ok := raw[k]; ok {
+					if s, ok := val.(string); ok && strings.TrimSpace(s) != "" {
+						meta.Version = strings.TrimSpace(s)
+						break
+					}
+				}
+			}
+		}
+		meta.Lyrics = strings.TrimSpace(m.Lyrics())
+	}
+	if meta.Lyrics == "" {
+		base := strings.TrimSuffix(fullPath, filepath.Ext(fullPath))
+		for _, ext := range []string{".lrc", ".txt"} {
+			if sidecar, err := os.Open(base + ext); err == nil {
+				data, readErr := io.ReadAll(io.LimitReader(sidecar, 64<<10))
+				sidecar.Close()
+				if readErr == nil && len(data) > 0 {
+					meta.Lyrics = strings.TrimSpace(string(data))
+					break
+				}
+			}
+		}
+	}
+	return meta, nil
 }
 
 func basicDuration(f *os.File) float64 {

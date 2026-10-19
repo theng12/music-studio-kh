@@ -35,7 +35,7 @@ func (s *Server) tracks(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, 200, tracks)
 }
 func (s *Server) updateTrack(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 16384)
+	r.Body = http.MaxBytesReader(w, r.Body, 131072)
 	var meta library.MetadataUpdate
 	if e := json.NewDecoder(r.Body).Decode(&meta); e != nil {
 		fail(w, 400, "invalid metadata")
@@ -93,7 +93,7 @@ func (s *Server) importFile(w http.ResponseWriter, r *http.Request) {
 		}
 		name := part.FormName()
 		if name != "file" {
-			buf, _ := io.ReadAll(io.LimitReader(part, 1024))
+			buf, _ := io.ReadAll(io.LimitReader(part, 64<<10))
 			part.Close()
 			val := strings.TrimSpace(string(buf))
 			switch name {
@@ -111,6 +111,8 @@ func (s *Server) importFile(w http.ResponseWriter, r *http.Request) {
 				meta.Year, _ = strconv.Atoi(val)
 			case "trackNumber":
 				meta.TrackNumber, _ = strconv.Atoi(val)
+			case "lyrics":
+				meta.Lyrics = val
 			}
 			continue
 		}
@@ -140,7 +142,11 @@ func (s *Server) importFile(w http.ResponseWriter, r *http.Request) {
 			fail(w, 400, err.Error())
 			return
 		}
-		jsonResponse(w, 201, track)
+		status := 201
+		if track.Skipped {
+			status = 200
+		}
+		jsonResponse(w, status, track)
 		return
 	}
 }

@@ -26,6 +26,16 @@ export const rpc = <T = any>(method: string, params: any = {}) =>
   invoke<T>("request", { method, params });
 export const art = (id: string, version = 0) =>
   "/api/artwork/" + encodeURIComponent(id) + "?v=" + version;
+
+export function sendDesktopCommand(cmd: string) {
+  if (typeof document === "undefined") return;
+  const prev = document.title;
+  document.title = "__TH_CMD__:" + cmd;
+  setTimeout(() => {
+    document.title = prev;
+  }, 60);
+}
+
 export interface Track {
   id: string;
   title: string;
@@ -38,6 +48,9 @@ export interface Track {
   format: string;
   size: number;
   duration: number;
+  skipped?: boolean;
+  lyrics?: string;
+  contentHash?: string;
 }
 export interface MetadataInput {
   title?: string;
@@ -46,6 +59,7 @@ export interface MetadataInput {
   version?: string;
   year?: number;
   trackNumber?: number;
+  lyrics?: string;
 }
 export interface ImportItem {
   file: File;
@@ -85,4 +99,5 @@ export interface Appearance {
   streamQuality?: string;
   repeatMode?: string;
   defaultTab?: string;
+  closeBehavior?: "ask" | "background" | "quit";
 }

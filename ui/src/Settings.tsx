@@ -42,7 +42,10 @@ export default function Settings({
     setUsername(profile?.username || "");
   }, [profile?.name, profile?.username]);
 
-  const show = (id: string) => section === "all" || section === id;
+  const show = (id: string) =>
+    section === "all" ||
+    section === id ||
+    (section === "appearance" && (id === "appearance" || id === "server"));
 
   const saveProfileAccount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,8 +93,8 @@ export default function Settings({
           ["all", "All settings"],
           ["profile", "Profile & account"],
           ["playback", "Playback & audio"],
-          ["appearance", "Appearance & display"],
-          ["server", "Server & mobile"],
+          ["appearance", "Appearance & access"],
+          ["server", "Server & mobile access"],
           ["session", "Session & about"],
         ].map(([id, label]) => (
           <button
@@ -207,6 +210,29 @@ export default function Settings({
               <option value="all">Play next song & loop queue</option>
               <option value="one">Repeat current song</option>
               <option value="off">Stop when current song finishes</option>
+            </select>
+          </label>
+          <label htmlFor="closeBehavior">
+            When closing the window (red × button)
+            <select
+              id="closeBehavior"
+              value={settings.closeBehavior || "ask"}
+              onChange={(e) =>
+                save({
+                  ...settings,
+                  closeBehavior: e.target.value as Appearance["closeBehavior"],
+                })
+              }
+            >
+              <option value="ask">
+                Ask me whether to play in background or quit
+              </option>
+              <option value="background">
+                Keep playing in background (Minimize to menu bar)
+              </option>
+              <option value="quit">
+                Close window and stop music playback
+              </option>
             </select>
           </label>
           <p className="muted">

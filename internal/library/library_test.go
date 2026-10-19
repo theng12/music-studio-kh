@@ -28,6 +28,11 @@ func wav() []byte {
 	binary.LittleEndian.PutUint32(b[40:], 4)
 	return b
 }
+func wavWith(tag byte) []byte {
+	b := wav()
+	b[len(b)-1] ^= tag
+	return b
+}
 func openTest(t *testing.T) (*Library, string) {
 	t.Helper()
 	root := t.TempDir()
@@ -86,7 +91,8 @@ func TestConcurrentImportsKeepBoth(t *testing.T) {
 	errs := make(chan error, 2)
 	for i := 0; i < 2; i++ {
 		wg.Add(1)
-		go func() { defer wg.Done(); _, e := l.Import("Song.wav", bytes.NewReader(wav())); errs <- e }()
+		tag := byte(i + 1)
+		go func() { defer wg.Done(); _, e := l.Import("Song.wav", bytes.NewReader(wavWith(tag))); errs <- e }()
 	}
 	wg.Wait()
 	close(errs)
@@ -232,7 +238,7 @@ func TestAlbumArtworkAndProfileSettings(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	b, e := l.Import("Two.wav", bytes.NewReader(wav()))
+	b, e := l.Import("Two.wav", bytes.NewReader(wavWith(1)))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -245,7 +251,7 @@ func TestAlbumArtworkAndProfileSettings(t *testing.T) {
 	if e != nil || len(art) == 0 {
 		t.Fatal("album cover not applied")
 	}
-	settings := Appearance{Theme: "light", Accent: "violet", Density: "compact", Layout: "list"}
+	settings := Appearance{Theme: "light", Accent: "violet", Density: "compact", Layout: "list", CloseBehavior: "ask"}
 	if e = l.SaveSettings(settings); e != nil {
 		t.Fatal(e)
 	}
@@ -280,11 +286,11 @@ func TestFolderImportMetadataAndVersions(t *testing.T) {
 	if e := l.ImportFolderArtwork("Daft Punk/Discovery (Deluxe Edition) (2001)/cover.png", bytes.NewReader(cover.Bytes())); e != nil {
 		t.Fatal("folder artwork import failed:", e)
 	}
-	t2, e := l.Import("Daft Punk/Discovery (Deluxe Edition) (2001)/02 - Aerodynamic.wav", bytes.NewReader(wav()))
+	t2, e := l.Import("Daft Punk/Discovery (Deluxe Edition) (2001)/02 - Aerodynamic.wav", bytes.NewReader(wavWith(2)))
 	if e != nil {
 		t.Fatal(e)
 	}
-	t1, e := l.Import("Daft Punk/Discovery (Deluxe Edition) (2001)/01 - One More Time.wav", bytes.NewReader(wav()))
+	t1, e := l.Import("Daft Punk/Discovery (Deluxe Edition) (2001)/01 - One More Time.wav", bytes.NewReader(wavWith(3)))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -299,7 +305,7 @@ func TestFolderImportMetadataAndVersions(t *testing.T) {
 		t.Fatalf("folder artwork not served: %v %s", e, mime)
 	}
 	// Import an alternate version of the song with explicit metadata overrides.
-	alt, e := l.ImportWithMeta("One More Time.wav", bytes.NewReader(wav()), MetadataUpdate{
+	alt, e := l.ImportWithMeta("One More Time.wav", bytes.NewReader(wavWith(4)), MetadataUpdate{
 		Title:       "One More Time",
 		Artist:      "Daft Punk",
 		Album:       "Discovery",
@@ -324,6 +330,93 @@ func TestFolderImportMetadataAndVersions(t *testing.T) {
 	afterScan, e := l.Track(t2.ID)
 	if e != nil || afterScan.Title != "Aerodynamic (Remastered)" || afterScan.Version != "2026 Remaster" || afterScan.Year != 2026 {
 		t.Fatalf("override lost after Scan: %+v %v", afterScan, e)
+	}
+}
+
+func TestImportDuplicateSkipped(t *testing.T) {
+	l, root := openTest(t)
+	audio := wav()
+	t1, err := l.Import("Song.wav", bytes.NewReader(audio))
+	if err != nil {
+		t.Fatalf("first import failed: %v", err)
+	}
+	if t1.Skipped {
+		t.Fatalf("first import should not be skipped")
+	}
+	if t1.ContentHash == "" {
+		t.Fatalf("first import should have contentHash set")
+	}
+
+	// Second import: exact same audio content, under a different name, with new metadata
+	t2, err := l.ImportWithMeta("AnotherName.wav", bytes.NewReader(audio), MetadataUpdate{
+		Lyrics: "New Lyrics",
+	})
+	if err != nil {
+		t.Fatalf("second import returned error: %v", err)
+	}
+	if !t2.Skipped {
+		t.Fatalf("expected duplicate import to be skipped, got skipped=false")
+	}
+	if t2.ID != t1.ID {
+		t.Fatalf("expected duplicate to return existing track ID %s, got %s", t1.ID, t2.ID)
+	}
+	if t2.Lyrics != "New Lyrics" {
+		t.Fatalf("expected metadata override on duplicate to update lyrics, got %s", t2.Lyrics)
+	}
+
+	tracks, err := l.Tracks("")
+	if err != nil || len(tracks) != 1 {
+		t.Fatalf("expected exactly 1 track in library, got %d (err: %v)", len(tracks), err)
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "AnotherName.wav")); !os.IsNotExist(err) {
+		t.Fatalf("duplicate import file should not be created on disk")
+	}
+	if _, err := os.Stat(filepath.Join(root, "Song (1).wav")); !os.IsNotExist(err) {
+		t.Fatalf("numbered duplicate should not be created on disk")
+	}
+}
+
+func TestLyricsExtractionAndSidecar(t *testing.T) {
+	l, root := openTest(t)
+	os.WriteFile(filepath.Join(root, "TrackWithLyrics.wav"), wav(), 0600)
+	os.WriteFile(filepath.Join(root, "TrackWithLyrics.lrc"), []byte("[00:01.00]Sidecar lyrics line"), 0600)
+
+	if err := l.Scan(); err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+	tracks, err := l.Tracks("TrackWithLyrics")
+	if err != nil || len(tracks) != 1 {
+		t.Fatalf("expected 1 track, got %d (err: %v)", len(tracks), err)
+	}
+	if tracks[0].Lyrics != "[00:01.00]Sidecar lyrics line" {
+		t.Fatalf("expected sidecar lyrics, got %q", tracks[0].Lyrics)
+	}
+
+	meta, err := readMetadata(filepath.Join(root, "TrackWithLyrics.wav"))
+	if err != nil {
+		t.Fatalf("readMetadata failed: %v", err)
+	}
+	if meta.Lyrics != "[00:01.00]Sidecar lyrics line" {
+		t.Fatalf("expected readMetadata lyrics, got %q", meta.Lyrics)
+	}
+
+	updated, err := l.UpdateTrackMetadata(tracks[0].ID, MetadataUpdate{
+		Lyrics: "[00:02.00]Updated lyrics",
+	})
+	if err != nil {
+		t.Fatalf("UpdateTrackMetadata failed: %v", err)
+	}
+	if updated.Lyrics != "[00:02.00]Updated lyrics" {
+		t.Fatalf("expected updated lyrics, got %q", updated.Lyrics)
+	}
+
+	if err := l.Scan(); err != nil {
+		t.Fatalf("Scan after update failed: %v", err)
+	}
+	afterScan, err := l.Track(tracks[0].ID)
+	if err != nil || afterScan.Lyrics != "[00:02.00]Updated lyrics" {
+		t.Fatalf("lyrics did not survive Scan(): %q (err: %v)", afterScan.Lyrics, err)
 	}
 }
 

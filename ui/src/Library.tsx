@@ -15,13 +15,22 @@ interface Props {
   version: number;
   layout: string;
   defaultTab?: string;
+  activeTab?: "songs" | "albums" | "artists" | "folders";
+  onTabChange?: (tab: "songs" | "albums" | "artists" | "folders") => void;
   toggleLayout: () => void;
 }
 const songs = (n: number) => n + (n === 1 ? " song" : " songs");
 export default function Library(p: Props) {
-  const [view, setView] = useState(p.defaultTab || "songs"),
+  const [localView, setLocalView] = useState<"songs" | "albums" | "artists" | "folders">(
+      (p.defaultTab as any) || "songs",
+    ),
     [limit, setLimit] = useState(100),
     [album, setAlbum] = useState<Track[] | null>(null);
+  const view = p.activeTab ?? localView;
+  const setView = (v: "songs" | "albums" | "artists" | "folders") => {
+    if (p.onTabChange) p.onTabChange(v);
+    else setLocalView(v);
+  };
   const groups = useMemo(() => {
     const map = new Map<string, Track[]>();
     for (const t of p.tracks) {
@@ -117,7 +126,7 @@ export default function Library(p: Props) {
         </div>
       </div>
       <div className="queue-tabs">
-        {["songs", "albums", "artists", "folders"].map((v) => (
+        {(["songs", "albums", "artists", "folders"] as const).map((v) => (
           <button
             key={v}
             className={view === v ? "selected" : ""}

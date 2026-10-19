@@ -1,4 +1,4 @@
-export const APP_VERSION = "0.1.0";
+export const APP_VERSION = "0.2.0";
 
 export interface ReleaseEntry {
   version: string;
@@ -8,6 +8,19 @@ export interface ReleaseEntry {
 }
 
 export const WHATS_NEW: ReleaseEntry[] = [
+  {
+    version: "0.2.0",
+    date: "October 2026",
+    title: "Smart duplicate skipping, full player controls & lyrics",
+    items: [
+      "Smart duplicate-skipping music & folder imports (skips existing songs automatically without creating -2 copies).",
+      "Full music player controls: Shuffle (🔀), Repeat (Off / All / One), ±10s seek buttons, playback speed (0.75×–2×), mute toggle, and Up Next queue.",
+      "Built-in Lyrics drawer (🎤 Lyrics) with live [mm:ss] LRC synchronized line highlighting, click-to-seek, and inline lyrics editor.",
+      "Non-overlapping sidebar layout + compact Mini-Player mode (⧉), Pin on Top (📌), Hide to Menu Bar (🙈), and native macOS Menu Bar & Tray music controller.",
+      "Reorganized sidebar usage navigation (Songs, Albums, Artists, Folders with live item counts, Downloads, and Settings containing Appearance & access).",
+      "Red close button background playback vs. quit preference with prompt dialog and Settings option (keeps music playing smoothly in background or quits on demand).",
+    ],
+  },
   {
     version: "0.1.0",
     date: "October 2026",

@@ -21,6 +21,7 @@ export default function ImportDialog({
   const [album, setAlbum] = useState("");
   const [version, setVersion] = useState("");
   const [year, setYear] = useState("");
+  const [lyrics, setLyrics] = useState("");
   const [artwork, setArtwork] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -71,6 +72,7 @@ export default function ImportDialog({
           album: album.trim() || undefined,
           version: version.trim() || undefined,
           year: year ? Number(year) : undefined,
+          lyrics: lyrics.trim() || undefined,
         },
         artwork,
       );
@@ -80,6 +82,7 @@ export default function ImportDialog({
       setAlbum("");
       setVersion("");
       setYear("");
+      setLyrics("");
       setArtwork(null);
       onClose();
     } finally {
@@ -224,6 +227,17 @@ export default function ImportDialog({
             />
           </label>
         </div>
+
+        <label>
+          Lyrics (optional · plain text or [mm:ss] LRC)
+          <textarea
+            id="import-lyrics"
+            rows={4}
+            value={lyrics}
+            onChange={(e) => setLyrics(e.target.value)}
+            placeholder="Paste plain lyrics or [mm:ss] LRC time-synced lyrics here…"
+          />
+        </label>
 
         <label className="artwork-upload">
           Cover artwork (optional · JPEG, PNG, or WebP)
