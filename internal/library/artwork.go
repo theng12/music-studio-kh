@@ -82,7 +82,7 @@ func (l *Library) Artwork(id string) ([]byte, string, error) {
 			return thumb, "image/png", nil
 		}
 	}
-	for _, name := range []string{"cover.jpg", "cover.png", "folder.jpg", "folder.png"} {
+	for _, name := range []string{"cover.png", "cover.jpg", "cover.jpeg", "cover.webp", "folder.png", "folder.jpg", "folder.jpeg", "artwork.png", "artwork.jpg", "front.png", "front.jpg"} {
 		rel := filepath.Join(filepath.Dir(t.Path), name)
 		root, rootErr := l.checkedRoot()
 		if rootErr != nil {

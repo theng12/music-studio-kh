@@ -56,6 +56,8 @@ func New(p profiles.Profile, l *library.Library, options ...Option) *Server {
 	m.HandleFunc("POST /api/logout", s.authorize(s.logout))
 	m.HandleFunc("GET /api/me", s.authorize(s.me))
 	m.HandleFunc("GET /api/tracks", s.authorize(s.tracks))
+	m.HandleFunc("PUT /api/tracks/{id}", s.authorize(s.updateTrack))
+	m.HandleFunc("PUT /api/albums/{id}", s.authorize(s.updateAlbum))
 	m.HandleFunc("POST /api/scan", s.authorize(s.scan))
 	m.HandleFunc("POST /api/import", s.authorize(s.importFile))
 	m.HandleFunc("GET /api/stream/{id}", s.authorize(s.stream))

@@ -31,9 +31,25 @@ export interface Track {
   title: string;
   artist: string;
   album: string;
+  version?: string;
+  year?: number;
+  trackNumber?: number;
+  folder?: string;
   format: string;
   size: number;
   duration: number;
+}
+export interface MetadataInput {
+  title?: string;
+  artist?: string;
+  album?: string;
+  version?: string;
+  year?: number;
+  trackNumber?: number;
+}
+export interface ImportItem {
+  file: File;
+  relPath?: string;
 }
 export interface Job {
   id: string;

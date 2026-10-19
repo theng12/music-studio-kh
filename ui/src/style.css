@@ -1659,3 +1659,56 @@ dialog small {
   flex-direction: column;
   gap: 6px;
 }
+.hero .action-row button,
+.hero .action-row .primary {
+  margin-top: 0;
+  font-size: 12px;
+}
+.empty-actions {
+  justify-content: center;
+  margin: 22px 0 15px;
+}
+.empty .empty-actions button {
+  margin: 0;
+}
+.track-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.track-version {
+  font-size: 9px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+}
+.metadata-dialog {
+  width: min(94vw, 540px);
+  max-height: 90vh;
+  overflow: auto;
+}
+.metadata-form {
+  margin-bottom: 22px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--border);
+}
+.metadata-form label {
+  margin: 14px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.metadata-form input {
+  margin-top: 8px;
+}
+.metadata-form .primary {
+  width: 100%;
+  margin-top: 14px;
+}
+.artwork-section {
+  margin-top: 4px;
+}
+.import-selection-summary {
+  margin: 14px 0 4px;
+  color: var(--accent);
+  font-size: 11px;
+}
