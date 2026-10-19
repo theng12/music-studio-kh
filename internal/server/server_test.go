@@ -303,3 +303,35 @@ func TestProfileAndPreferencesUpdate(t *testing.T) {
 	}
 }
 
+func TestTrackLyricsPatchAndGet(t *testing.T) {
+	s, track := fixture(t)
+	cookie := login(t, s)
+
+	// PATCH /api/tracks/{id} with lyrics
+	patchBody := `{"lyrics":"[00:01.00]Hello world\n[00:05.00]Second line"}`
+	w := request(s, "PATCH", "/api/tracks/"+track.ID, patchBody, cookie)
+	if w.Code != 200 {
+		t.Fatalf("PATCH /api/tracks/%s failed with %d: %s", track.ID, w.Code, w.Body.String())
+	}
+	var patched library.Track
+	if err := json.Unmarshal(w.Body.Bytes(), &patched); err != nil {
+		t.Fatalf("failed to decode patched track: %v", err)
+	}
+	if patched.Lyrics != "[00:01.00]Hello world\n[00:05.00]Second line" {
+		t.Fatalf("unexpected patched lyrics: %q", patched.Lyrics)
+	}
+
+	// GET /api/tracks and verify lyrics are returned
+	w = request(s, "GET", "/api/tracks", "", cookie)
+	if w.Code != 200 {
+		t.Fatalf("GET /api/tracks failed with %d: %s", w.Code, w.Body.String())
+	}
+	var tracks []library.Track
+	if err := json.Unmarshal(w.Body.Bytes(), &tracks); err != nil {
+		t.Fatalf("failed to decode tracks: %v", err)
+	}
+	if len(tracks) != 1 || tracks[0].Lyrics != "[00:01.00]Hello world\n[00:05.00]Second line" {
+		t.Fatalf("GET /api/tracks did not return lyrics: %+v", tracks)
+	}
+}
+

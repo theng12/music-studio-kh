@@ -25,6 +25,9 @@ type Track struct {
 	Artwork     bool    `json:"artwork"`
 	Duration    float64 `json:"duration"`
 	Modified    float64 `json:"-"`
+	ContentHash string  `json:"contentHash,omitempty"`
+	Lyrics      string  `json:"lyrics,omitempty"`
+	Skipped     bool    `json:"skipped,omitempty"`
 }
 type Library struct {
 	db                *sql.DB
@@ -89,7 +92,7 @@ func (l *Library) Close() error {
 }
 func (l *Library) Tracks(query string) ([]Track, error) {
 	like := "%" + query + "%"
-	rows, err := l.db.Query(`SELECT id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified FROM tracks WHERE title LIKE ? OR artist LIKE ? OR album LIKE ? OR version LIKE ? OR folder LIKE ? ORDER BY artist,album,version,CASE WHEN track_number>0 THEN track_number ELSE 999999 END,title`, like, like, like, like, like)
+	rows, err := l.db.Query(`SELECT id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified,content_hash,lyrics FROM tracks WHERE title LIKE ? OR artist LIKE ? OR album LIKE ? OR version LIKE ? OR folder LIKE ? ORDER BY artist,album,version,CASE WHEN track_number>0 THEN track_number ELSE 999999 END,title`, like, like, like, like, like)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +100,7 @@ func (l *Library) Tracks(query string) ([]Track, error) {
 	out := []Track{}
 	for rows.Next() {
 		var t Track
-		if err = rows.Scan(&t.ID, &t.Title, &t.Artist, &t.Album, &t.Version, &t.Year, &t.TrackNumber, &t.Folder, &t.Path, &t.Format, &t.Size, &t.Duration, &t.Modified); err != nil {
+		if err = rows.Scan(&t.ID, &t.Title, &t.Artist, &t.Album, &t.Version, &t.Year, &t.TrackNumber, &t.Folder, &t.Path, &t.Format, &t.Size, &t.Duration, &t.Modified, &t.ContentHash, &t.Lyrics); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
@@ -106,7 +109,7 @@ func (l *Library) Tracks(query string) ([]Track, error) {
 }
 func (l *Library) Track(id string) (Track, error) {
 	var t Track
-	err := l.db.QueryRow(`SELECT id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified FROM tracks WHERE id=?`, id).Scan(&t.ID, &t.Title, &t.Artist, &t.Album, &t.Version, &t.Year, &t.TrackNumber, &t.Folder, &t.Path, &t.Format, &t.Size, &t.Duration, &t.Modified)
+	err := l.db.QueryRow(`SELECT id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified,content_hash,lyrics FROM tracks WHERE id=?`, id).Scan(&t.ID, &t.Title, &t.Artist, &t.Album, &t.Version, &t.Year, &t.TrackNumber, &t.Folder, &t.Path, &t.Format, &t.Size, &t.Duration, &t.Modified, &t.ContentHash, &t.Lyrics)
 	return t, err
 }
 func (l *Library) OpenTrack(id string) (*os.File, Track, error) {

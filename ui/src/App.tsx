@@ -6,6 +6,7 @@ import {
   isManager,
   Job,
   MetadataInput,
+  sendDesktopCommand,
   Track,
 } from "./api";
 import Downloads from "./Downloads";
@@ -55,7 +56,12 @@ export default function App() {
     [busy, setBusy] = useState(false),
     [whatsNew, setWhatsNew] = useState(false),
     [customImport, setCustomImport] = useState(false),
-    [settingsSection, setSettingsSection] = useState("all");
+    [settingsSection, setSettingsSection] = useState("all"),
+    [libraryTab, setLibraryTab] = useState<
+      "songs" | "albums" | "artists" | "folders"
+    >("songs"),
+    [closePromptOpen, setClosePromptOpen] = useState(false),
+    [rememberCloseChoice, setRememberCloseChoice] = useState(true);
   const files = useRef<HTMLInputElement>(null),
     folders = useRef<HTMLInputElement>(null),
     messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -94,7 +100,17 @@ export default function App() {
   useEffect(() => {
     if (!profile) return;
     api<Appearance>("/api/settings")
-      .then(setAppearance)
+      .then((settings) => {
+        setAppearance(settings);
+        if (
+          settings.defaultTab &&
+          ["songs", "albums", "artists", "folders"].includes(
+            settings.defaultTab,
+          )
+        ) {
+          setLibraryTab(settings.defaultTab as any);
+        }
+      })
       .catch((e) => notify(e.message));
     loadTracks().catch((e) => notify(e.message));
     loadJobs().catch(() => {});
@@ -147,6 +163,26 @@ export default function App() {
       notify((e as Error).message);
     }
   };
+
+  useEffect(() => {
+    const handler = () => {
+      const mode = appearance.closeBehavior || "ask";
+      if (mode === "background") {
+        sendDesktopCommand("hide-window");
+        notify("Playing in the background. Use the menu bar icon to reopen.");
+      } else if (mode === "quit") {
+        sendDesktopCommand("close-profile-window");
+      } else {
+        setClosePromptOpen(true);
+      }
+    };
+    (window as any).__TUNEHARBOR_ON_CLOSE_REQUESTED__ = handler;
+    return () => {
+      if ((window as any).__TUNEHARBOR_ON_CLOSE_REQUESTED__ === handler) {
+        delete (window as any).__TUNEHARBOR_ON_CLOSE_REQUESTED__;
+      }
+    };
+  }, [appearance]);
   const logout = async () => {
     try {
       await api("/api/logout", { method: "POST" });
@@ -211,7 +247,8 @@ export default function App() {
         await api("/api/import", { method: "POST", body: form });
       } catch {}
     }
-    let count = 0;
+    let added = 0;
+    let skipped = 0;
     let firstTrackId = "";
     for (const item of audios) {
       const form = new FormData();
@@ -223,6 +260,7 @@ export default function App() {
       if (meta?.year) form.append("year", String(meta.year));
       if (meta?.trackNumber)
         form.append("trackNumber", String(meta.trackNumber));
+      if (meta?.lyrics) form.append("lyrics", meta.lyrics);
       form.append("file", item.file);
       notify("Importing " + (item.relPath || item.file.name) + "…");
       try {
@@ -230,8 +268,12 @@ export default function App() {
           method: "POST",
           body: form,
         });
-        if (!firstTrackId && created?.id) firstTrackId = created.id;
-        count++;
+        if (created?.skipped) {
+          skipped++;
+        } else {
+          if (!firstTrackId && created?.id) firstTrackId = created.id;
+          added++;
+        }
       } catch (e) {
         notify((e as Error).message);
       }
@@ -251,10 +293,19 @@ export default function App() {
       setVersion((n) => n + 1);
     }
     await loadTracks();
-    if (count)
+    if (added > 0 && skipped > 0) {
       notify(
-        count + " song" + (count === 1 ? "" : "s") + " added to your library.",
+        `${added} song${added === 1 ? "" : "s"} added, ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped.`,
       );
+    } else if (added === 0 && skipped > 0) {
+      notify(
+        `Skipped ${skipped} already existing song${skipped === 1 ? "" : "s"}.`,
+      );
+    } else if (added > 0) {
+      notify(
+        `${added} song${added === 1 ? "" : "s"} added to your library.`,
+      );
+    }
   };
   const play = (track: Track, queue: Track[] = tracks) => {
     setPlayQueue([...queue]);
@@ -345,22 +396,96 @@ export default function App() {
         </section>
       </>
     );
+  const songsCount = tracks.length;
+  const albumsCount = new Set(
+    tracks.map(
+      (t) => (t.album || "Singles & Unsorted") + "::" + (t.version || ""),
+    ),
+  ).size;
+  const artistsCount = new Set(
+    tracks.map((t) => t.artist || "Unknown artist"),
+  ).size;
+  const foldersCount = new Set(
+    tracks.map((t) => t.folder || "Root library"),
+  ).size;
+
   return (
     <>
       {toast}
       <div id="app" className="app">
         <aside className="sidebar">
-          <a className="brand" href="/">
+          <a
+            className="brand"
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              setPage("library");
+              setLibraryTab("songs");
+            }}
+          >
             <span className="brand-mark">♪</span>TuneHarbor
           </a>
-          <span className="sidebar-label">YOUR SPACE</span>
+          <span className="sidebar-label">LIBRARY</span>
           <button
-            className={"nav-item " + (page === "library" ? "active" : "")}
+            className={
+              "nav-item " +
+              (page === "library" && libraryTab === "songs" ? "active" : "")
+            }
             id="library-nav"
-            onClick={() => setPage("library")}
+            onClick={() => {
+              setPage("library");
+              setLibraryTab("songs");
+            }}
           >
-            ♫ <span>Music library</span>
+            ♫ <span>Songs</span>
+            <small className="nav-count">{songsCount}</small>
           </button>
+          <button
+            className={
+              "nav-item " +
+              (page === "library" && libraryTab === "albums" ? "active" : "")
+            }
+            id="nav-albums"
+            onClick={() => {
+              setPage("library");
+              setLibraryTab("albums");
+            }}
+          >
+            💿 <span>Albums</span>
+            <small className="nav-count">{albumsCount}</small>
+          </button>
+          <button
+            className={
+              "nav-item " +
+              (page === "library" && libraryTab === "artists" ? "active" : "")
+            }
+            id="nav-artists"
+            onClick={() => {
+              setPage("library");
+              setLibraryTab("artists");
+            }}
+          >
+            🎙 <span>Artists</span>
+            <small className="nav-count">{artistsCount}</small>
+          </button>
+          <button
+            className={
+              "nav-item " +
+              (page === "library" && libraryTab === "folders" ? "active" : "")
+            }
+            id="nav-folders"
+            onClick={() => {
+              setPage("library");
+              setLibraryTab("folders");
+            }}
+          >
+            📁 <span>Folders</span>
+            <small className="nav-count">{foldersCount}</small>
+          </button>
+
+          <span className="sidebar-label" style={{ marginTop: "18px" }}>
+            MANAGE
+          </span>
           <button
             className={"nav-item " + (page === "downloads" ? "active" : "")}
             id="downloads-nav"
@@ -380,7 +505,7 @@ export default function App() {
               setPage("settings");
             }}
           >
-            ⚙︎ <span>Settings & preferences</span>
+            ⚙︎ <span>Settings</span>
           </button>
           <div className="sidebar-bottom">
             <button
@@ -461,6 +586,8 @@ export default function App() {
               version={version}
               layout={appearance.layout}
               defaultTab={appearance.defaultTab}
+              activeTab={libraryTab}
+              onTabChange={setLibraryTab}
               toggleLayout={() =>
                 saveAppearance({
                   ...appearance,
@@ -512,7 +639,7 @@ export default function App() {
         </main>
         <Player
           queue={playQueue}
-          select={setPlaying}
+          select={(t) => play(t, playQueue.length ? playQueue : tracks)}
           track={playing}
           version={version}
           next={() => skip(1)}
@@ -520,6 +647,16 @@ export default function App() {
           notice={notify}
           streamQuality={appearance.streamQuality}
           repeatMode={appearance.repeatMode}
+          onRepeatModeChange={(mode) =>
+            saveAppearance({ ...appearance, repeatMode: mode })
+          }
+          onTrackUpdated={(updated) => {
+            setTracks((prev) =>
+              prev.map((t) => (t.id === updated.id ? updated : t)),
+            );
+            if (playing?.id === updated.id) setPlaying(updated);
+          }}
+          allTracks={tracks}
         />
       </div>
       <Artwork
@@ -537,6 +674,106 @@ export default function App() {
         onImport={importFiles}
       />
       <WhatsNew open={whatsNew} onClose={() => setWhatsNew(false)} />
+      {closePromptOpen && (
+        <div
+          className="modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setClosePromptOpen(false);
+          }}
+        >
+          <section
+            className="settings-card whats-new-dialog"
+            id="close-behavior-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="close-behavior-title"
+          >
+            <button
+              type="button"
+              className="close-dialog"
+              aria-label="Cancel close dialog"
+              onClick={() => setClosePromptOpen(false)}
+            >
+              ×
+            </button>
+            <span className="eyebrow">WINDOW CLOSE BEHAVIOR</span>
+            <h2 id="close-behavior-title">
+              Keep music playing in the background?
+            </h2>
+            <p className="muted">
+              Choose whether clicking the red close button minimizes TuneHarbor
+              to the menu bar so your music keeps playing, or closes the window
+              and stops playback. You can change this anytime in Settings.
+            </p>
+            <label
+              className="checkbox"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                margin: "18px 0 14px",
+                cursor: "pointer",
+                fontSize: "12px",
+                color: "var(--text)",
+              }}
+            >
+              <input
+                type="checkbox"
+                id="remember-close-choice"
+                checked={rememberCloseChoice}
+                onChange={(e) => setRememberCloseChoice(e.target.checked)}
+                style={{ width: "auto" }}
+              />
+              <span>Always use this choice (change anytime in Settings)</span>
+            </label>
+            <div className="action-row">
+              <button
+                type="button"
+                className="primary"
+                id="close-keep-playing"
+                onClick={async () => {
+                  if (rememberCloseChoice)
+                    await saveAppearance({
+                      ...appearance,
+                      closeBehavior: "background",
+                    });
+                  setClosePromptOpen(false);
+                  sendDesktopCommand("hide-window");
+                  notify(
+                    "Playing in the background. Use the menu bar icon to reopen.",
+                  );
+                }}
+              >
+                Keep playing in background
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                id="close-quit-now"
+                onClick={async () => {
+                  if (rememberCloseChoice)
+                    await saveAppearance({
+                      ...appearance,
+                      closeBehavior: "quit",
+                    });
+                  setClosePromptOpen(false);
+                  sendDesktopCommand("close-profile-window");
+                }}
+              >
+                Close & stop music
+              </button>
+              <button
+                type="button"
+                className="subtle"
+                id="close-cancel"
+                onClick={() => setClosePromptOpen(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </>
   );
 }

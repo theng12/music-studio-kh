@@ -18,6 +18,7 @@ export default function Artwork({
   const [version, setVersion] = useState("");
   const [year, setYear] = useState("");
   const [trackNumber, setTrackNumber] = useState("");
+  const [lyrics, setLyrics] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export default function Artwork({
       setVersion(t.version || "");
       setYear(t.year ? String(t.year) : "");
       setTrackNumber(t.trackNumber ? String(t.trackNumber) : "");
+      setLyrics(t.lyrics || "");
       dialog.current?.showModal();
     } else {
       dialog.current?.close();
@@ -69,6 +71,7 @@ export default function Artwork({
           version,
           year: year ? Number(year) : 0,
           trackNumber: trackNumber ? Number(trackNumber) : 0,
+          lyrics: selected.album ? undefined : (lyrics.trim() || undefined),
         }),
       });
       changed();
@@ -169,6 +172,18 @@ export default function Artwork({
               value={trackNumber}
               onChange={(e) => setTrackNumber(e.target.value)}
               placeholder="e.g. 1"
+            />
+          </label>
+        )}
+        {!selected?.album && (
+          <label>
+            Lyrics
+            <textarea
+              id="edit-lyrics"
+              rows={4}
+              value={lyrics}
+              onChange={(e) => setLyrics(e.target.value)}
+              placeholder="Paste plain lyrics or [mm:ss] LRC time-synced lyrics here…"
             />
           </label>
         )}

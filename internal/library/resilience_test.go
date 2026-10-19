@@ -66,7 +66,7 @@ func TestImportIndexesOnlyTheNewFile(t *testing.T) {
 	if len(tracks) != 1 {
 		t.Fatalf("import rescanned the library: %+v", tracks)
 	}
-	again, e := l.Import("Song.wav", bytes.NewReader(wav()))
+	again, e := l.Import("Song.wav", bytes.NewReader(wavWith(1)))
 	if e != nil || again.Path != "Song (1).wav" || again.ID == track.ID {
 		t.Fatal("collision:", again, e)
 	}
@@ -109,7 +109,7 @@ func TestReconnectedFolderResumes(t *testing.T) {
 	if e := l.Ready(); e != nil {
 		t.Fatal("reconnected folder not accepted:", e)
 	}
-	if _, e := l.Import("New.wav", bytes.NewReader(wav())); e != nil {
+	if _, e := l.Import("New.wav", bytes.NewReader(wavWith(2))); e != nil {
 		t.Fatal(e)
 	}
 	if _, e := os.Stat(filepath.Join(root, "New.wav")); e != nil {
@@ -143,12 +143,16 @@ func TestImportWithoutHardLinkSupport(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	second, e := l.Import("Song.wav", bytes.NewReader(wav()))
+	second, e := l.Import("Song.wav", bytes.NewReader(wavWith(3)))
 	if e != nil || first.Path != "Song.wav" || second.Path != "Song (1).wav" {
 		t.Fatal(first, second, e)
 	}
-	for _, name := range []string{"Song.wav", "Song (1).wav"} {
-		if data, e := os.ReadFile(filepath.Join(root, name)); e != nil || !bytes.Equal(data, wav()) {
+	for i, name := range []string{"Song.wav", "Song (1).wav"} {
+		expected := wav()
+		if i == 1 {
+			expected = wavWith(3)
+		}
+		if data, e := os.ReadFile(filepath.Join(root, name)); e != nil || !bytes.Equal(data, expected) {
 			t.Fatal(name, e)
 		}
 	}

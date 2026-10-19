@@ -89,13 +89,13 @@ func (l *Library) Scan() error {
 	if _, err = tx.Exec("DELETE FROM tracks"); err != nil {
 		return err
 	}
-	stmt, err := tx.Prepare("INSERT INTO tracks(id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)")
+	stmt, err := tx.Prepare("INSERT INTO tracks(id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified,content_hash,lyrics) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	for _, t := range tracks {
-		if _, err = stmt.Exec(t.ID, t.Title, t.Artist, t.Album, t.Version, t.Year, t.TrackNumber, t.Folder, t.Path, t.Format, t.Size, t.Duration, t.Modified); err != nil {
+		if _, err = stmt.Exec(t.ID, t.Title, t.Artist, t.Album, t.Version, t.Year, t.TrackNumber, t.Folder, t.Path, t.Format, t.Size, t.Duration, t.Modified, t.ContentHash, t.Lyrics); err != nil {
 			return err
 		}
 	}
@@ -141,8 +141,24 @@ func readTrack(root *os.Root, rel string, info fs.FileInfo, previous *Track, ove
 	t.Modified = float64(info.ModTime().Unix())
 	if previous != nil && previous.Size == t.Size && previous.Modified == t.Modified {
 		t.Duration = previous.Duration
+		t.ContentHash = previous.ContentHash
+		t.Lyrics = previous.Lyrics
 	} else {
 		t.Duration = basicDuration(f)
+		f.Seek(0, 0)
+		h := sha256.New()
+		if _, err := io.Copy(h, f); err == nil {
+			t.ContentHash = hex.EncodeToString(h.Sum(nil))
+		}
+		f.Seek(0, 0)
+	}
+	if t.ContentHash == "" {
+		f.Seek(0, 0)
+		h := sha256.New()
+		if _, err := io.Copy(h, f); err == nil {
+			t.ContentHash = hex.EncodeToString(h.Sum(nil))
+		}
+		f.Seek(0, 0)
 	}
 	var hasTitle, hasArtist, hasAlbum bool
 	if m, e := tag.ReadFrom(io.NewSectionReader(f, 0, min(info.Size(), 16<<20))); e == nil {
@@ -174,6 +190,22 @@ func readTrack(root *os.Root, rel string, info fs.FileInfo, previous *Track, ove
 						t.Version = strings.TrimSpace(s)
 						break
 					}
+				}
+			}
+		}
+		if lyr := strings.TrimSpace(m.Lyrics()); lyr != "" {
+			t.Lyrics = lyr
+		}
+	}
+	if t.Lyrics == "" {
+		stemRel := strings.TrimSuffix(rel, filepath.Ext(rel))
+		for _, ext := range []string{".lrc", ".txt"} {
+			if sidecar, err := root.Open(stemRel + ext); err == nil {
+				data, readErr := io.ReadAll(io.LimitReader(sidecar, 64<<10))
+				sidecar.Close()
+				if readErr == nil && len(data) > 0 {
+					t.Lyrics = strings.TrimSpace(string(data))
+					break
 				}
 			}
 		}
@@ -240,6 +272,9 @@ func applyOverride(t *Track, o MetadataUpdate) {
 	if o.TrackNumber > 0 {
 		t.TrackNumber = o.TrackNumber
 	}
+	if o.Lyrics != "" {
+		t.Lyrics = o.Lyrics
+	}
 }
 
 // indexFile adds or refreshes a single file without walking the library.
@@ -262,6 +297,6 @@ func (l *Library) indexFile(rel string) (Track, error) {
 	if err != nil {
 		return Track{}, err
 	}
-	_, err = l.db.Exec("INSERT OR REPLACE INTO tracks(id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", t.ID, t.Title, t.Artist, t.Album, t.Version, t.Year, t.TrackNumber, t.Folder, t.Path, t.Format, t.Size, t.Duration, t.Modified)
+	_, err = l.db.Exec("INSERT OR REPLACE INTO tracks(id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified,content_hash,lyrics) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", t.ID, t.Title, t.Artist, t.Album, t.Version, t.Year, t.TrackNumber, t.Folder, t.Path, t.Format, t.Size, t.Duration, t.Modified, t.ContentHash, t.Lyrics)
 	return t, err
 }
