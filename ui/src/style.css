@@ -358,11 +358,36 @@ small {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.sidebar-bottom > button {
+.sidebar-profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   text-align: left;
-  margin-top: 10px;
-  padding: 0;
-  font-size: 11px;
+  padding: 8px 10px;
+  margin: -4px -6px 2px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  transition: background 0.15s;
+}
+.sidebar-profile-btn:hover {
+  background: var(--panel2);
+}
+.sidebar-profile-btn .profile-avatar {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+.sidebar-profile-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.sidebar-profile-text strong {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 main {
   grid-column: 2;
@@ -1712,3 +1737,32 @@ dialog small {
   color: var(--accent);
   font-size: 11px;
 }
+.settings-tabs {
+  margin-bottom: 24px;
+}
+.profile-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 6px;
+}
+.profile-header-meta .profile-avatar {
+  width: 42px;
+  height: 42px;
+  font-size: 13px;
+  margin-bottom: 0;
+}
+.profile-header-meta h2 {
+  margin: 4px 0 0;
+}
+.settings-card input {
+  margin-top: 9px;
+}
+.danger-button {
+  background: #dfb87e;
+  color: #1a140b;
+}
+.danger-button:hover {
+  filter: brightness(1.06);
+}
+

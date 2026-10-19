@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/gofrs/flock"
+	"golang.org/x/crypto/bcrypt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -102,3 +103,45 @@ func SetLibrary(root, id, library string) error {
 	}
 	return rewrite(root, id, func(p *Profile) error { p.Library = path; return nil })
 }
+
+// UpdateAccount updates a profile's display name, username, and optional
+// password, persisting to profile.json when DataDir is set.
+func UpdateAccount(p *Profile, name, username, newPassword string) error {
+	name = strings.TrimSpace(name)
+	username = strings.TrimSpace(username)
+	if name == "" || len(name) > 80 {
+		return errors.New("choose a profile name up to 80 bytes")
+	}
+	if username == "" || len(username) > 80 {
+		return errors.New("choose a username up to 80 bytes")
+	}
+	var newHash string
+	if newPassword != "" {
+		if len([]rune(newPassword)) < 6 || len(newPassword) > 72 {
+			return errors.New("choose a 6–72 byte password")
+		}
+		h, e := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+		if e != nil {
+			return e
+		}
+		newHash = string(h)
+	}
+	p.Name = name
+	p.Username = username
+	if newHash != "" {
+		p.PasswordHash = newHash
+	}
+	if p.DataDir == "" {
+		return nil
+	}
+	root := filepath.Dir(p.DataDir)
+	return rewrite(root, p.ID, func(stored *Profile) error {
+		stored.Name = p.Name
+		stored.Username = p.Username
+		if newHash != "" {
+			stored.PasswordHash = newHash
+		}
+		return nil
+	})
+}
+

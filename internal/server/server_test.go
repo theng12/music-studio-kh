@@ -286,3 +286,20 @@ func TestSubsonicFailuresThrottleSeparatelyFromBrowserLogin(t *testing.T) {
 		t.Fatalf("protocol failures locked browser login: %d", w.Code)
 	}
 }
+
+func TestProfileAndPreferencesUpdate(t *testing.T) {
+	s, _ := fixture(t)
+	cookie := login(t, s)
+	w := request(s, "PUT", "/api/profile", `{"name":"Harbor Studio","username":"captain","password":"new-password"}`, cookie)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"name":"Harbor Studio"`) || !strings.Contains(w.Body.String(), `"username":"captain"`) {
+		t.Fatalf("profile update failed: %d %s", w.Code, w.Body.String())
+	}
+	if w := request(s, "POST", "/api/login", `{"username":"captain","password":"new-password"}`, nil); w.Code != 200 {
+		t.Fatalf("login with updated credentials failed: %d", w.Code)
+	}
+	w = request(s, "PUT", "/api/settings", `{"theme":"dark","accent":"mint","density":"comfortable","layout":"grid","streamQuality":"mp3","repeatMode":"one","defaultTab":"albums"}`, cookie)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"streamQuality":"mp3"`) || !strings.Contains(w.Body.String(), `"repeatMode":"one"`) || !strings.Contains(w.Body.String(), `"defaultTab":"albums"`) {
+		t.Fatalf("preferences update failed: %d %s", w.Code, w.Body.String())
+	}
+}
+

@@ -12,6 +12,8 @@ export default function Player({
   notice,
   queue,
   select,
+  streamQuality = "original",
+  repeatMode = "all",
 }: {
   queue: Track[];
   select: (t: Track) => void;
@@ -20,6 +22,8 @@ export default function Player({
   next: () => void;
   previous: () => void;
   notice: (m: string) => void;
+  streamQuality?: string;
+  repeatMode?: string;
 }) {
   const ref = useRef<HTMLAudioElement>(null);
   const [paused, setPaused] = useState(true),
@@ -39,14 +43,16 @@ export default function Player({
       ogg: "audio/ogg",
       opus: "audio/ogg",
     };
-    const convert = !audio.canPlayType(mime[track.format] || "audio/mpeg");
+    const convert =
+      streamQuality === "mp3" ||
+      !audio.canPlayType(mime[track.format] || "audio/mpeg");
     audio.src = "/api/stream/" + track.id + (convert ? "?format=mp3" : "");
     audio
       .play()
       .catch(() =>
         notice("Playback unavailable. Check the file and try again."),
       );
-  }, [track]);
+  }, [track, streamQuality]);
   useEffect(() => {
     if (ref.current) ref.current.volume = volume;
   }, [volume]);
@@ -164,7 +170,14 @@ export default function Player({
         preload="metadata"
         onPlay={() => setPaused(false)}
         onPause={() => setPaused(true)}
-        onEnded={next}
+        onEnded={() => {
+          if (repeatMode === "one" && ref.current) {
+            ref.current.currentTime = 0;
+            ref.current.play().catch(() => {});
+          } else if (repeatMode !== "off") {
+            next();
+          }
+        }}
         onLoadedMetadata={() => setDuration(ref.current?.duration || 0)}
         onTimeUpdate={() => setPosition(ref.current?.currentTime || 0)}
         onError={() =>
