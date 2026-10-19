@@ -1,17 +1,20 @@
 import React from "react";
 import { Appearance, api } from "./api";
+import { APP_VERSION } from "./version";
 export default function Settings({
   profile,
   settings,
   save,
   logout,
   notice,
+  openWhatsNew,
 }: {
   profile: any;
   settings: Appearance;
   save: (s: Appearance) => void;
   logout: () => void;
   notice: (s: string) => void;
+  openWhatsNew: () => void;
 }) {
   return (
     <section id="settings-page">
@@ -87,7 +90,7 @@ export default function Settings({
           {profile.lan && profile.addresses?.length > 0 && (
             <>
               <dt>Phone addresses</dt>
-              <dd>
+              <dd className="address-list">
                 {profile.addresses.map((address: string) => (
                   <div key={address}>{address}</div>
                 ))}
@@ -100,28 +103,46 @@ export default function Settings({
           computer awake and TuneHarbor running. Local-network mode uses HTTP on
           your trusted Wi-Fi.
         </p>
-        <button className="secondary" id="settings-logout" onClick={logout}>
-          Sign out of this profile
-        </button>
-        <button
-          className="secondary"
-          onClick={async () => {
-            try {
-              await api("/api/logout-all", { method: "POST" });
-              logout();
-            } catch (e) {
-              notice((e as Error).message);
-            }
-          }}
-        >
-          Sign out all browser devices
-        </button>
+        <div className="action-row">
+          <button className="secondary" id="settings-logout" onClick={logout}>
+            Sign out of this profile
+          </button>
+          <button
+            className="secondary"
+            id="settings-logout-all"
+            onClick={async () => {
+              try {
+                await api("/api/logout-all", { method: "POST" });
+                logout();
+              } catch (e) {
+                notice((e as Error).message);
+              }
+            }}
+          >
+            Sign out all browser devices
+          </button>
+        </div>
+        <div className="version-footer">
+          <div className="version-meta">
+            <span className="version-badge" id="settings-version">
+              v{APP_VERSION}
+            </span>
+            <span>TuneHarbor {APP_VERSION}</span>
+          </div>
+          <button
+            type="button"
+            className="secondary compact-button"
+            id="settings-whats-new"
+            onClick={openWhatsNew}
+          >
+            ✦ What’s new
+          </button>
+        </div>
         <p className="muted">
-          TuneHarbor 0.1.0 development · App and download tools update together
-          through a new installer. Profiles and music are preserved. If your
-          phone cannot connect, allow TuneHarbor through your computer’s
-          firewall on the private network and confirm both devices use the same
-          Wi-Fi.
+          App and download tools update together through a new installer.
+          Profiles and music are preserved. If your phone cannot connect, allow
+          TuneHarbor through your computer’s firewall on the private network and
+          confirm both devices use the same Wi-Fi.
         </p>
       </div>
     </section>

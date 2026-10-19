@@ -146,7 +146,7 @@ small {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 20px;
+  gap: 10px;
 }
 .primary {
   background: var(--accent);
@@ -155,6 +155,24 @@ small {
 .secondary {
   background: var(--panel2);
   border: 1px solid var(--border);
+}
+.compact-button {
+  padding: 8px 13px;
+  font-size: 11px;
+  border-radius: 7px;
+}
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--accent-dark);
+  color: var(--accent);
+  border: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.4px;
+  line-height: 1.4;
 }
 .subtle {
   background: transparent;
@@ -327,9 +345,22 @@ small {
   border-radius: 50%;
   background: var(--accent);
 }
-.sidebar-bottom button {
+.sidebar-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.sidebar-meta button {
+  padding: 0;
+  font-size: 11px;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.sidebar-bottom > button {
   text-align: left;
-  margin-top: 14px;
+  margin-top: 10px;
   padding: 0;
   font-size: 11px;
 }
@@ -612,9 +643,10 @@ main {
 }
 .settings-card dl {
   display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: 16px;
+  grid-template-columns: 124px 1fr;
+  gap: 14px 18px;
   font-size: 12px;
+  margin: 18px 0 0;
 }
 .settings-card dt {
   color: var(--muted);
@@ -622,6 +654,35 @@ main {
 .settings-card dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+.address-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 22px;
+}
+.version-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.version-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
 }
 .player {
   position: fixed;
@@ -963,7 +1024,7 @@ dialog small {
     padding: 22px;
   }
   .settings-card dl {
-    grid-template-columns: 85px 1fr;
+    grid-template-columns: 96px 1fr;
   }
   .empty {
     padding: 30px 15px;
@@ -1174,6 +1235,9 @@ dialog small {
   color: #dfb87e;
 }
 .queue-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-left: 10px;
   font-size: 11px;
 }
@@ -1231,11 +1295,17 @@ dialog small {
   padding: 35px 40px;
   grid-column: auto;
 }
+.manager-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
 .manager-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 65px 0 35px;
+  margin: 42px 0 35px;
   gap: 20px;
 }
 .manager-heading h1 {
@@ -1273,8 +1343,9 @@ dialog small {
 }
 .profile-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   margin-top: 25px;
 }
 .profile-actions .primary {
@@ -1282,12 +1353,13 @@ dialog small {
   font-size: 12px;
 }
 .profile-actions .secondary {
-  padding: 10px;
+  padding: 10px 14px;
   font-size: 11px;
 }
 .profile-actions .subtle {
-  font-size: 10px;
+  font-size: 11px;
   margin-left: auto;
+  padding: 6px 4px;
 }
 .manager-welcome {
   margin-top: 35px;
@@ -1320,7 +1392,7 @@ dialog small {
 }
 .folder-input {
   display: flex;
-  gap: 9px;
+  gap: 10px;
   align-items: center;
 }
 .folder-input input {
@@ -1330,6 +1402,7 @@ dialog small {
 .folder-input button {
   margin-top: 9px;
   font-size: 11px;
+  white-space: nowrap;
 }
 .form-columns {
   display: grid;
@@ -1337,7 +1410,8 @@ dialog small {
   gap: 15px;
 }
 .profile-form small {
-  font-size: 10px;
+  font-size: 11px;
+  margin-top: 6px;
 }
 .profile-form .primary {
   margin-top: 26px;
@@ -1416,7 +1490,7 @@ dialog small {
     font-size: 26px;
   }
   .queue-tabs {
-    gap: 1px;
+    gap: 4px;
   }
   .queue-tabs button {
     padding: 8px 10px;
@@ -1453,7 +1527,7 @@ dialog small {
     padding: 25px 20px;
   }
   .manager-heading {
-    margin: 35px 0 25px;
+    margin: 28px 0 25px;
     flex-direction: column;
   }
   .manager-heading h1 {
@@ -1484,6 +1558,9 @@ dialog small {
   max-height: 85vh;
   overflow: auto;
 }
+.album-dialog > .primary {
+  margin-top: 18px;
+}
 .album-cover {
   width: 110px;
   height: 110px;
@@ -1499,7 +1576,7 @@ dialog small {
   align-items: center;
   gap: 14px;
   width: 100%;
-  padding: 14px 8px;
+  padding: 14px 10px;
   border: 0;
   border-bottom: 1px solid var(--border);
   background: transparent;
@@ -1515,7 +1592,8 @@ dialog small {
 .album-song:hover,
 .album-song.selected {
   color: var(--accent);
-  background: var(--surface);
+  background: var(--panel2);
+  border-radius: 8px;
 }
 .player-queue {
   position: absolute;
@@ -1525,9 +1603,59 @@ dialog small {
   max-height: 60vh;
   overflow: auto;
 }
+.player-queue h3 {
+  margin-bottom: 12px;
+}
+.player-queue .album-song {
+  justify-content: space-between;
+}
 .volume {
   gap: 12px;
 }
 .manager-warning {
   margin: 0 0 18px;
+}
+.whats-new-dialog {
+  position: relative;
+  width: min(560px, 94vw);
+  max-height: 85vh;
+  overflow: auto;
+  margin: auto;
+  box-shadow: var(--shadow);
+}
+.whats-new-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.whats-new-entry {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+.whats-new-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.whats-new-date {
+  font-size: 11px;
+  color: var(--muted);
+}
+.whats-new-entry h3 {
+  font-size: 15px;
+  margin-bottom: 10px;
+}
+.whats-new-entry ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }

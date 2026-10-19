@@ -6,6 +6,8 @@ import Player from "./Player";
 import Artwork from "./Artwork";
 import Settings from "./Settings";
 import Profiles from "./Profiles";
+import WhatsNew from "./WhatsNew";
+import { APP_VERSION } from "./version";
 const defaults: Appearance = {
   theme: "dark",
   accent: "mint",
@@ -40,7 +42,8 @@ export default function App() {
     ),
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [whatsNew, setWhatsNew] = useState(false);
   const files = useRef<HTMLInputElement>(null),
     messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notify = (text: string) => {
@@ -204,7 +207,8 @@ export default function App() {
     return (
       <>
         {toast}
-        <Profiles notice={notify} />
+        <Profiles notice={notify} openWhatsNew={() => setWhatsNew(true)} />
+        <WhatsNew open={whatsNew} onClose={() => setWhatsNew(false)} />
       </>
     );
   if (!profile)
@@ -311,6 +315,17 @@ export default function App() {
               <i />
               Server running
             </span>
+            <div className="sidebar-meta">
+              <span className="version-badge">v{APP_VERSION}</span>
+              <button
+                type="button"
+                className="subtle"
+                id="sidebar-whats-new"
+                onClick={() => setWhatsNew(true)}
+              >
+                What’s new
+              </button>
+            </div>
             <button className="subtle" id="logout" onClick={logout}>
               Sign out ↗
             </button>
@@ -375,6 +390,7 @@ export default function App() {
               settings={appearance}
               save={saveAppearance}
               logout={logout}
+              openWhatsNew={() => setWhatsNew(true)}
             />
           )}
           <input
@@ -406,6 +422,7 @@ export default function App() {
         changed={() => setVersion((n) => n + 1)}
         notice={notify}
       />
+      <WhatsNew open={whatsNew} onClose={() => setWhatsNew(false)} />
     </>
   );
 }

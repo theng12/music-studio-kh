@@ -4,7 +4,14 @@ import { enable, disable } from "@tauri-apps/plugin-autostart";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Profile, rpc } from "./api";
-export default function Profiles({ notice }: { notice: (s: string) => void }) {
+import { APP_VERSION } from "./version";
+export default function Profiles({
+  notice,
+  openWhatsNew,
+}: {
+  notice: (s: string) => void;
+  openWhatsNew: () => void;
+}) {
   const [profiles, setProfiles] = useState<Profile[]>([]),
     [creating, setCreating] = useState(false),
     [busy, setBusy] = useState(false),
@@ -220,8 +227,19 @@ export default function Profiles({ notice }: { notice: (s: string) => void }) {
   };
   return (
     <main className="profile-manager">
-      <div className="brand">
-        <span className="brand-mark">♪</span>TuneHarbor
+      <div className="manager-topbar">
+        <div className="brand">
+          <span className="brand-mark">♪</span>TuneHarbor
+          <span className="version-badge">v{APP_VERSION}</span>
+        </div>
+        <button
+          type="button"
+          className="secondary compact-button"
+          id="manager-whats-new"
+          onClick={openWhatsNew}
+        >
+          ✦ What’s new
+        </button>
       </div>
       <header className="manager-heading">
         <div>
