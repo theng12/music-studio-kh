@@ -9,7 +9,11 @@ import (
 )
 
 func albumID(t Track) string {
-	hash := sha256.Sum256([]byte(t.Artist + "\x00" + t.Album))
+	key := t.Artist + "\x00" + t.Album
+	if t.Version != "" {
+		key += "\x00" + t.Version
+	}
+	hash := sha256.Sum256([]byte(key))
 	return hex.EncodeToString(hash[:16])
 }
 func (l *Library) SetAlbumArtwork(id string, source io.Reader) error {

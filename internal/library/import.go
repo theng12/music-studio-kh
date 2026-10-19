@@ -14,11 +14,64 @@ import (
 
 const MaxImportBytes int64 = 512 << 20
 
+func sanitizeRelPath(raw string) (string, error) {
+	raw = strings.ReplaceAll(strings.TrimSpace(raw), "\\", "/")
+	raw = strings.TrimPrefix(raw, "/")
+	if raw == "" || strings.ContainsRune(raw, '\x00') {
+		return "", errors.New("invalid file path")
+	}
+	parts := strings.Split(raw, "/")
+	if len(parts) > 12 {
+		return "", errors.New("folder nesting is too deep")
+	}
+	cleanParts := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" || p == "." || p == ".." || strings.HasPrefix(p, ".") || strings.ContainsAny(p, "/\\\x00<>:\"|?*") {
+			return "", errors.New("invalid file or folder name")
+		}
+		cleanParts = append(cleanParts, p)
+	}
+	return filepath.Join(cleanParts...), nil
+}
+
+func mkdirAllRoot(root *os.Root, dir string) error {
+	if dir == "" || dir == "." {
+		return nil
+	}
+	parts := strings.Split(filepath.ToSlash(dir), "/")
+	cur := ""
+	for _, part := range parts {
+		if part == "" || part == "." {
+			continue
+		}
+		if cur == "" {
+			cur = part
+		} else {
+			cur = filepath.Join(cur, part)
+		}
+		err := root.Mkdir(cur, 0755)
+		if err != nil && !os.IsExist(err) {
+			return err
+		}
+		info, statErr := root.Lstat(cur)
+		if statErr != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return errors.New("invalid target folder")
+		}
+	}
+	return nil
+}
+
 func (l *Library) Import(name string, source io.Reader) (Track, error) {
-	if name == "" || strings.HasPrefix(name, ".") || filepath.Base(name) != name || strings.ContainsAny(name, "/\\\x00") || audioFormat(name) == "" {
+	return l.ImportWithMeta(name, source, MetadataUpdate{})
+}
+
+func (l *Library) ImportWithMeta(name string, source io.Reader, meta MetadataUpdate) (Track, error) {
+	rel, err := sanitizeRelPath(name)
+	if err != nil || audioFormat(rel) == "" {
 		return Track{}, errors.New("choose an MP3, M4A, AAC, FLAC, Ogg, Opus, or WAV file")
 	}
-	final, err := l.finalizeImport(name, source)
+	final, err := l.finalizeImport(rel, source)
 	if err != nil {
 		return Track{}, err
 	}
@@ -26,15 +79,68 @@ func (l *Library) Import(name string, source io.Reader) (Track, error) {
 	// retry never creates a numbered duplicate. The next scan indexes it.
 	track, err := l.indexFile(final)
 	if err != nil {
-		name := filepath.Base(final)
-		return Track{ID: trackID(final), Title: strings.TrimSuffix(name, filepath.Ext(name)), Artist: "Unknown artist", Album: "Unknown album", Path: final, Format: audioFormat(name)}, nil
+		base := filepath.Base(final)
+		track = Track{ID: trackID(final), Title: strings.TrimSuffix(base, filepath.Ext(base)), Artist: "Unknown artist", Album: "Unknown album", Path: final, Format: audioFormat(base)}
+	}
+	if meta.Title != "" || meta.Artist != "" || meta.Album != "" || meta.Version != "" || meta.Year > 0 || meta.TrackNumber > 0 {
+		if updated, uErr := l.UpdateTrackMetadata(track.ID, meta); uErr == nil {
+			track = updated
+		}
 	}
 	return track, nil
 }
 
+// ImportFolderArtwork saves an imported folder cover image (JPEG, PNG, WebP) as
+// cover.png inside the target library subfolder so tracks in that folder share it.
+func (l *Library) ImportFolderArtwork(relPath string, source io.Reader) error {
+	rel, err := sanitizeRelPath(relPath)
+	if err != nil {
+		return err
+	}
+	data, err := io.ReadAll(io.LimitReader(source, MaxArtworkBytes+1))
+	if err != nil {
+		return err
+	}
+	thumb, err := thumbnail(data)
+	if err != nil {
+		return err
+	}
+	root, err := l.checkedRoot()
+	if err != nil {
+		return err
+	}
+	lock, err := folderLock(l.root)
+	if err != nil {
+		return err
+	}
+	if err := lock.Lock(); err != nil {
+		return err
+	}
+	defer lock.Unlock()
+	dir := filepath.Dir(rel)
+	if dir != "." && dir != "" {
+		if err := mkdirAllRoot(root, dir); err != nil {
+			return storageError(err)
+		}
+	}
+	target := "cover.png"
+	if dir != "." && dir != "" {
+		target = filepath.Join(dir, "cover.png")
+	}
+	f, err := root.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return storageError(err)
+	}
+	_, err = f.Write(thumb)
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	return err
+}
+
 // finalizeImport stores source under a unique, never-overwritten name while
 // holding the cross-process folder lock and returns the library-relative path.
-func (l *Library) finalizeImport(name string, source io.Reader) (string, error) {
+func (l *Library) finalizeImport(rel string, source io.Reader) (string, error) {
 	root, err := l.checkedRoot()
 	if err != nil {
 		return "", err
@@ -75,11 +181,19 @@ func (l *Library) finalizeImport(name string, source io.Reader) (string, error) 
 		return "", storageError(err)
 	}
 	f.Close()
-	if !validAudio(root, temp, audioFormat(name)) {
+	if !validAudio(root, temp, audioFormat(rel)) {
 		return "", errors.New("file contents do not match the audio format")
 	}
-	final := name
-	ext := filepath.Ext(name)
+	dir := filepath.Dir(rel)
+	if dir != "." && dir != "" {
+		if err = mkdirAllRoot(root, dir); err != nil {
+			return "", storageError(err)
+		}
+	}
+	base := filepath.Base(rel)
+	ext := filepath.Ext(base)
+	stem := strings.TrimSuffix(base, ext)
+	final := rel
 	for i := 1; ; i++ {
 		err = linkFile(root, temp, final)
 		if err != nil && !os.IsExist(err) {
@@ -92,7 +206,12 @@ func (l *Library) finalizeImport(name string, source io.Reader) (string, error) 
 		if !os.IsExist(err) {
 			return "", storageError(err)
 		}
-		final = fmt.Sprintf("%s (%d)%s", strings.TrimSuffix(name, ext), i, ext)
+		numbered := fmt.Sprintf("%s (%d)%s", stem, i, ext)
+		if dir != "." && dir != "" {
+			final = filepath.Join(dir, numbered)
+		} else {
+			final = numbered
+		}
 	}
 }
 

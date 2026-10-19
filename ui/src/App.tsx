@@ -1,5 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
-import { api, Appearance, isManager, Job, Track } from "./api";
+import {
+  api,
+  Appearance,
+  ImportItem,
+  isManager,
+  Job,
+  MetadataInput,
+  Track,
+} from "./api";
 import Downloads from "./Downloads";
 import Library from "./Library";
 import Player from "./Player";
@@ -7,6 +15,8 @@ import Artwork from "./Artwork";
 import Settings from "./Settings";
 import Profiles from "./Profiles";
 import WhatsNew from "./WhatsNew";
+import ImportDialog from "./ImportDialog";
+import { isImportableFile } from "./drop";
 import { APP_VERSION } from "./version";
 const defaults: Appearance = {
   theme: "dark",
@@ -43,8 +53,10 @@ export default function App() {
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [whatsNew, setWhatsNew] = useState(false);
+    [whatsNew, setWhatsNew] = useState(false),
+    [customImport, setCustomImport] = useState(false);
   const files = useRef<HTMLInputElement>(null),
+    folders = useRef<HTMLInputElement>(null),
     messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notify = (text: string) => {
     setMessage(text);
@@ -164,18 +176,78 @@ export default function App() {
       setBusy(false);
     }
   };
-  const importFiles = async (selected: File[]) => {
-    let count = 0;
-    for (const file of selected) {
+  const importFiles = async (
+    selected: (File | ImportItem)[],
+    meta?: MetadataInput,
+    customArt?: File | null,
+  ) => {
+    const normalized: ImportItem[] = selected
+      .map((entry) =>
+        "file" in entry
+          ? entry
+          : {
+              file: entry,
+              relPath: (entry as any).webkitRelativePath || entry.name,
+            },
+      )
+      .filter((it) =>
+        isImportableFile(
+          it.file.name,
+          Boolean(it.relPath && it.relPath.includes("/")),
+        ),
+      );
+    const images = normalized.filter((it) =>
+      /\.(jpg|jpeg|png|webp)$/i.test(it.file.name),
+    );
+    const audios = normalized.filter((it) =>
+      /\.(mp3|m4a|aac|flac|ogg|opus|wav)$/i.test(it.file.name),
+    );
+    for (const img of images) {
       const form = new FormData();
-      form.append("file", file);
-      notify("Importing " + file.name + "…");
+      if (img.relPath) form.append("path", img.relPath);
+      form.append("file", img.file);
       try {
         await api("/api/import", { method: "POST", body: form });
+      } catch {}
+    }
+    let count = 0;
+    let firstTrackId = "";
+    for (const item of audios) {
+      const form = new FormData();
+      if (item.relPath) form.append("path", item.relPath);
+      if (meta?.title && audios.length === 1) form.append("title", meta.title);
+      if (meta?.artist) form.append("artist", meta.artist);
+      if (meta?.album) form.append("album", meta.album);
+      if (meta?.version) form.append("version", meta.version);
+      if (meta?.year) form.append("year", String(meta.year));
+      if (meta?.trackNumber)
+        form.append("trackNumber", String(meta.trackNumber));
+      form.append("file", item.file);
+      notify("Importing " + (item.relPath || item.file.name) + "…");
+      try {
+        const created: Track = await api("/api/import", {
+          method: "POST",
+          body: form,
+        });
+        if (!firstTrackId && created?.id) firstTrackId = created.id;
         count++;
       } catch (e) {
         notify((e as Error).message);
       }
+    }
+    if (customArt && firstTrackId) {
+      try {
+        const endpoint =
+          audios.length > 1 || meta?.album
+            ? "/api/album-artwork/" + firstTrackId
+            : "/api/artwork/" + firstTrackId;
+        await api(endpoint, { method: "PUT", body: customArt });
+        setVersion((n) => n + 1);
+      } catch (e) {
+        notify((e as Error).message);
+      }
+    } else if (images.length > 0) {
+      setVersion((n) => n + 1);
     }
     await loadTracks();
     if (count)
@@ -369,6 +441,8 @@ export default function App() {
               onPlay={play}
               onArtwork={(track, album) => setArtwork({ track, album })}
               chooseFiles={() => files.current?.click()}
+              chooseFolder={() => folders.current?.click()}
+              openCustomImport={() => setCustomImport(true)}
               importFiles={importFiles}
               version={version}
               layout={appearance.layout}
@@ -405,6 +479,18 @@ export default function App() {
               e.target.value = "";
             }}
           />
+          <input
+            id="music-folder"
+            ref={folders}
+            type="file"
+            multiple
+            {...({ webkitdirectory: "", directory: "" } as any)}
+            hidden
+            onChange={(e) => {
+              importFiles([...(e.target.files || [])]);
+              e.target.value = "";
+            }}
+          />
         </main>
         <Player
           queue={playQueue}
@@ -419,8 +505,16 @@ export default function App() {
       <Artwork
         selected={artwork}
         close={() => setArtwork(null)}
-        changed={() => setVersion((n) => n + 1)}
+        changed={() => {
+          setVersion((n) => n + 1);
+          loadTracks().catch(() => {});
+        }}
         notice={notify}
+      />
+      <ImportDialog
+        open={customImport}
+        onClose={() => setCustomImport(false)}
+        onImport={importFiles}
       />
       <WhatsNew open={whatsNew} onClose={() => setWhatsNew(false)} />
     </>

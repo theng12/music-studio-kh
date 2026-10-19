@@ -1,11 +1,16 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/theng12/tuneharbor/internal/library"
+	"io"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 func (s *Server) me(w http.ResponseWriter, r *http.Request) {
@@ -29,6 +34,41 @@ func (s *Server) tracks(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonResponse(w, 200, tracks)
 }
+func (s *Server) updateTrack(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 16384)
+	var meta library.MetadataUpdate
+	if e := json.NewDecoder(r.Body).Decode(&meta); e != nil {
+		fail(w, 400, "invalid metadata")
+		return
+	}
+	track, e := s.library.UpdateTrackMetadata(r.PathValue("id"), meta)
+	if e != nil {
+		if os.IsNotExist(e) {
+			fail(w, 404, "track unavailable")
+		} else {
+			fail(w, 400, e.Error())
+		}
+		return
+	}
+	jsonResponse(w, 200, track)
+}
+func (s *Server) updateAlbum(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 16384)
+	var meta library.MetadataUpdate
+	if e := json.NewDecoder(r.Body).Decode(&meta); e != nil {
+		fail(w, 400, "invalid album metadata")
+		return
+	}
+	if e := s.library.UpdateAlbumMetadata(r.PathValue("id"), meta); e != nil {
+		if os.IsNotExist(e) {
+			fail(w, 404, "album unavailable")
+		} else {
+			fail(w, 400, e.Error())
+		}
+		return
+	}
+	jsonResponse(w, 200, map[string]bool{"ok": true})
+}
 func (s *Server) scan(w http.ResponseWriter, r *http.Request) {
 	if e := s.library.Scan(); e != nil {
 		fail(w, 400, "could not scan; check music folder access")
@@ -43,18 +83,66 @@ func (s *Server) importFile(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "choose an audio file to import")
 		return
 	}
-	part, e := reader.NextPart()
-	if e != nil || part.FormName() != "file" || part.FileName() == "" {
-		fail(w, 400, "missing audio file")
+	var relPath string
+	var meta library.MetadataUpdate
+	for {
+		part, e := reader.NextPart()
+		if e != nil {
+			fail(w, 400, "missing audio file")
+			return
+		}
+		name := part.FormName()
+		if name != "file" {
+			buf, _ := io.ReadAll(io.LimitReader(part, 1024))
+			part.Close()
+			val := strings.TrimSpace(string(buf))
+			switch name {
+			case "path":
+				relPath = val
+			case "title":
+				meta.Title = val
+			case "artist":
+				meta.Artist = val
+			case "album":
+				meta.Album = val
+			case "version":
+				meta.Version = val
+			case "year":
+				meta.Year, _ = strconv.Atoi(val)
+			case "trackNumber":
+				meta.TrackNumber, _ = strconv.Atoi(val)
+			}
+			continue
+		}
+		if part.FileName() == "" && relPath == "" {
+			part.Close()
+			fail(w, 400, "missing audio file")
+			return
+		}
+		target := relPath
+		if target == "" {
+			target = part.FileName()
+		}
+		ext := strings.ToLower(filepath.Ext(target))
+		if ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".webp" {
+			err := s.library.ImportFolderArtwork(target, part)
+			part.Close()
+			if err != nil {
+				fail(w, 400, err.Error())
+				return
+			}
+			jsonResponse(w, 201, map[string]bool{"artwork": true})
+			return
+		}
+		track, err := s.library.ImportWithMeta(target, part, meta)
+		part.Close()
+		if err != nil {
+			fail(w, 400, err.Error())
+			return
+		}
+		jsonResponse(w, 201, track)
 		return
 	}
-	defer part.Close()
-	track, e := s.library.Import(part.FileName(), part)
-	if e != nil {
-		fail(w, 400, e.Error())
-		return
-	}
-	jsonResponse(w, 201, track)
 }
 func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	s.serveTrack(w, r, r.PathValue("id"))

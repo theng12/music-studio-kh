@@ -119,8 +119,8 @@ func TestDirectoryImportAndLegacyMobileUpgrade(t *testing.T) {
 	if status := waitForImport(t, m, p.ID); status.Imported != 1 {
 		t.Fatalf("import status: %+v", status)
 	}
-	if _, e = os.Stat(filepath.Join(music, "Song.wav")); e != nil {
-		t.Fatal("nested song was not imported")
+	if _, e = os.Stat(filepath.Join(music, filepath.Base(folder), "album", "Song.wav")); e != nil {
+		t.Fatal("nested song was not imported into its subfolder")
 	}
 	if _, e = os.Stat(filepath.Join(folder, "album", "Song.wav")); e != nil {
 		t.Fatal("original was removed")

@@ -402,59 +402,78 @@ func (i *instance) importPaths(paths []string) error {
 		i.imports.ImportSkipped++
 		i.status.Unlock()
 	}
-	importOne := func(path string, entry os.DirEntry, walkErr error) error {
-		if e := i.ctx.Err(); e != nil {
-			return errors.New("import stopped before it finished")
+	for _, rootPath := range paths {
+		rootInfo, statErr := os.Stat(rootPath)
+		baseDir := filepath.Dir(rootPath)
+		if statErr == nil && !rootInfo.IsDir() {
+			baseDir = filepath.Dir(rootPath)
 		}
-		if walkErr != nil {
-			// Unreadable files and folders are skipped and counted, not fatal.
-			skip()
-			if entry != nil && entry.IsDir() {
-				return filepath.SkipDir
+		importOne := func(path string, entry os.DirEntry, walkErr error) error {
+			if e := i.ctx.Err(); e != nil {
+				return errors.New("import stopped before it finished")
 			}
-			return nil
-		}
-		if entry.Type()&os.ModeSymlink != 0 {
-			return nil
-		}
-		if entry.IsDir() {
-			if strings.HasPrefix(entry.Name(), ".") {
-				return filepath.SkipDir
+			if walkErr != nil {
+				// Unreadable files and folders are skipped and counted, not fatal.
+				skip()
+				if entry != nil && entry.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
 			}
-			return nil
-		}
-		if !entry.Type().IsRegular() {
-			return nil
-		}
-		switch strings.ToLower(filepath.Ext(path)) {
-		case ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wav":
-		default:
-			return nil
-		}
-		count++
-		if count > 10000 {
-			return errors.New("import at most 10,000 songs at a time")
-		}
-		f, e := os.Open(path)
-		if e != nil {
-			skip()
-			return nil
-		}
-		defer f.Close()
-		if _, e = i.library.Import(filepath.Base(path), f); e != nil {
-			if i.library.Ready() != nil {
-				return e
+			if entry.Type()&os.ModeSymlink != 0 {
+				return nil
 			}
-			skip()
+			if entry.IsDir() {
+				if strings.HasPrefix(entry.Name(), ".") {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !entry.Type().IsRegular() {
+				return nil
+			}
+			relTarget := filepath.Base(path)
+			if rel, relErr := filepath.Rel(baseDir, path); relErr == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+				relTarget = filepath.ToSlash(rel)
+			}
+			ext := strings.ToLower(filepath.Ext(path))
+			switch ext {
+			case ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wav":
+			case ".jpg", ".jpeg", ".png", ".webp":
+				lowerBase := strings.ToLower(filepath.Base(path))
+				if strings.HasPrefix(lowerBase, "cover.") || strings.HasPrefix(lowerBase, "folder.") || strings.HasPrefix(lowerBase, "artwork.") || strings.HasPrefix(lowerBase, "front.") {
+					if f, e := os.Open(path); e == nil {
+						_ = i.library.ImportFolderArtwork(relTarget, f)
+						f.Close()
+					}
+				}
+				return nil
+			default:
+				return nil
+			}
+			count++
+			if count > 10000 {
+				return errors.New("import at most 10,000 songs at a time")
+			}
+			f, e := os.Open(path)
+			if e != nil {
+				skip()
+				return nil
+			}
+			defer f.Close()
+			if _, e = i.library.Import(relTarget, f); e != nil {
+				if i.library.Ready() != nil {
+					return e
+				}
+				skip()
+				return nil
+			}
+			i.status.Lock()
+			i.imports.Imported++
+			i.status.Unlock()
 			return nil
 		}
-		i.status.Lock()
-		i.imports.Imported++
-		i.status.Unlock()
-		return nil
-	}
-	for _, path := range paths {
-		if e := filepath.WalkDir(path, importOne); e != nil {
+		if e := filepath.WalkDir(rootPath, importOne); e != nil {
 			return e
 		}
 	}

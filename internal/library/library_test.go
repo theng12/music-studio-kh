@@ -272,3 +272,58 @@ func TestWaveDurationAndMetadataSurviveScan(t *testing.T) {
 		t.Fatal("duration lost on rescan")
 	}
 }
+
+func TestFolderImportMetadataAndVersions(t *testing.T) {
+	l, _ := openTest(t)
+	var cover bytes.Buffer
+	png.Encode(&cover, image.NewRGBA(image.Rect(0, 0, 32, 32)))
+	if e := l.ImportFolderArtwork("Daft Punk/Discovery (Deluxe Edition) (2001)/cover.png", bytes.NewReader(cover.Bytes())); e != nil {
+		t.Fatal("folder artwork import failed:", e)
+	}
+	t2, e := l.Import("Daft Punk/Discovery (Deluxe Edition) (2001)/02 - Aerodynamic.wav", bytes.NewReader(wav()))
+	if e != nil {
+		t.Fatal(e)
+	}
+	t1, e := l.Import("Daft Punk/Discovery (Deluxe Edition) (2001)/01 - One More Time.wav", bytes.NewReader(wav()))
+	if e != nil {
+		t.Fatal(e)
+	}
+	if t1.Artist != "Daft Punk" || t1.Album != "Discovery" || t1.Version != "Deluxe Edition" || t1.Year != 2001 || t1.TrackNumber != 1 || t1.Title != "One More Time" {
+		t.Fatalf("unexpected inferred metadata: %+v", t1)
+	}
+	if t2.TrackNumber != 2 || t2.Title != "Aerodynamic" {
+		t.Fatalf("unexpected track 2 metadata: %+v", t2)
+	}
+	artData, mime, e := l.Artwork(t1.ID)
+	if e != nil || len(artData) == 0 || mime != "image/png" {
+		t.Fatalf("folder artwork not served: %v %s", e, mime)
+	}
+	// Import an alternate version of the song with explicit metadata overrides.
+	alt, e := l.ImportWithMeta("One More Time.wav", bytes.NewReader(wav()), MetadataUpdate{
+		Title:       "One More Time",
+		Artist:      "Daft Punk",
+		Album:       "Discovery",
+		Version:     "Club Mix",
+		Year:        2002,
+		TrackNumber: 1,
+	})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if alt.Version != "Club Mix" || alt.Year != 2002 {
+		t.Fatalf("import override not applied: %+v", alt)
+	}
+	// Edit track metadata and verify it survives Scan().
+	edited, e := l.UpdateTrackMetadata(t2.ID, MetadataUpdate{Title: "Aerodynamic (Remastered)", Version: "2026 Remaster", Year: 2026, TrackNumber: 2})
+	if e != nil || edited.Title != "Aerodynamic (Remastered)" || edited.Version != "2026 Remaster" {
+		t.Fatalf("UpdateTrackMetadata failed: %+v %v", edited, e)
+	}
+	if e := l.Scan(); e != nil {
+		t.Fatal(e)
+	}
+	afterScan, e := l.Track(t2.ID)
+	if e != nil || afterScan.Title != "Aerodynamic (Remastered)" || afterScan.Version != "2026 Remaster" || afterScan.Year != 2026 {
+		t.Fatalf("override lost after Scan: %+v %v", afterScan, e)
+	}
+}
+

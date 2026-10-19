@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { art, Track } from "./api";
+import { art, ImportItem, Track } from "./api";
 import { droppedFiles } from "./drop";
 interface Props {
   notice: (s: string) => void;
@@ -9,7 +9,9 @@ interface Props {
   onPlay: (t: Track, queue?: Track[]) => void;
   onArtwork: (t: Track, album: boolean) => void;
   chooseFiles: () => void;
-  importFiles: (files: File[]) => Promise<void>;
+  chooseFolder: () => void;
+  openCustomImport: () => void;
+  importFiles: (files: (File | ImportItem)[]) => Promise<void>;
   version: number;
   layout: string;
   toggleLayout: () => void;
@@ -22,7 +24,12 @@ export default function Library(p: Props) {
   const groups = useMemo(() => {
     const map = new Map<string, Track[]>();
     for (const t of p.tracks) {
-      const key = view === "artists" ? t.artist : t.artist + "\0" + t.album;
+      const key =
+        view === "artists"
+          ? t.artist
+          : view === "folders"
+            ? t.folder || "Root library"
+            : t.artist + "\0" + t.album + "\0" + (t.version || "");
       const group = map.get(key);
       if (group) group.push(t);
       else map.set(key, [t]);
@@ -40,10 +47,33 @@ export default function Library(p: Props) {
             <br />
             Your own little corner.
           </h2>
-          <p>A collection that belongs to you.</p>
-          <button className="primary" id="choose-music" onClick={p.chooseFiles}>
-            ＋ Add music
-          </button>
+          <p>
+            Import individual songs or entire album folders with custom names,
+            versions, and cover artwork.
+          </p>
+          <div className="action-row">
+            <button
+              className="primary"
+              id="choose-music"
+              onClick={p.chooseFiles}
+            >
+              ＋ Add music
+            </button>
+            <button
+              className="secondary"
+              id="choose-folder"
+              onClick={p.chooseFolder}
+            >
+              📁 Import folder
+            </button>
+            <button
+              className="secondary"
+              id="open-custom-import"
+              onClick={p.openCustomImport}
+            >
+              ✦ Import with details…
+            </button>
+          </div>
         </div>
         <div className="hero-art" aria-hidden="true">
           <div className="small-record" />
@@ -67,7 +97,7 @@ export default function Library(p: Props) {
               id="search"
               type="search"
               aria-label="Search your library"
-              placeholder="Search songs, artists, albums"
+              placeholder="Search songs, artists, albums, versions, folders"
               value={p.query}
               onChange={(e) => {
                 setLimit(100);
@@ -86,7 +116,7 @@ export default function Library(p: Props) {
         </div>
       </div>
       <div className="queue-tabs">
-        {["songs", "albums", "artists"].map((v) => (
+        {["songs", "albums", "artists", "folders"].map((v) => (
           <button
             key={v}
             className={view === v ? "selected" : ""}
@@ -122,17 +152,33 @@ export default function Library(p: Props) {
             </h3>
             <p>
               {p.query
-                ? "Try another title, artist, or album."
-                : "Drop music files here, or choose files to add to your library."}
+                ? "Try another title, artist, album, or version."
+                : "Drop music files or album folders here, or choose files or a folder to add to your library."}
             </p>
-            <button
-              id="empty-add"
-              className="secondary"
-              onClick={p.chooseFiles}
-            >
-              Choose music files
-            </button>
-            <small>MP3 · M4A · AAC · FLAC · Ogg · Opus · WAV</small>
+            <div className="action-row empty-actions">
+              <button
+                id="empty-add"
+                className="secondary"
+                onClick={p.chooseFiles}
+              >
+                Choose music files
+              </button>
+              <button
+                id="empty-add-folder"
+                className="secondary"
+                onClick={p.chooseFolder}
+              >
+                📁 Choose music folder
+              </button>
+              <button
+                id="empty-custom-import"
+                className="secondary"
+                onClick={p.openCustomImport}
+              >
+                ✦ Import with details…
+              </button>
+            </div>
+            <small>MP3 · M4A · AAC · FLAC · Ogg · Opus · WAV · Folder cover art</small>
           </div>
         ) : (
           <div
@@ -146,9 +192,16 @@ export default function Library(p: Props) {
                   ? t.title
                   : view === "albums"
                     ? t.album
-                    : t.artist;
+                    : view === "folders"
+                      ? t.folder || "Root library"
+                      : t.artist;
+              const badge =
+                view === "songs" || view === "albums" ? t.version : "";
               return (
-                <article className="track-card" key={view + title + t.id}>
+                <article
+                  className="track-card"
+                  key={view + title + (t.version || "") + t.id}
+                >
                   <button
                     className="cover-button"
                     aria-label={"Play " + title}
@@ -156,7 +209,8 @@ export default function Library(p: Props) {
                       if (view === "artists") {
                         p.onQuery(t.artist);
                         setView("albums");
-                      } else if (view === "albums") setAlbum(group);
+                      } else if (view === "albums" || view === "folders")
+                        setAlbum(group);
                       else p.onPlay(t);
                     }}
                   >
@@ -165,19 +219,39 @@ export default function Library(p: Props) {
                   </button>
                   <div className="track-detail">
                     <div>
-                      <strong>{title}</strong>
+                      <div className="track-title-row">
+                        <strong>{title}</strong>
+                        {badge && (
+                          <span className="version-badge track-version">
+                            {badge}
+                          </span>
+                        )}
+                      </div>
                       <p>
                         {view === "songs"
-                          ? t.artist + " · " + t.album
+                          ? t.artist +
+                            " · " +
+                            t.album +
+                            (t.year ? " · " + t.year : "")
                           : view === "albums"
-                            ? t.artist + " · " + songs(group.length)
-                            : songs(group.length)}
+                            ? t.artist +
+                              " · " +
+                              songs(group.length) +
+                              (t.year ? " · " + t.year : "")
+                            : view === "folders"
+                              ? t.album + " · " + songs(group.length)
+                              : songs(group.length)}
                       </p>
                     </div>
                     <button
                       className="icon-button"
                       aria-label={"Edit artwork for " + title}
-                      onClick={() => p.onArtwork(t, view === "albums")}
+                      onClick={() =>
+                        p.onArtwork(
+                          t,
+                          view === "albums" || view === "folders",
+                        )
+                      }
                     >
                       ⋯
                     </button>
@@ -211,20 +285,44 @@ export default function Library(p: Props) {
               src={art(album[0].id, p.version)}
               alt=""
             />
-            <span className="eyebrow">ALBUM</span>
-            <h2>{album[0].album}</h2>
+            <div className="whats-new-header">
+              <span className="eyebrow">
+                {view === "folders" ? "FOLDER" : "ALBUM"}
+              </span>
+              {album[0].version && (
+                <span className="version-badge">{album[0].version}</span>
+              )}
+            </div>
+            <h2>
+              {view === "folders"
+                ? album[0].folder || "Root library"
+                : album[0].album}
+            </h2>
             <p>
-              {album[0].artist} · {album.length} songs
+              {album[0].artist} · {songs(album.length)}
+              {album[0].year ? ` · ${album[0].year}` : ""}
             </p>
-            <button
-              className="primary"
-              onClick={() => {
-                p.onPlay(album[0], album);
-                setAlbum(null);
-              }}
-            >
-              ▶ Play album
-            </button>
+            <div className="action-row">
+              <button
+                className="primary"
+                onClick={() => {
+                  p.onPlay(album[0], album);
+                  setAlbum(null);
+                }}
+              >
+                ▶ Play album
+              </button>
+              <button
+                className="secondary"
+                onClick={() => {
+                  const first = album[0];
+                  setAlbum(null);
+                  p.onArtwork(first, true);
+                }}
+              >
+                ✎ Edit album & cover
+              </button>
+            </div>
             <div className="album-songs">
               {album.map((t, index) => (
                 <button
@@ -232,8 +330,13 @@ export default function Library(p: Props) {
                   key={t.id}
                   onClick={() => p.onPlay(t, album)}
                 >
-                  <span>{index + 1}</span>
-                  <strong>{t.title}</strong>
+                  <span>{t.trackNumber || index + 1}</span>
+                  <strong>
+                    {t.title}
+                    {t.version && t.version !== album[0].version
+                      ? ` (${t.version})`
+                      : ""}
+                  </strong>
                   <small>
                     {Math.floor(t.duration / 60)}:
                     {String(Math.floor(t.duration % 60)).padStart(2, "0")}
