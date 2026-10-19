@@ -35,6 +35,7 @@ fi
 
 step "Installing build tools (Go, Node.js, Rust, Python, FFmpeg). The first time can take several minutes."
 brew install go node rust python ffmpeg
+export PATH="$(brew --prefix rustup 2>/dev/null || echo /opt/homebrew/opt/rustup)/bin:$(brew --prefix)/bin:$PATH"
 # Homebrew's Python has current certificates for the verified downloads below.
 python="$(brew --prefix python)/libexec/bin/python3"
 [ -x "$python" ] || python="$(brew --prefix)/bin/python3"
