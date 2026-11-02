@@ -475,10 +475,10 @@ export default function Player({
             className={"icon-button " + (showLyrics ? "active" : "")}
             id="lyrics-btn"
             aria-label="Lyrics"
-            title="Lyrics"
+            title="Toggle lyrics drawer"
             onClick={() => setShowLyrics(!showLyrics)}
           >
-            🎤
+            🎤 <span>Lyrics</span>
           </button>
 
           <button
@@ -488,7 +488,7 @@ export default function Player({
             title="Up next queue"
             onClick={() => setShowQueue(!showQueue)}
           >
-            ☷
+            ☰ <span>Queue</span>
           </button>
 
           <div className="volume">
@@ -542,7 +542,7 @@ export default function Player({
               title="Hide to menu bar"
               onClick={hideToMenuBar}
             >
-              🙈
+              ⤓
             </button>
           </div>
         </div>

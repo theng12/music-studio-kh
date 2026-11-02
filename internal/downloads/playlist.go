@@ -97,9 +97,13 @@ func (r YTDLP) Resolve(ctx context.Context, u string) ([]Entry, error) {
 	cmd := exec.CommandContext(ctx, r.Path, "--ignore-config", "--flat-playlist", "--dump-single-json", "--skip-download", "--no-warnings", "--playlist-end", "1000", "--", u)
 	process.Configure(cmd)
 	out := &limitedBuffer{max: 8 << 20}
+	stderr := &limitedBuffer{max: 1 << 20}
 	cmd.Stdout = out
-	cmd.Stderr = &limitedBuffer{max: 1 << 20}
+	cmd.Stderr = stderr
 	if e := cmd.Run(); e != nil {
+		if cleaned := cleanToolError(string(stderr.data)); cleaned != "" {
+			return nil, errors.New(cleaned)
+		}
 		return nil, errors.New("could not read playlist")
 	}
 	var payload struct {
