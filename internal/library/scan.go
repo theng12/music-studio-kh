@@ -89,13 +89,13 @@ func (l *Library) Scan() error {
 	if _, err = tx.Exec("DELETE FROM tracks"); err != nil {
 		return err
 	}
-	stmt, err := tx.Prepare("INSERT INTO tracks(id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified,content_hash,lyrics,album_artist) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+	stmt, err := tx.Prepare("INSERT INTO tracks(id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified,content_hash,lyrics,album_artist,added_at,downloaded_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	for _, t := range tracks {
-		if _, err = stmt.Exec(t.ID, t.Title, t.Artist, t.Album, t.Version, t.Year, t.TrackNumber, t.Folder, t.Path, t.Format, t.Size, t.Duration, t.Modified, t.ContentHash, t.Lyrics, t.AlbumArtist); err != nil {
+		if _, err = stmt.Exec(t.ID, t.Title, t.Artist, t.Album, t.Version, t.Year, t.TrackNumber, t.Folder, t.Path, t.Format, t.Size, t.Duration, t.Modified, t.ContentHash, t.Lyrics, t.AlbumArtist, t.AddedAt, t.DownloadedAt); err != nil {
 			return err
 		}
 	}
@@ -139,6 +139,11 @@ func readTrack(root *os.Root, rel string, info fs.FileInfo, previous *Track, ove
 		Size:   info.Size(),
 	}
 	t.Modified = float64(info.ModTime().Unix())
+	// Provenance belongs to the indexed path identity, so it survives a rescan
+	// even when the file's content or tags changed.
+	if previous != nil {
+		t.AddedAt, t.DownloadedAt = previous.AddedAt, previous.DownloadedAt
+	}
 	if previous != nil && previous.Size == t.Size && previous.Modified == t.Modified {
 		t.Duration = previous.Duration
 		t.ContentHash = previous.ContentHash

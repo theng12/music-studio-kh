@@ -5,6 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Profile, rpc } from "./api";
 import { APP_VERSION } from "./version";
+import Icon from "./Icon";
 export default function Profiles({
   notice,
   openWhatsNew,
@@ -29,7 +30,9 @@ export default function Profiles({
   const refresh = async () => setProfiles(await rpc("profiles"));
   useEffect(() => {
     const manage = (event: Event) => {
-      const profile = profiles.find(p => p.id === (event as CustomEvent<string>).detail);
+      const profile = profiles.find(
+        (p) => p.id === (event as CustomEvent<string>).detail,
+      );
       if (profile) setEditing({ ...profile });
     };
     window.addEventListener("manage-profile", manage);
@@ -238,7 +241,10 @@ export default function Profiles({
     <main className="profile-manager">
       <div className="manager-topbar">
         <div className="brand">
-          <span className="brand-mark">♪</span>Music Studio KH
+          <span className="brand-mark">
+            <Icon name="music" size={22} />
+          </span>
+          Music Studio KH
           <span className="version-badge">v{APP_VERSION}</span>
         </div>
         <button
@@ -247,7 +253,7 @@ export default function Profiles({
           id="manager-whats-new"
           onClick={openWhatsNew}
         >
-          ✦ What’s new
+          What’s new
         </button>
       </div>
       <header className="manager-heading">
@@ -263,7 +269,7 @@ export default function Profiles({
             setCreating(true);
           }}
         >
-          ＋ New profile
+          <Icon name="plus" /> New profile
         </button>
       </header>
       {toolProblem && (
@@ -291,7 +297,9 @@ export default function Profiles({
           </div>
           <div className="hero-art">
             <div className="small-record" />
-            <span className="hero-note">♫</span>
+            <span className="hero-note">
+              <Icon name="music" size={44} />
+            </span>
           </div>
         </div>
       )}
@@ -325,7 +333,7 @@ export default function Profiles({
                   ? "Off"
                   : p.mobileReady
                     ? "Same Wi-Fi"
-                    : "Same Wi-Fi · phone app sign-in needs setup in ⚙︎"}
+                    : "Same Wi-Fi · phone app sign-in needs setup in Settings"}
               </dd>
             </dl>
             {p.error && <p className="error">{p.error}</p>}
@@ -347,7 +355,7 @@ export default function Profiles({
                 disabled={busy}
                 onClick={() => listen(p.id)}
               >
-                ▶ Listen
+                <Icon name="play" /> Listen
               </button>
               {p.running && (
                 <button className="secondary" onClick={() => stop(p)}>
@@ -359,7 +367,7 @@ export default function Profiles({
                 aria-label={"Settings for " + p.name}
                 onClick={() => setEditing({ ...p })}
               >
-                ⚙︎
+                <Icon name="settings" />
               </button>
               <button className="subtle" onClick={() => remove(p)}>
                 Remove

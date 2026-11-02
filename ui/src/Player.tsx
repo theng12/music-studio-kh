@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { art, api, sendDesktopCommand, Track } from "./api";
+import Icon from "./Icon";
 
 const time = (n: number) =>
   Number.isFinite(n)
@@ -48,6 +49,10 @@ export interface PlayerProps {
   onRepeatModeChange?: (mode: "all" | "one" | "off") => void;
   onTrackUpdated?: (t: Track) => void;
   allTracks?: Track[];
+  shuffle?: boolean;
+  onShuffleChange?: (s: boolean) => void;
+  onFavourite: (t: Track, next: boolean) => void;
+  onPlayed: (t: Track) => void;
 }
 
 export default function Player({
@@ -63,8 +68,29 @@ export default function Player({
   onRepeatModeChange,
   onTrackUpdated,
   allTracks = [],
+  shuffle,
+  onShuffleChange,
+  onFavourite,
+  onPlayed,
 }: PlayerProps) {
   const ref = useRef<HTMLAudioElement>(null);
+  const surfaceRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    const measure = () =>
+      document.documentElement.style.setProperty(
+        "--player-clearance",
+        `${innerHeight - surface.getBoundingClientRect().top + 12}px`,
+      );
+    const observer = new ResizeObserver(measure);
+    observer.observe(surface);
+    measure();
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--player-clearance");
+    };
+  }, []);
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
   const activeLyricRef = useRef<HTMLDivElement>(null);
 
@@ -74,7 +100,7 @@ export default function Player({
   const [volume, setVolume] = useState(0.8);
   const [muted, setMuted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const [shuffle, setShuffle] = useState(false);
+  const [localShuffle, setLocalShuffle] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
   const [editingLyrics, setEditingLyrics] = useState(false);
@@ -83,12 +109,39 @@ export default function Player({
   const [miniMode, setMiniMode] = useState(false);
   const [pinned, setPinned] = useState(false);
 
+  // Lifted shuffle when App provides the callback; local fallback otherwise.
+  const shuffleOn = onShuffleChange ? !!shuffle : localShuffle;
+  const setShuffleOn = (value: boolean) => {
+    if (onShuffleChange) onShuffleChange(value);
+    else setLocalShuffle(value);
+  };
+
   const currentRepeat = (repeatMode as "all" | "one" | "off") || "all";
 
-  // Stream track changes
+  // Playback-session bookkeeping: count real listened time only, once per session.
+  const lastIdRef = useRef<string | null>(null);
+  const resumeAtRef = useRef(0);
+  const listenedRef = useRef(0);
+  const lastTickRef = useRef(0);
+  const countedRef = useRef(false);
+
+  // Stream track changes. Depends on id only so favourite/lyrics metadata
+  // merges rebuild props without restarting audio or transport time.
   useEffect(() => {
-    if (!track || !ref.current) return;
+    if (!track) {
+      lastIdRef.current = null;
+      return;
+    }
     const audio = ref.current;
+    if (!audio) return;
+    const sameSession = lastIdRef.current === track.id;
+    resumeAtRef.current = sameSession ? audio.currentTime : 0;
+    if (!sameSession) {
+      lastIdRef.current = track.id;
+      listenedRef.current = 0;
+      lastTickRef.current = 0;
+      countedRef.current = false;
+    }
     const mime: Record<string, string> = {
       mp3: "audio/mpeg",
       m4a: "audio/mp4",
@@ -109,7 +162,7 @@ export default function Player({
       .catch(() =>
         notice("Playback unavailable. Check the file and try again."),
       );
-  }, [track, streamQuality]);
+  }, [track?.id, streamQuality]);
 
   // Audio adjustments
   useEffect(() => {
@@ -163,12 +216,51 @@ export default function Player({
     }
   }, [activeLyricIndex]);
 
+  const seekTo = (seconds: number) => {
+    const audio = ref.current;
+    if (!audio) return;
+    const max =
+      Number.isFinite(audio.duration) && audio.duration > 0
+        ? audio.duration
+        : duration;
+    const clamped = Math.max(0, Math.min(max || 0, seconds));
+    audio.currentTime = clamped;
+    // A user seek is not listened time.
+    lastTickRef.current = clamped;
+  };
+
+  const seekRelative = (seconds: number) => {
+    if (!ref.current) return;
+    seekTo(ref.current.currentTime + seconds);
+  };
+
+  const restartCurrent = () => {
+    const audio = ref.current;
+    if (!audio) return;
+    audio.currentTime = 0;
+    lastTickRef.current = 0;
+    listenedRef.current = 0;
+    countedRef.current = false;
+    audio.play().catch(() => {});
+  };
+
+  // Queue selection: same id resumes in place without touching queue/shuffle.
+  const choose = (t: Track) => {
+    if (t.id === track?.id) {
+      const audio = ref.current;
+      if (audio?.paused)
+        audio.play().catch(() => notice("Could not start playback."));
+      return;
+    }
+    select(t);
+  };
+
   const toggle = () => {
     const audio = ref.current;
     if (!audio) return;
     if (!track) {
       if (allTracks.length > 0) {
-        select(allTracks[0]);
+        choose(allTracks[0]);
       } else {
         notice("No songs in your library yet.");
       }
@@ -185,11 +277,8 @@ export default function Player({
     const pool = queue.length > 0 ? queue : allTracks;
     if (pool.length === 0) return;
     if (pool.length === 1) {
-      select(pool[0]);
-      if (ref.current) {
-        ref.current.currentTime = 0;
-        ref.current.play().catch(() => {});
-      }
+      if (pool[0].id === track?.id) restartCurrent();
+      else select(pool[0]);
       return;
     }
     const poolRemaining = pool.filter((t) => t.id !== track?.id);
@@ -197,15 +286,16 @@ export default function Player({
       poolRemaining.length > 0
         ? poolRemaining[Math.floor(Math.random() * poolRemaining.length)]
         : pool[0];
-    select(chosen);
+    if (chosen.id === track?.id) restartCurrent();
+    else select(chosen);
   };
 
   const handleNext = () => {
     if (!track) {
-      if (allTracks.length > 0) select(allTracks[0]);
+      if (allTracks.length > 0) choose(allTracks[0]);
       return;
     }
-    if (shuffle) {
+    if (shuffleOn) {
       playRandomNext();
     } else {
       next();
@@ -214,14 +304,14 @@ export default function Player({
 
   const handlePrevious = () => {
     if (!track) {
-      if (allTracks.length > 0) select(allTracks[0]);
+      if (allTracks.length > 0) choose(allTracks[0]);
       return;
     }
     if (ref.current && ref.current.currentTime > 3) {
-      ref.current.currentTime = 0;
+      seekTo(0);
       return;
     }
-    if (shuffle) {
+    if (shuffleOn) {
       playRandomNext();
     } else {
       previous();
@@ -232,14 +322,6 @@ export default function Player({
     const modes: Array<"all" | "one" | "off"> = ["all", "one", "off"];
     const nextMode = modes[(modes.indexOf(currentRepeat) + 1) % modes.length];
     onRepeatModeChange?.(nextMode);
-  };
-
-  const seekRelative = (seconds: number) => {
-    if (!ref.current) return;
-    ref.current.currentTime = Math.max(
-      0,
-      Math.min(duration || 0, ref.current.currentTime + seconds),
-    );
   };
 
   const toggleMini = () => {
@@ -295,6 +377,35 @@ export default function Player({
     }
   };
 
+  // Real-play qualification: accumulate small positive timeupdate deltas
+  // (seek jumps are excluded via seekTo), fire once per listening session.
+  const handleTimeUpdate = () => {
+    const audio = ref.current;
+    if (!audio || !track) return;
+    setPosition(audio.currentTime);
+    if (audio.paused) return;
+    const delta = audio.currentTime - lastTickRef.current;
+    lastTickRef.current = audio.currentTime;
+    if (delta < -0.5) {
+      // Rewind or repeat restart begins a fresh listening session.
+      listenedRef.current = 0;
+      countedRef.current = false;
+      return;
+    }
+    if (countedRef.current) return;
+    if (delta > 0 && delta <= 2) listenedRef.current += delta;
+    const real =
+      Number.isFinite(audio.duration) && audio.duration > 0
+        ? audio.duration
+        : 0;
+    // Qualify at 30s played or half the track, whichever comes first.
+    const threshold = real > 0 ? Math.min(30, real / 2) : 30;
+    if (listenedRef.current >= threshold) {
+      countedRef.current = true;
+      onPlayed(track);
+    }
+  };
+
   // Global menu command hook & state broadcast
   useEffect(() => {
     const handler = (cmd: string) => {
@@ -309,7 +420,7 @@ export default function Player({
           handlePrevious();
           break;
         case "toggle_shuffle":
-          setShuffle((s) => !s);
+          setShuffleOn(!shuffleOn);
           break;
         case "cycle_repeat":
           cycleRepeat();
@@ -338,20 +449,27 @@ export default function Player({
       playing: !paused,
       title: track?.title || "",
       artist: track?.artist || "",
-      shuffle,
+      shuffle: shuffleOn,
       repeat: currentRepeat,
       lyrics: showLyrics,
       mini: miniMode,
       pinned,
     };
-  }, [paused, track, shuffle, currentRepeat, showLyrics, miniMode, pinned]);
+  }, [paused, track, shuffleOn, currentRepeat, showLyrics, miniMode, pinned]);
 
   return (
     <>
-      <footer className={"player" + (miniMode ? " mini-player" : "")}>
+      <footer
+        ref={surfaceRef}
+        className={"player" + (miniMode ? " mini-player" : "")}
+      >
         <div className="playing-info">
           <div className="playing-cover" id="playing-cover">
-            {track ? <img src={art(track.id, version)} alt="" /> : "♪"}
+            {track ? (
+              <img src={art(track.id, version)} alt="" />
+            ) : (
+              <Icon name="music" />
+            )}
           </div>
           <div className="playing-text">
             <strong id="playing-title">
@@ -361,18 +479,36 @@ export default function Player({
               {track?.artist || "Choose a song to start listening"}
             </span>
           </div>
+          {track && (
+            <button
+              className="favourite-button"
+              id="playing-favourite"
+              aria-pressed={!!track.favourite}
+              aria-label={
+                (track.favourite ? "Remove" : "Add") +
+                " favourite: " +
+                track.title
+              }
+              title={
+                track.favourite ? "Remove from favourites" : "Add to favourites"
+              }
+              onClick={() => onFavourite(track, !track.favourite)}
+            >
+              <Icon name="heart" />
+            </button>
+          )}
         </div>
 
         <div className="playback">
           <div className="playback-actions">
             <button
-              className={"icon-button " + (shuffle ? "active" : "")}
+              className={"icon-button " + (shuffleOn ? "active" : "")}
               id="shuffle-btn"
-              aria-label={`Shuffle: ${shuffle ? "On" : "Off"}`}
-              title={`Shuffle: ${shuffle ? "On" : "Off"}`}
-              onClick={() => setShuffle(!shuffle)}
+              aria-label={`Shuffle: ${shuffleOn ? "On" : "Off"}`}
+              title={`Shuffle: ${shuffleOn ? "On" : "Off"}`}
+              onClick={() => setShuffleOn(!shuffleOn)}
             >
-              🔀
+              <Icon name="shuffle" />
             </button>
             <button
               className="icon-button"
@@ -381,7 +517,7 @@ export default function Player({
               title="Previous song"
               onClick={handlePrevious}
             >
-              ⏮︎
+              <Icon name="previous" />
             </button>
             <button
               className="icon-button seek-step-btn"
@@ -399,7 +535,7 @@ export default function Player({
               title={paused ? "Play" : "Pause"}
               onClick={toggle}
             >
-              {paused ? "▶" : "Ⅱ"}
+              <Icon name={paused ? "play" : "pause"} />
             </button>
             <button
               className="icon-button seek-step-btn"
@@ -417,23 +553,20 @@ export default function Player({
               title="Next song"
               onClick={handleNext}
             >
-              ⏭︎
+              <Icon name="next" />
             </button>
             <button
               className={
                 "icon-button repeat-btn " +
-                (currentRepeat !== "off" ? "active" : "")
+                (currentRepeat !== "off" ? "active" : "") +
+                (currentRepeat === "one" ? " repeat-one" : "")
               }
               id="repeat-btn"
               aria-label={`Repeat mode: ${currentRepeat}`}
               title={`Repeat: ${currentRepeat === "all" ? "Loop queue" : currentRepeat === "one" ? "Repeat current song" : "Off"}`}
               onClick={cycleRepeat}
             >
-              {currentRepeat === "one"
-                ? "🔂"
-                : currentRepeat === "all"
-                  ? "🔁"
-                  : "→"}
+              <Icon name="repeat" />
             </button>
           </div>
           <div className="timeline">
@@ -446,9 +579,8 @@ export default function Player({
               max="100"
               value={duration > 0 ? (position / duration) * 100 : 0}
               onChange={(e) => {
-                if (ref.current && duration > 0)
-                  ref.current.currentTime =
-                    (Number(e.target.value) / 100) * duration;
+                if (duration > 0)
+                  seekTo((Number(e.target.value) / 100) * duration);
               }}
             />
             <span id="duration">{time(duration)}</span>
@@ -478,7 +610,8 @@ export default function Player({
             title="Toggle lyrics drawer"
             onClick={() => setShowLyrics(!showLyrics)}
           >
-            🎤 <span>Lyrics</span>
+            <Icon name="lyrics" />
+            <span>Lyrics</span>
           </button>
 
           <button
@@ -488,7 +621,8 @@ export default function Player({
             title="Up next queue"
             onClick={() => setShowQueue(!showQueue)}
           >
-            ☰ <span>Queue</span>
+            <Icon name="queue" />
+            <span>Queue</span>
           </button>
 
           <div className="volume">
@@ -499,7 +633,7 @@ export default function Player({
               title={muted ? "Unmute" : "Mute"}
               onClick={() => setMuted(!muted)}
             >
-              {muted || volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}
+              <Icon name={muted || volume === 0 ? "mute" : "volume"} />
             </button>
             <input
               id="volume"
@@ -524,7 +658,7 @@ export default function Player({
               title={miniMode ? "Exit mini player mode" : "Mini player mode"}
               onClick={toggleMini}
             >
-              {miniMode ? "⤢" : "⧉"}
+              <Icon name="expand" />
             </button>
             <button
               className={"icon-button " + (pinned ? "active pinned" : "")}
@@ -533,7 +667,7 @@ export default function Player({
               title={pinned ? "Unpin window" : "Pin window on top"}
               onClick={togglePin}
             >
-              📌
+              <Icon name="pin" />
             </button>
             <button
               className="icon-button"
@@ -542,7 +676,7 @@ export default function Player({
               title="Hide to menu bar"
               onClick={hideToMenuBar}
             >
-              ⤓
+              <Icon name="chevron" className="chevron-down" />
             </button>
           </div>
         </div>
@@ -554,15 +688,38 @@ export default function Player({
           onPlay={() => setPaused(false)}
           onPause={() => setPaused(true)}
           onEnded={() => {
-            if (currentRepeat === "one" && ref.current) {
-              ref.current.currentTime = 0;
-              ref.current.play().catch(() => {});
-            } else if (currentRepeat !== "off") {
-              handleNext();
+            if (currentRepeat === "one") {
+              restartCurrent();
+              return;
             }
+            if (currentRepeat === "off") return;
+            const others = queue.filter((t) => t.id !== track?.id);
+            if (
+              !shuffleOn &&
+              track &&
+              queue.length > 0 &&
+              others.length === 0
+            ) {
+              // Single-track queue: App state would not change, so replay here.
+              restartCurrent();
+              return;
+            }
+            handleNext();
           }}
-          onLoadedMetadata={() => setDuration(ref.current?.duration || 0)}
-          onTimeUpdate={() => setPosition(ref.current?.currentTime || 0)}
+          onLoadedMetadata={() => {
+            const audio = ref.current;
+            if (!audio) return;
+            setDuration(audio.duration || 0);
+            if (
+              resumeAtRef.current > 0 &&
+              Number.isFinite(audio.duration) &&
+              resumeAtRef.current < audio.duration
+            ) {
+              audio.currentTime = resumeAtRef.current;
+            }
+            resumeAtRef.current = 0;
+          }}
+          onTimeUpdate={handleTimeUpdate}
           onError={() =>
             notice(
               "This file is unavailable or could not be played. Rescan the library or retry.",
@@ -582,7 +739,7 @@ export default function Player({
             aria-label="Close queue"
             onClick={() => setShowQueue(false)}
           >
-            ×
+            <Icon name="close" />
           </button>
           <h3>Up next</h3>
           {queue.length === 0 ? (
@@ -594,7 +751,7 @@ export default function Player({
                   "album-song " + (t.id === track?.id ? "selected" : "")
                 }
                 key={t.id}
-                onClick={() => select(t)}
+                onClick={() => choose(t)}
               >
                 <strong>{t.title}</strong>
                 <small>{t.artist}</small>
@@ -616,7 +773,7 @@ export default function Player({
             aria-label="Close lyrics"
             onClick={() => setShowLyrics(false)}
           >
-            ×
+            <Icon name="close" />
           </button>
           <div className="lyrics-header">
             <div>
@@ -677,9 +834,7 @@ export default function Player({
                     "lyric-line " +
                     (activeLyricIndex === idx ? "active-lyric-line" : "")
                   }
-                  onClick={() => {
-                    if (ref.current) ref.current.currentTime = line.time;
-                  }}
+                  onClick={() => seekTo(line.time)}
                   title="Click to seek"
                 >
                   {line.text || "♪"}
@@ -690,7 +845,7 @@ export default function Player({
             <div className="lyrics-content plain-lyrics">
               {track.lyrics.split("\n").map((line, idx) => (
                 <p key={idx} className="plain-lyric-line">
-                  {line || "\u00A0"}
+                  {line || " "}
                 </p>
               ))}
             </div>
@@ -706,7 +861,8 @@ export default function Player({
                   setLyricsDraft("");
                 }}
               >
-                ＋ Add lyrics
+                <Icon name="plus" />
+                Add lyrics
               </button>
             </div>
           )}

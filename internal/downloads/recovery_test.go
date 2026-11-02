@@ -31,7 +31,7 @@ func TestQueueLeaseDoesNotInterruptExistingWorker(t *testing.T) {
 	defer l.Close()
 	dir := t.TempDir()
 	started := make(chan struct{})
-	q, e := Open(dir, l, runnerFunc(func(c context.Context, u, d string, p func(float64)) (Result, error) {
+	q, e := Open(dir, l, runnerFunc(func(c context.Context, u, d string, p func(Progress)) (Result, error) {
 		close(started)
 		<-c.Done()
 		return Result{}, c.Err()
@@ -54,7 +54,7 @@ func TestDisconnectedQueuePausesThenResumes(t *testing.T) {
 	defer l.Close()
 	g := &gatedImporter{target: l}
 	var runs atomic.Int32
-	r := runnerFunc(func(c context.Context, u, d string, p func(float64)) (Result, error) {
+	r := runnerFunc(func(c context.Context, u, d string, p func(Progress)) (Result, error) {
 		runs.Add(1)
 		return completeRunner().Run(c, u, d, p)
 	})
@@ -77,7 +77,7 @@ func TestDownloadedAudioSurvivesFolderDisconnectAndRestart(t *testing.T) {
 	g := &gatedImporter{target: l}
 	g.available.Store(true)
 	var runs atomic.Int32
-	r := runnerFunc(func(c context.Context, u, d string, p func(float64)) (Result, error) {
+	r := runnerFunc(func(c context.Context, u, d string, p func(Progress)) (Result, error) {
 		runs.Add(1)
 		result, e := completeRunner().Run(c, u, d, p)
 		g.available.Store(false)

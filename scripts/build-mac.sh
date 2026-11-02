@@ -190,7 +190,7 @@ sidecar_bin="src-tauri/binaries/music-studio-kh-server-$triple"
 if [ -e "$sidecar_bin" ]; then
   retire "$sidecar_bin"
 fi
-CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "$sidecar_bin" ./cmd/music-studio-kh
+CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X github.com/theng12/music-studio-kh/internal/server.appVersion=$version" -o "$sidecar_bin" ./cmd/music-studio-kh
 chmod 0755 "$sidecar_bin"
 
 step "Collecting dependency notices"

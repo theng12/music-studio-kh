@@ -60,3 +60,18 @@ func (s *Server) changeDownload(w http.ResponseWriter, r *http.Request, retry bo
 	}
 	jsonResponse(w, 200, map[string]bool{"ok": true})
 }
+
+// clearFinishedDownloads archives completed/failed/canceled rows only. It never
+// deletes files or library tracks and never touches active downloads.
+func (s *Server) clearFinishedDownloads(w http.ResponseWriter, r *http.Request) {
+	if s.downloads == nil {
+		fail(w, 503, "download tools unavailable")
+		return
+	}
+	n, e := s.downloads.ClearFinished()
+	if e != nil {
+		fail(w, 400, e.Error())
+		return
+	}
+	jsonResponse(w, 200, map[string]any{"ok": true, "cleared": n})
+}

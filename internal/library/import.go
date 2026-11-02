@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 )
 
 const MaxImportBytes int64 = 512 << 20
@@ -82,6 +83,17 @@ func (l *Library) Import(name string, source io.Reader) (Track, error) {
 }
 
 func (l *Library) ImportWithMeta(name string, source io.Reader, meta MetadataUpdate) (Track, error) {
+	return l.importWithMeta(name, source, meta, false)
+}
+
+// ImportDownloaded is Import for the download workflow: on a file it actually
+// persists it also records a real download time. A dedup-skipped import never
+// stamps, because this workflow placed no file.
+func (l *Library) ImportDownloaded(name string, source io.Reader) (Track, error) {
+	return l.importWithMeta(name, source, MetadataUpdate{}, true)
+}
+
+func (l *Library) importWithMeta(name string, source io.Reader, meta MetadataUpdate, downloaded bool) (Track, error) {
 	rel, err := sanitizeRelPath(name)
 	if err != nil || audioFormat(rel) == "" {
 		return Track{}, errors.New("choose an MP3, M4A, AAC, FLAC, Ogg, Opus, or WAV file")
@@ -286,6 +298,23 @@ func (l *Library) ImportWithMeta(name string, source io.Reader, meta MetadataUpd
 	if meta.Title != "" || meta.Artist != "" || meta.Album != "" || meta.Version != "" || meta.Year > 0 || meta.TrackNumber > 0 || meta.Lyrics != "" {
 		if updated, uErr := l.UpdateTrackMetadata(track.ID, meta); uErr == nil {
 			track = updated
+		}
+	}
+	// Provenance stamps only a file this workflow actually placed; 0 means
+	// unknown and is never backfilled elsewhere.
+	now := float64(time.Now().Unix())
+	if track.AddedAt == 0 {
+		if res, e := l.db.Exec("UPDATE tracks SET added_at=? WHERE id=?", now, track.ID); e == nil {
+			if n, _ := res.RowsAffected(); n == 1 {
+				track.AddedAt = now
+			}
+		}
+	}
+	if downloaded && track.DownloadedAt == 0 {
+		if res, e := l.db.Exec("UPDATE tracks SET downloaded_at=? WHERE id=?", now, track.ID); e == nil {
+			if n, _ := res.RowsAffected(); n == 1 {
+				track.DownloadedAt = now
+			}
 		}
 	}
 	track.Skipped = false

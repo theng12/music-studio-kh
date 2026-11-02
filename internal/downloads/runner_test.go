@@ -58,7 +58,7 @@ func TestRealToolInvocationAndBoundedOutput(t *testing.T) {
 	t.Setenv("TUNEHARBOR_RUNNER_FIXTURE", "normal")
 	r := YTDLP{Path: os.Args[0], FFmpeg: "/tools/ffmpeg"}
 	progress := 0.
-	out, e := r.Run(context.Background(), "https://youtu.be/abcdefghijk", t.TempDir(), func(p float64) { progress = p })
+	out, e := r.Run(context.Background(), "https://youtu.be/abcdefghijk", t.TempDir(), func(p Progress) { progress = p.Percent })
 	if e != nil || len(out.Files) != 1 || progress != 50 {
 		t.Fatalf("tool result: %+v %v %.0f", out, e, progress)
 	}
@@ -66,7 +66,7 @@ func TestRealToolInvocationAndBoundedOutput(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	start := time.Now()
-	if _, e = r.Run(ctx, "https://youtu.be/abcdefghijk", t.TempDir(), func(float64) {}); e == nil {
+	if _, e = r.Run(ctx, "https://youtu.be/abcdefghijk", t.TempDir(), func(Progress) {}); e == nil {
 		t.Fatal("oversized output accepted")
 	}
 	if time.Since(start) > 3*time.Second {
@@ -79,14 +79,14 @@ func TestRunnerReportsThumbnailFailureAndSafeActionableErrors(t *testing.T) {
 
 	// Missing artwork support must not silently produce an incomplete success.
 	t.Setenv("TUNEHARBOR_RUNNER_FIXTURE", "thumbnail_fail")
-	_, err := r.Run(context.Background(), "https://youtu.be/abcdefghijk", t.TempDir(), func(float64) {})
+	_, err := r.Run(context.Background(), "https://youtu.be/abcdefghijk", t.TempDir(), func(Progress) {})
 	if err == nil || !strings.Contains(err.Error(), "bundled encoder") {
 		t.Fatalf("expected actionable cover conversion error, got %v", err)
 	}
 
 	// 2. Actionable error when video is unavailable.
 	t.Setenv("TUNEHARBOR_RUNNER_FIXTURE", "unavailable")
-	_, err = r.Run(context.Background(), "https://youtu.be/abcdefghijk", t.TempDir(), func(float64) {})
+	_, err = r.Run(context.Background(), "https://youtu.be/abcdefghijk", t.TempDir(), func(Progress) {})
 	if err == nil {
 		t.Fatal("expected error on unavailable video")
 	}
@@ -97,7 +97,7 @@ func TestRunnerReportsThumbnailFailureAndSafeActionableErrors(t *testing.T) {
 
 	// 3. Never leak local filesystem paths in error messages.
 	t.Setenv("TUNEHARBOR_RUNNER_FIXTURE", "path_leak")
-	_, err = r.Run(context.Background(), "https://youtu.be/abcdefghijk", t.TempDir(), func(float64) {})
+	_, err = r.Run(context.Background(), "https://youtu.be/abcdefghijk", t.TempDir(), func(Progress) {})
 	if err == nil {
 		t.Fatal("expected error on path leak fixture")
 	}
