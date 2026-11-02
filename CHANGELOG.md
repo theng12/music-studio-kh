@@ -2,6 +2,11 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.2.4 — 2026-11-03
+
+- The What's new list inside the app now shows the right release notes.
+- The installer file is named Music Studio KH to match the app.
+
 ## 0.2.3 — 2026-11-03
 
 - Find collaborations under the main artist, with featured performers listed separately.
