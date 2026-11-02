@@ -34,19 +34,21 @@ export default function Library(p: Props) {
   const groups = useMemo(() => {
     const map = new Map<string, Track[]>();
     for (const t of p.tracks) {
-      const key =
-        view === "artists"
-          ? t.artist
-          : view === "folders"
-            ? t.folder || "Root library"
-            : t.artist + "\0" + t.album + "\0" + (t.version || "");
-      const group = map.get(key);
-      if (group) group.push(t);
-      else map.set(key, [t]);
+      const keys = view === "artists"
+        ? t.artists || [t.artist || "Unknown artist"]
+        : [view === "folders" ? t.folder || "Root library" : t.artist + "\0" + t.album + "\0" + (t.version || "")];
+      for (const key of keys) {
+        const group = map.get(key);
+        if (group) group.push(t);
+        else map.set(key, [t]);
+      }
     }
-    return [...map.values()];
+    return [...map].map(([key, tracks]) => ({
+      title: view === "artists" || view === "folders" ? key : tracks[0].album,
+      tracks,
+    }));
   }, [p.tracks, view]);
-  const items = view === "songs" ? p.tracks.map((t) => [t]) : groups;
+  const items = view === "songs" ? p.tracks.map((t) => ({ title: t.title, tracks: [t] })) : groups;
 
   const viewHeading =
     view === "albums"
@@ -186,16 +188,8 @@ export default function Library(p: Props) {
             id="tracks"
             className={"track-grid " + (p.layout === "list" ? "list" : "")}
           >
-            {items.slice(0, limit).map((group) => {
+            {items.slice(0, limit).map(({ title, tracks: group }) => {
               const t = group[0];
-              const title =
-                view === "songs"
-                  ? t.title
-                  : view === "albums"
-                    ? t.album
-                    : view === "folders"
-                      ? t.folder || "Root library"
-                      : t.artist;
               const badge =
                 view === "songs" || view === "albums" ? t.version : "";
               return (
@@ -208,7 +202,7 @@ export default function Library(p: Props) {
                     aria-label={"Play " + title}
                     onClick={() => {
                       if (view === "artists") {
-                        p.onQuery(t.artist);
+                        p.onQuery(title);
                         setView("albums");
                       } else if (view === "albums" || view === "folders")
                         setAlbum(group);
