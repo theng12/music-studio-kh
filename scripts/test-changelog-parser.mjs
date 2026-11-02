@@ -26,9 +26,16 @@ assert.equal(
   pkg.version,
   "top changelog version must match package.json version",
 );
-assert(entries[0].date.length > 0, "latest release has a date");
-assert(entries[0].title.length > 0, "latest release has a title");
-assert(entries[0].items.length > 0, "latest release has visible notes");
+
+const topSection = changelogRaw.split(/^## /m)[1].trim().split("\n").filter(line => line.trim());
+assert.equal(topSection[0], `${pkg.version} — ${entries[0].date}`, "latest heading uses the release standard");
+assert(topSection.slice(1).every(line => /^- \S/.test(line)), "only plain bullets follow the latest heading");
+assert(/^\d{4}-\d{2}-\d{2}$/.test(entries[0].date), "latest release date must be YYYY-MM-DD");
+assert.equal(entries[0].title, "", "latest release must have no subheading (title is empty)");
+assert(
+  entries[0].items.length >= 1 && entries[0].items.length <= 6,
+  "latest release must have 1 to 6 plain bullets directly under the heading",
+);
 
 // Release history survives future version bumps.
 for (const [version, date, itemCount] of [

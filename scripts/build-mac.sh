@@ -87,7 +87,7 @@ printf 'package.json:      %s\n' "$pkg_ver"
 [ "$pkg_ver" = "$version" ] || fail "package.json version ($pkg_ver) does not match config version ($version)"
 
 [ -f CHANGELOG.md ] || fail "CHANGELOG.md not found"
-top_changelog_ver="$(sed -n 's/^## \[\([0-9][^]]*\)\].*/\1/p' CHANGELOG.md | head -n1)"
+top_changelog_ver="$(awk '/^## / { print $2; exit }' CHANGELOG.md)"
 [ -n "$top_changelog_ver" ] || fail "could not parse top version from CHANGELOG.md"
 [ "$top_changelog_ver" = "$version" ] || fail "CHANGELOG.md top version ($top_changelog_ver) does not match config version ($version)"
 printf 'CHANGELOG.md top:  %s\n' "$top_changelog_ver"
@@ -238,7 +238,7 @@ codesign --verify --deep --strict --verbose=2 "$app"
 
 step "Creating and signing deterministic DMG"
 mkdir -p artifacts
-dmg_name="Music-Studio-KH-${version}-${dmg_arch}.dmg"
+dmg_name="${product_name}-${version}.dmg"
 dmg_path="artifacts/${dmg_name}"
 if [ -e "$dmg_path" ]; then
   retire "$dmg_path"
