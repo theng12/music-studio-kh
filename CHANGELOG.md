@@ -2,6 +2,15 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## [0.2.2] - November 2026
+
+### A clearer music library and Settings
+
+- Browse Songs, Albums, Artists and Folders from the sidebar, with a compact Add music control that keeps your collection in view.
+- Settings opens one category at a time, with steadier layout, readable text and clearer playback controls.
+- Downloads shows the actual save folder and actionable errors. The bundled audio tool can convert cover images, fixing downloads that previously failed during artwork embedding.
+- Streaming settings shows active audio requests and devices seen recently, with the activity window explained.
+
 ## [0.2.1] - November 2026
 
 ### Music Studio KH

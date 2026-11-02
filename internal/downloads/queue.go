@@ -413,7 +413,7 @@ func (q *Queue) next() bool {
 		}
 		message := ""
 		if e != nil {
-			message = "Download could not finish. Check the source, connection, available storage, and music folder, then retry."
+			message = sanitizeJobError(e)
 		}
 		if state == "paused" {
 			message = "Music folder unavailable. Finished audio is saved; reconnect the folder or choose a replacement in the profile settings to continue."

@@ -100,6 +100,9 @@ func (s *Server) subsonic(w http.ResponseWriter, r *http.Request) {
 		s.protocol(w, r, nil, 40, "invalid credentials or secure mobile credentials unavailable")
 		return
 	}
+	if s.activity != nil {
+		s.activity.recordSubsonicClient(clientIP(r), r.Form.Get("c"), r.UserAgent())
+	}
 	action := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/rest/"), ".view")
 	id := r.Form.Get("id")
 	switch action {

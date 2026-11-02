@@ -109,6 +109,8 @@ check_native_ffmpeg() {
   grep -q '#define CONFIG_STATIC 1' "$cfg" || return 1
   grep -q '#define CONFIG_LIBMP3LAME 1' "$cfg" || return 1
   grep -q '#define CONFIG_NETWORK 0' "$cfg" || return 1
+  grep -q '#define CONFIG_ZLIB 1' "$cfg" || return 1
+  "$dir/ffmpeg" -hide_banner -encoders 2>/dev/null | grep ' png ' >/dev/null || return 1
 
   # Check host arch, dylibs, and Mach-O minos <= 13.0
   for bin in "$dir/ffmpeg" "$dir/ffprobe"; do
@@ -175,6 +177,7 @@ python3 scripts/prepare-runtime.py --target "$runtime" --ffmpeg-dir "artifacts/n
 for tool in ffmpeg ffprobe yt-dlp deno; do
   [ -x "src-tauri/runtime-tools/$tool" ] || fail "runtime tool missing or not executable: src-tauri/runtime-tools/$tool"
 done
+python3 scripts/audio-tools-smoke.py "$PWD/src-tauri/runtime-tools"
 
 step "Building frontend web assets"
 npm ci --no-audit --no-fund

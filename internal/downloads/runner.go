@@ -20,7 +20,9 @@ func (r YTDLP) Run(ctx context.Context, u, dir string, progress func(float64)) (
 	if r.Path == "" || r.FFmpeg == "" {
 		return Result{}, errors.New("download tools unavailable")
 	}
-	args := []string{"--ignore-config", "--no-playlist", "--no-cache-dir", "--no-colors", "--newline", "--progress", "--restrict-filenames", "--playlist-end", "1000", "--max-filesize", "512M", "--extract-audio", "--audio-format", "mp3", "--audio-quality", "0", "--embed-metadata", "--embed-thumbnail", "--ffmpeg-location", filepath.Dir(r.FFmpeg), "--paths", dir, "--output", "%(title).160B [%(id)s].%(ext)s", "--progress-template", "download:progress:%(progress._percent_str)s", "--print", "after_move:file:%(filepath)s"}
+	args := []string{"--ignore-config", "--no-playlist", "--no-cache-dir", "--no-colors", "--newline", "--progress", "--restrict-filenames", "--playlist-end", "1000", "--max-filesize", "512M", "--extract-audio", "--audio-format", "mp3", "--audio-quality", "0", "--embed-metadata"}
+	args = append(args, "--embed-thumbnail")
+	args = append(args, "--ffmpeg-location", filepath.Dir(r.FFmpeg), "--paths", dir, "--output", "%(title).160B [%(id)s].%(ext)s", "--progress-template", "download:progress:%(progress._percent_str)s", "--print", "after_move:file:%(filepath)s")
 	if r.Deno != "" {
 		args = append(args, "--js-runtimes", "deno:"+r.Deno)
 	}
@@ -41,6 +43,7 @@ func (r YTDLP) Run(ctx context.Context, u, dir string, progress func(float64)) (
 	result := Result{}
 	scanner := bufio.NewScanner(pipe)
 	scanner.Buffer(make([]byte, 8192), 1<<20)
+	var lastErr string
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "progress:") {
@@ -55,6 +58,9 @@ func (r YTDLP) Run(ctx context.Context, u, dir string, progress func(float64)) (
 			}
 			result.Files = append(result.Files, path)
 		}
+		if strings.HasPrefix(line, "ERROR:") {
+			lastErr = strings.TrimSpace(strings.TrimPrefix(line, "ERROR:"))
+		}
 	}
 	if scanner.Err() != nil {
 		cmd.Cancel()
@@ -62,6 +68,11 @@ func (r YTDLP) Run(ctx context.Context, u, dir string, progress func(float64)) (
 	pipe.Close()
 	e := <-done
 	if e != nil || scanner.Err() != nil {
+		if lastErr != "" {
+			if cleaned := cleanToolError(lastErr); cleaned != "" {
+				return Result{}, errors.New(cleaned)
+			}
+		}
 		return Result{}, fmt.Errorf("download tool failed")
 	}
 	return result, nil

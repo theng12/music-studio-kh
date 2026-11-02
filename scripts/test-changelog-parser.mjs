@@ -17,7 +17,8 @@ const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
 
 const entries = parseChangelog(changelogRaw);
 assert(Array.isArray(entries), "parseChangelog must return an array");
-assert.equal(entries.length, 3, "expected 3 releases (0.2.1, 0.2.0, 0.1.0)");
+assert(entries.length >= 3, "retained release history must be present");
+assert.equal(new Set(entries.map(entry => entry.version)).size, entries.length, "release versions must be unique");
 
 // Verify latest version matches package.json
 assert.equal(
@@ -25,23 +26,21 @@ assert.equal(
   pkg.version,
   "top changelog version must match package.json version",
 );
-assert.equal(entries[0].version, "0.2.1");
-assert.equal(entries[0].date, "November 2026");
-assert(
-  entries[0].title.includes("Music Studio KH"),
-  "0.2.1 title mentions Music Studio KH",
-);
-assert.equal(entries[0].items.length, 3, "0.2.1 has 3 bullet items");
+assert(entries[0].date.length > 0, "latest release has a date");
+assert(entries[0].title.length > 0, "latest release has a title");
+assert(entries[0].items.length > 0, "latest release has visible notes");
 
-// Verify 0.2.0
-assert.equal(entries[1].version, "0.2.0");
-assert.equal(entries[1].date, "October 2026");
-assert.equal(entries[1].items.length, 6, "0.2.0 has 6 bullet items");
-
-// Verify 0.1.0
-assert.equal(entries[2].version, "0.1.0");
-assert.equal(entries[2].date, "October 2026");
-assert.equal(entries[2].items.length, 7, "0.1.0 has 7 bullet items");
+// Release history survives future version bumps.
+for (const [version, date, itemCount] of [
+  ["0.2.1", "November 2026", 3],
+  ["0.2.0", "October 2026", 6],
+  ["0.1.0", "October 2026", 7],
+]) {
+  const release = entries.find(entry => entry.version === version);
+  assert(release, version + " notes retained");
+  assert.equal(release.date, date);
+  assert.equal(release.items.length, itemCount, version + " bullets retained");
+}
 
 // 2. Edge case testing for parser robustness
 assert.deepEqual(parseChangelog(""), [], "empty markdown yields empty array");
@@ -67,7 +66,6 @@ assert.equal(parsedSample[0].title, "Initial major release");
 assert.deepEqual(parsedSample[0].items, ["First item", "Second item"]);
 
 console.log(
-  "PASS: test-changelog-parser (parsed 3 releases from CHANGELOG.md; top version " +
-    entries[0].version +
-    " matches package.json).",
+  "PASS: changelog parsing, retained history and edge cases (" + entries.length +
+    " releases; latest " + entries[0].version + " matches package.json).",
 );
