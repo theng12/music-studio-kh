@@ -52,6 +52,7 @@ func migrate(db *sql.DB) error {
 		{"folder", "TEXT NOT NULL DEFAULT ''"},
 		{"content_hash", "TEXT NOT NULL DEFAULT ''"},
 		{"lyrics", "TEXT NOT NULL DEFAULT ''"},
+		{"album_artist", "TEXT NOT NULL DEFAULT ''"},
 	}
 	for _, col := range alterations {
 		if !columns[col.name] {
@@ -88,7 +89,7 @@ func migrate(db *sql.DB) error {
 			_, _ = db.Exec("ALTER TABLE metadata_overrides ADD COLUMN lyrics TEXT NOT NULL DEFAULT ''")
 		}
 	}
-	_, e = db.Exec("PRAGMA user_version=4")
+	_, e = db.Exec("PRAGMA user_version=5")
 	return e
 }
 func (l *Library) SetDuration(id string, value float64) error {

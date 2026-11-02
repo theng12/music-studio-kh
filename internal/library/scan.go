@@ -89,13 +89,13 @@ func (l *Library) Scan() error {
 	if _, err = tx.Exec("DELETE FROM tracks"); err != nil {
 		return err
 	}
-	stmt, err := tx.Prepare("INSERT INTO tracks(id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified,content_hash,lyrics) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+	stmt, err := tx.Prepare("INSERT INTO tracks(id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified,content_hash,lyrics,album_artist) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	for _, t := range tracks {
-		if _, err = stmt.Exec(t.ID, t.Title, t.Artist, t.Album, t.Version, t.Year, t.TrackNumber, t.Folder, t.Path, t.Format, t.Size, t.Duration, t.Modified, t.ContentHash, t.Lyrics); err != nil {
+		if _, err = stmt.Exec(t.ID, t.Title, t.Artist, t.Album, t.Version, t.Year, t.TrackNumber, t.Folder, t.Path, t.Format, t.Size, t.Duration, t.Modified, t.ContentHash, t.Lyrics, t.AlbumArtist); err != nil {
 			return err
 		}
 	}
@@ -162,6 +162,7 @@ func readTrack(root *os.Root, rel string, info fs.FileInfo, previous *Track, ove
 	}
 	var hasTitle, hasArtist, hasAlbum bool
 	if m, e := tag.ReadFrom(io.NewSectionReader(f, 0, min(info.Size(), 16<<20))); e == nil {
+		t.AlbumArtist = strings.TrimSpace(m.AlbumArtist())
 		if v := strings.TrimSpace(m.Title()); v != "" {
 			t.Title = v
 			hasTitle = true
@@ -228,10 +229,10 @@ func readTrack(root *os.Root, rel string, info fs.FileInfo, previous *Track, ove
 		if !hasAlbum && parent != "" {
 			albumCandidate := parent
 			if !hasArtist && len(parts) == 1 && strings.Contains(parent, " - ") {
-				 sides := strings.SplitN(parent, " - ", 2)
-				 t.Artist = strings.TrimSpace(sides[0])
-				 albumCandidate = strings.TrimSpace(sides[1])
-				 hasArtist = true
+				sides := strings.SplitN(parent, " - ", 2)
+				t.Artist = strings.TrimSpace(sides[0])
+				albumCandidate = strings.TrimSpace(sides[1])
+				hasArtist = true
 			}
 			if ym := folderYearRe.FindStringSubmatch(albumCandidate); len(ym) == 3 {
 				albumCandidate = strings.TrimSpace(ym[1])
@@ -297,6 +298,7 @@ func (l *Library) indexFile(rel string) (Track, error) {
 	if err != nil {
 		return Track{}, err
 	}
-	_, err = l.db.Exec("INSERT OR REPLACE INTO tracks(id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified,content_hash,lyrics) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", t.ID, t.Title, t.Artist, t.Album, t.Version, t.Year, t.TrackNumber, t.Folder, t.Path, t.Format, t.Size, t.Duration, t.Modified, t.ContentHash, t.Lyrics)
+	_, err = l.db.Exec("INSERT OR REPLACE INTO tracks(id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified,content_hash,lyrics,album_artist) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", t.ID, t.Title, t.Artist, t.Album, t.Version, t.Year, t.TrackNumber, t.Folder, t.Path, t.Format, t.Size, t.Duration, t.Modified, t.ContentHash, t.Lyrics, t.AlbumArtist)
+	t.Artists = ArtistNames(t.Artist, t.AlbumArtist)
 	return t, err
 }

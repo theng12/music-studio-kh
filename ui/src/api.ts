@@ -40,6 +40,8 @@ export interface Track {
   id: string;
   title: string;
   artist: string;
+  albumArtist?: string;
+  artists?: string[];
   album: string;
   version?: string;
   year?: number;

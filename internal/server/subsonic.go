@@ -146,16 +146,22 @@ func (s *Server) subsonic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	artists := map[string]map[string]any{}
+	artistAlbums := map[string]map[string]bool{}
 	albums := map[string]map[string]any{}
 	songs := []any{}
 	for _, t := range tracks {
-		aid := identifier(t.Artist)
+		aid := identifier(t.Artists[0])
 		bid := identifier(t.Artist + "\x00" + t.Album)
-		if _, exists := artists[aid]; !exists {
-			artists[aid] = map[string]any{"id": aid, "name": t.Artist, "albumCount": 0}
+		for _, name := range t.Artists {
+			id := identifier(name)
+			if _, exists := artists[id]; !exists {
+				artists[id] = map[string]any{"id": id, "name": name, "albumCount": 0}
+				artistAlbums[id] = map[string]bool{}
+			}
+			artistAlbums[id][bid] = true
+			artists[id]["albumCount"] = len(artistAlbums[id])
 		}
 		if _, ok := albums[bid]; !ok {
-			artists[aid]["albumCount"] = artists[aid]["albumCount"].(int) + 1
 			albums[bid] = map[string]any{"id": bid, "name": t.Album, "artist": t.Artist, "artistId": aid, "coverArt": t.ID, "songCount": 0, "duration": 0}
 		}
 		albums[bid]["songCount"] = albums[bid]["songCount"].(int) + 1
@@ -175,7 +181,7 @@ func (s *Server) subsonic(w http.ResponseWriter, r *http.Request) {
 		}
 		items := []any{}
 		for _, b := range ordered(albums) {
-			if b.(map[string]any)["artistId"] == id {
+			if artistAlbums[id][b.(map[string]any)["id"].(string)] {
 				items = append(items, b)
 			}
 		}
@@ -234,7 +240,7 @@ func identifier(value string) string {
 	return hex.EncodeToString(h[:16])
 }
 func song(t library.Track, parent string) map[string]any {
-	return map[string]any{"id": t.ID, "parent": parent, "isDir": false, "title": t.Title, "artist": t.Artist, "album": t.Album, "artistId": identifier(t.Artist), "albumId": parent, "coverArt": t.ID, "suffix": t.Format, "contentType": contentType(t.Format), "size": t.Size, "duration": int(t.Duration), "bitRate": 128}
+	return map[string]any{"id": t.ID, "parent": parent, "isDir": false, "title": t.Title, "artist": t.Artist, "album": t.Album, "artistId": identifier(library.ArtistNames(t.Artist, t.AlbumArtist)[0]), "albumId": parent, "coverArt": t.ID, "suffix": t.Format, "contentType": contentType(t.Format), "size": t.Size, "duration": int(t.Duration), "bitRate": 128}
 }
 func ordered(items map[string]map[string]any) []any {
 	keys := []string{}

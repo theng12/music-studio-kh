@@ -1,4 +1,4 @@
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rename } from 'node:fs/promises';
 import { tmpdir, homedir } from 'node:os';
@@ -43,6 +43,32 @@ try{
  await page.locator('#library-nav').click();await page.locator('#toast').evaluate(e=>e.hidden=true);await page.screenshot({path:resolve('artifacts/tuneharbor-desktop.png'),fullPage:true});await page.setViewportSize({width:390,height:844});await page.screenshot({path:resolve('artifacts/tuneharbor-mobile.png'),fullPage:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'mobile page overflows');assert.deepEqual(errors,[],'browser errors');
  const second=await page.context().newPage();await second.goto('http://127.0.0.1:'+secondPort);await second.locator('#login-screen').waitFor({state:'visible'});await second.locator('#username').fill('FAMILY');await second.locator('#password').fill('222222');await second.getByRole('button',{name:'Open library'}).click();await second.locator('#app').waitFor({state:'visible'});await second.locator('#settings-nav').click();await second.locator('#settings-rescan').click();await second.locator('#library-nav').click();await second.getByRole('button',{name:'Play Harbor test',exact:true}).waitFor();
  const artType=await second.evaluate(async()=>{const tracks=await (await fetch('/api/tracks')).json();return (await (await fetch('/api/artwork/'+tracks[0].id)).arrayBuffer()).byteLength;});assert(artType<4000,'custom artwork leaked to the shared-library profile');await second.close();
+ // Artist grouping preserves full credits while linking collaborations to each contributor.
+ const credits=['Ed Sheeran feat. Skrillex','Ed Sheeran feat. Stromzy','Ed Sheeran w/ Justin Bieber','Ed Sheeran feat. Paulo Londra & Dave','Simon & Garfunkel'];
+ for(const [i,artist] of credits.entries()){
+  const audio=Buffer.from(wav);audio[audio.length-1]=i+41;
+  const response=await page.request.post(address+'/api/import',{multipart:{title:'Artist regression '+i,artist,album:'Collaboration '+i,file:{name:'Artist regression '+i+'.wav',mimeType:'audio/wav',buffer:audio}}});
+  assert(response.ok(),'artist fixture import failed');
+  const track=await response.json();assert.equal(track.artist,artist,'import must preserve the original credit');
+ }
+ await page.reload();await page.locator('#app').waitFor();await page.locator('#nav-artists').click();
+ const ed=page.getByRole('button',{name:'Play Ed Sheeran',exact:true});assert.equal(await ed.count(),1,'one main artist entry');
+ assert.equal(await ed.locator('..').locator('.track-detail p').textContent(),'4 songs');
+ for(const name of ['Skrillex','Stromzy','Justin Bieber','Paulo Londra','Dave','Simon & Garfunkel'])assert.equal(await page.getByRole('button',{name:'Play '+name,exact:true}).count(),1,'separate contributor/band '+name);
+ assert.equal(await page.getByRole('button',{name:'Play Simon',exact:true}).count(),0,'band name stays intact');
+ const artistTitles=await page.locator('.track-title-row strong').allTextContents();assert(!artistTitles.some(name=>/feat\.|w\//i.test(name)),'combined credits must not become artist entries');
+ assert.equal(Number(await page.locator('#nav-artists .nav-count').textContent()),artistTitles.length,'sidebar agrees with Artists');
+ await ed.click();await page.getByRole('button',{name:'Play Collaboration 0',exact:true}).click();await page.locator('.album-dialog').waitFor();
+ assert((await page.locator('.album-dialog p').first().textContent()).includes(credits[0]),'album shows full credit');
+ await page.getByRole('button',{name:'Edit album & cover',exact:false}).click();await page.locator('#artwork-dialog').waitFor();await expect(page.locator('#edit-artist')).toHaveValue(credits[0]);await page.locator('#artwork-dialog .close-dialog').click();
+ await page.locator('#library-nav').click();assert((await page.locator('.track-detail p').allTextContents()).some(text=>text.startsWith(credits[0])),'song rows keep full credit');
+ await page.getByRole('button',{name:'Edit artwork for Artist regression 0',exact:true}).click();await page.locator('#artwork-dialog').waitFor();await expect(page.locator('#edit-artist')).toHaveValue(credits[0]);await page.locator('#artwork-dialog .close-dialog').click();
+ const protocolParams=new URLSearchParams({u:'owner',p:'123456',f:'json',v:'1.16.1',c:'artist-regression'});
+ const protocol=(await (await page.request.get(address+'/rest/getArtists.view?'+protocolParams)).json())['subsonic-response'];assert.equal(protocol.status,'ok');
+ const protocolArtists=protocol.artists.index.flatMap(index=>index.artist);const protocolEd=protocolArtists.filter(artist=>artist.name==='Ed Sheeran');assert.equal(protocolEd.length,1);assert(!protocolArtists.some(artist=>/feat\.|w\//i.test(artist.name)));
+ const artistResult=(await (await page.request.get(address+'/rest/getArtist.view?'+protocolParams+'&id='+protocolEd[0].id)).json())['subsonic-response'];assert.equal(artistResult.artist.album.length,4,'main artist links all collaboration albums');
+ const guest=protocolArtists.find(artist=>artist.name==='Dave');assert(guest);const guestResult=(await (await page.request.get(address+'/rest/getArtist.view?'+protocolParams+'&id='+guest.id)).json())['subsonic-response'];assert.equal(guestResult.artist.album.length,1,'guest links collaboration album');
+ console.log('PASS: exact artist collaborations, intact band name, contributor links, full song/album editor credits and Subsonic artist browsing');
  await page.locator('#settings-nav').click();await page.locator('.settings-tabs button').filter({hasText:/Session/i}).click();await page.locator('#settings-logout').click();await page.locator('#logout-confirm-dialog').waitFor({state:'visible'});await page.locator('#cancel-logout').click();await page.locator('#logout-confirm-dialog').waitFor({state:'hidden'});await page.locator('#settings-logout').click();await page.locator('#logout-confirm-dialog').waitFor({state:'visible'});await page.locator('#confirm-logout').click();await page.locator('#login-screen').waitFor({state:'visible'});assert.equal(await page.locator('#login-screen .brand').textContent(),'♪Music Studio KH');
  console.log('PASS: v'+appVersion+' Music Studio KH rebrand, CHANGELOG-backed release notes, duplicate-skipping import, non-overlapping sidebar/player layout, shuffle/repeat/lyrics controls, close-to-background dialog & setting, profile & preferences persistence, desktop/mobile layout, settings button spacing ('+Math.round(buttonGap)+'px), What\'s new modal; concurrent shared-library profiles; confirmed sign-out modal.');
 }finally{if(browser)await browser.close();if(process.exitCode===null&&process.signalCode===null){const exited=new Promise(r=>process.once('exit',r));process.kill('SIGTERM');await exited;}const trash=join(homedir(),'Developer/_trash/tuneharbor/test-fixtures');await mkdir(trash,{recursive:true});await rename(temp,join(trash,basename(temp)));}
