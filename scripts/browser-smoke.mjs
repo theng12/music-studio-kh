@@ -5,6 +5,8 @@ import { tmpdir, homedir } from 'node:os';
 import { join, resolve, basename } from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import net from 'node:net';
+import { parseChangelog } from '../ui/src/changelog-parser.ts';
+const latestRelease=parseChangelog(await readFile(new URL('../CHANGELOG.md',import.meta.url),'utf8'))[0];
 const appVersion=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version;
 async function freePort(){const server=net.createServer();await new Promise(r=>server.listen(0,'127.0.0.1',r));const port=server.address().port;await new Promise(r=>server.close(r));return port;}
 const temp=await mkdtemp(join(tmpdir(),'tuneharbor-browser-'));const data=join(temp,'profiles');const music=join(temp,'music');await mkdir(music);const passwordFile=join(temp,'password');await writeFile(passwordFile,'123456\n',{mode:0o600});
@@ -39,6 +41,7 @@ try{
  assert.equal(await page.locator('.sidebar .brand').textContent(),'♪Music Studio KH');
  assert.equal(await page.locator('#settings-version').textContent(),'v'+appVersion);
  await page.locator('#settings-whats-new').click();await page.locator('#whats-new-dialog').waitFor({state:'visible'});assert.equal(await page.locator('#whats-new-title').textContent(),'What’s new in Music Studio KH');await page.screenshot({path:resolve('artifacts/tuneharbor-whats-new.png'),fullPage:true});await page.getByRole('button',{name:'Got it'}).click();await page.locator('#whats-new-dialog').waitFor({state:'hidden'});
+ await expect(page.locator('.sidebar-meta .version-badge')).toHaveText('v'+appVersion);await page.locator('#sidebar-whats-new').click();const latestNotes=page.locator('.whats-new-entry').first();await expect(latestNotes.locator('.version-badge')).toHaveText('v'+latestRelease.version);await expect(latestNotes.locator('.whats-new-date')).toHaveText(latestRelease.date);await expect(latestNotes.locator('li')).toHaveText(latestRelease.items);await page.getByRole('button',{name:'Got it'}).click();await page.locator('#whats-new-dialog').waitFor({state:'hidden'});
  await page.screenshot({path:resolve('artifacts/tuneharbor-settings.png'),fullPage:true});
  await page.locator('#library-nav').click();await page.locator('#toast').evaluate(e=>e.hidden=true);await page.screenshot({path:resolve('artifacts/tuneharbor-desktop.png'),fullPage:true});await page.setViewportSize({width:390,height:844});await page.screenshot({path:resolve('artifacts/tuneharbor-mobile.png'),fullPage:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'mobile page overflows');assert.deepEqual(errors,[],'browser errors');
  const second=await page.context().newPage();await second.goto('http://127.0.0.1:'+secondPort);await second.locator('#login-screen').waitFor({state:'visible'});await second.locator('#username').fill('FAMILY');await second.locator('#password').fill('222222');await second.getByRole('button',{name:'Open library'}).click();await second.locator('#app').waitFor({state:'visible'});await second.locator('#settings-nav').click();await second.locator('#settings-rescan').click();await second.locator('#library-nav').click();await second.getByRole('button',{name:'Play Harbor test',exact:true}).waitFor();
