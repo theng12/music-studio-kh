@@ -1,7 +1,7 @@
 {
   "name": "tuneharbor",
   "private": true,
-  "version": "0.2.2",
+  "version": "0.2.3",
   "scripts": {
     "test:browser": "node scripts/browser-smoke.mjs",
     "test:parser": "node scripts/test-changelog-parser.mjs",

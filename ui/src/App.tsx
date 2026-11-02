@@ -402,7 +402,7 @@ export default function App() {
     ),
   ).size;
   const artistsCount = new Set(
-    tracks.map((t) => t.artist || "Unknown artist"),
+    tracks.flatMap((t) => t.artists || [t.artist || "Unknown artist"]),
   ).size;
   const foldersCount = new Set(
     tracks.map((t) => t.folder || "Root library"),
