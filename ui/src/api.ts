@@ -53,6 +53,20 @@ export interface Track {
   skipped?: boolean;
   lyrics?: string;
   contentHash?: string;
+  path?: string;
+  favourite?: boolean;
+  playCount?: number;
+  lastPlayedAt?: number;
+  addedAt?: number;
+  downloadedAt?: number;
+}
+export interface StorageSummary {
+  indexedFiles: number;
+  indexedBytes: number;
+  rootAvailable: boolean;
+  rootError?: string;
+  diskTotalBytes?: number;
+  diskFreeBytes?: number;
 }
 export interface MetadataInput {
   title?: string;
@@ -76,6 +90,10 @@ export interface Job {
   error: string;
   parentId?: string;
   createdAt: number;
+  phase?: string;
+  completedAt?: number;
+  bytesDone?: number;
+  bytesTotal?: number;
 }
 export interface Profile {
   id: string;
@@ -102,4 +120,6 @@ export interface Appearance {
   repeatMode?: string;
   defaultTab?: string;
   closeBehavior?: "ask" | "background" | "quit";
+  recentDays?: number;
+  reduceTransparency?: boolean;
 }

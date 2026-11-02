@@ -1,7 +1,9 @@
 package server
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/theng12/tuneharbor/internal/library"
 	"io"
@@ -152,6 +154,45 @@ func (s *Server) importFile(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	s.serveTrack(w, r, r.PathValue("id"))
+}
+func (s *Server) setFavourite(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	var body struct {
+		Favourite *bool `json:"favourite"`
+	}
+	if e := json.NewDecoder(r.Body).Decode(&body); e != nil || body.Favourite == nil {
+		fail(w, 400, "invalid favourite state")
+		return
+	}
+	if e := s.library.SetFavourite(r.PathValue("id"), *body.Favourite); e != nil {
+		if errors.Is(e, sql.ErrNoRows) {
+			fail(w, 404, "track unavailable")
+		} else {
+			fail(w, 500, "could not save favourite")
+		}
+		return
+	}
+	jsonResponse(w, 200, map[string]bool{"favourite": *body.Favourite})
+}
+func (s *Server) recordPlay(w http.ResponseWriter, r *http.Request) {
+	count, last, e := s.library.RecordPlay(r.PathValue("id"))
+	if e != nil {
+		if errors.Is(e, sql.ErrNoRows) {
+			fail(w, 404, "track unavailable")
+		} else {
+			fail(w, 500, "could not record play")
+		}
+		return
+	}
+	jsonResponse(w, 200, map[string]any{"playCount": count, "lastPlayedAt": last})
+}
+func (s *Server) storageSummary(w http.ResponseWriter, r *http.Request) {
+	summary, e := s.library.StorageSummary()
+	if e != nil {
+		fail(w, 500, "could not read storage summary")
+		return
+	}
+	jsonResponse(w, 200, summary)
 }
 func (s *Server) serveTrack(w http.ResponseWriter, r *http.Request, id string) {
 	if s.activity != nil {

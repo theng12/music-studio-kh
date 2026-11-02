@@ -17,18 +17,18 @@ func audio() []byte {
 	return append([]byte("RIFF\x28\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x40\x1f\x00\x00\x80\x3e\x00\x00\x02\x00\x10\x00data\x04\x00\x00\x00"), 0, 0, 0, 0)
 }
 
-type runnerFunc func(context.Context, string, string, func(float64)) (Result, error)
+type runnerFunc func(context.Context, string, string, func(Progress)) (Result, error)
 
-func (f runnerFunc) Run(c context.Context, u, d string, p func(float64)) (Result, error) {
+func (f runnerFunc) Run(c context.Context, u, d string, p func(Progress)) (Result, error) {
 	return f(c, u, d, p)
 }
 func completeRunner() Runner {
-	return runnerFunc(func(ctx context.Context, u, dir string, p func(float64)) (Result, error) {
+	return runnerFunc(func(ctx context.Context, u, dir string, p func(Progress)) (Result, error) {
 		path := filepath.Join(dir, "Song.wav")
 		if err := os.WriteFile(path, audio(), 0600); err != nil {
 			return Result{}, err
 		}
-		p(100)
+		p(Progress{Percent: 100, Downloaded: 1, Total: 1})
 		return Result{Files: []string{path}}, nil
 	})
 }
@@ -116,7 +116,7 @@ func TestCancelAndInterruptedRecovery(t *testing.T) {
 	}
 	defer l.Close()
 	started := make(chan struct{}, 1)
-	r := runnerFunc(func(ctx context.Context, u, d string, p func(float64)) (Result, error) {
+	r := runnerFunc(func(ctx context.Context, u, d string, p func(Progress)) (Result, error) {
 		started <- struct{}{}
 		<-ctx.Done()
 		return Result{}, ctx.Err()
@@ -153,7 +153,7 @@ func TestFailureCannotImportOutsideStaging(t *testing.T) {
 	defer l.Close()
 	outside := filepath.Join(t.TempDir(), "outside.wav")
 	os.WriteFile(outside, audio(), 0600)
-	q, e := Open(t.TempDir(), l, runnerFunc(func(ctx context.Context, u, d string, p func(float64)) (Result, error) {
+	q, e := Open(t.TempDir(), l, runnerFunc(func(ctx context.Context, u, d string, p func(Progress)) (Result, error) {
 		return Result{Files: []string{outside}}, nil
 	}))
 	if e != nil {
@@ -174,7 +174,7 @@ func TestRetryAndConcurrentSharedLibrary(t *testing.T) {
 	other, _ := library.Open(t.TempDir(), root)
 	defer other.Close()
 	var runs atomic.Int32
-	r := runnerFunc(func(ctx context.Context, u, d string, p func(float64)) (Result, error) {
+	r := runnerFunc(func(ctx context.Context, u, d string, p func(Progress)) (Result, error) {
 		if runs.Add(1) == 1 {
 			return Result{}, errors.New("source unavailable")
 		}
@@ -201,7 +201,7 @@ var _ = bytes.NewReader
 
 type playlistRunner struct{}
 
-func (playlistRunner) Run(ctx context.Context, u, d string, p func(float64)) (Result, error) {
+func (playlistRunner) Run(ctx context.Context, u, d string, p func(Progress)) (Result, error) {
 	return completeRunner().Run(ctx, u, d, p)
 }
 func (playlistRunner) Resolve(ctx context.Context, u string) ([]Entry, error) {
@@ -241,7 +241,7 @@ func TestRetryWhileCanceledJobStops(t *testing.T) {
 	defer l.Close()
 	started, release := make(chan struct{}), make(chan struct{})
 	var calls atomic.Int32
-	q, e := Open(t.TempDir(), l, runnerFunc(func(ctx context.Context, u, dir string, p func(float64)) (Result, error) {
+	q, e := Open(t.TempDir(), l, runnerFunc(func(ctx context.Context, u, dir string, p func(Progress)) (Result, error) {
 		if calls.Add(1) == 1 {
 			close(started)
 			<-ctx.Done()
@@ -285,7 +285,7 @@ func TestQueueActionableSafeErrorStorage(t *testing.T) {
 
 	// 1. Actionable error is stored in job.Error without being swallowed by generic text.
 	actionable := "This video is unavailable. Check that the link opens on YouTube, then retry."
-	q1, e := Open(t.TempDir(), l, runnerFunc(func(ctx context.Context, u, d string, p func(float64)) (Result, error) {
+	q1, e := Open(t.TempDir(), l, runnerFunc(func(ctx context.Context, u, d string, p func(Progress)) (Result, error) {
 		return Result{}, errors.New(actionable)
 	}))
 	if e != nil {
@@ -299,7 +299,7 @@ func TestQueueActionableSafeErrorStorage(t *testing.T) {
 	}
 
 	// 2. Unsafe error with local filesystem paths is sanitized to prevent leaks.
-	q2, e := Open(t.TempDir(), l, runnerFunc(func(ctx context.Context, u, d string, p func(float64)) (Result, error) {
+	q2, e := Open(t.TempDir(), l, runnerFunc(func(ctx context.Context, u, d string, p func(Progress)) (Result, error) {
 		return Result{}, errors.New("failed writing to /Users/secret/file.mp3")
 	}))
 	if e != nil {

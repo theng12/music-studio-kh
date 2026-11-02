@@ -21,7 +21,7 @@ type Track struct {
 	Year        int      `json:"year"`
 	TrackNumber int      `json:"trackNumber"`
 	Folder      string   `json:"folder"`
-	Path        string   `json:"-"`
+	Path        string   `json:"path"`
 	Format      string   `json:"format"`
 	Size        int64    `json:"size"`
 	Artwork     bool     `json:"artwork"`
@@ -30,6 +30,14 @@ type Track struct {
 	ContentHash string   `json:"contentHash,omitempty"`
 	Lyrics      string   `json:"lyrics,omitempty"`
 	Skipped     bool     `json:"skipped,omitempty"`
+	// User state, persisted outside the tracks table (see favourites/play_history).
+	Favourite    bool    `json:"favourite"`
+	PlayCount    int     `json:"playCount"`
+	LastPlayedAt float64 `json:"lastPlayedAt,omitempty"`
+	StarredAt    float64 `json:"-"`
+	// Provenance on the track row: 0 means unknown, so the key stays omitted.
+	AddedAt      float64 `json:"addedAt,omitempty"`
+	DownloadedAt float64 `json:"downloadedAt,omitempty"`
 }
 type Library struct {
 	db                *sql.DB
@@ -94,7 +102,7 @@ func (l *Library) Close() error {
 }
 func (l *Library) Tracks(query string) ([]Track, error) {
 	like := "%" + query + "%"
-	rows, err := l.db.Query(`SELECT id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified,content_hash,lyrics,album_artist FROM tracks WHERE title LIKE ? OR artist LIKE ? OR album LIKE ? OR version LIKE ? OR folder LIKE ? OR album_artist LIKE ? ORDER BY artist,album,version,CASE WHEN track_number>0 THEN track_number ELSE 999999 END,title`, like, like, like, like, like, like)
+	rows, err := l.db.Query(`SELECT id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified,content_hash,lyrics,album_artist,added_at,downloaded_at FROM tracks WHERE title LIKE ? OR artist LIKE ? OR album LIKE ? OR version LIKE ? OR folder LIKE ? OR album_artist LIKE ? ORDER BY artist,album,version,CASE WHEN track_number>0 THEN track_number ELSE 999999 END,title`, like, like, like, like, like, like)
 	if err != nil {
 		return nil, err
 	}
@@ -102,18 +110,27 @@ func (l *Library) Tracks(query string) ([]Track, error) {
 	out := []Track{}
 	for rows.Next() {
 		var t Track
-		if err = rows.Scan(&t.ID, &t.Title, &t.Artist, &t.Album, &t.Version, &t.Year, &t.TrackNumber, &t.Folder, &t.Path, &t.Format, &t.Size, &t.Duration, &t.Modified, &t.ContentHash, &t.Lyrics, &t.AlbumArtist); err != nil {
+		if err = rows.Scan(&t.ID, &t.Title, &t.Artist, &t.Album, &t.Version, &t.Year, &t.TrackNumber, &t.Folder, &t.Path, &t.Format, &t.Size, &t.Duration, &t.Modified, &t.ContentHash, &t.Lyrics, &t.AlbumArtist, &t.AddedAt, &t.DownloadedAt); err != nil {
 			return nil, err
 		}
 		t.Artists = ArtistNames(t.Artist, t.AlbumArtist)
 		out = append(out, t)
 	}
-	return out, rows.Err()
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	if err = l.attachState(out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 func (l *Library) Track(id string) (Track, error) {
 	var t Track
-	err := l.db.QueryRow(`SELECT id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified,content_hash,lyrics,album_artist FROM tracks WHERE id=?`, id).Scan(&t.ID, &t.Title, &t.Artist, &t.Album, &t.Version, &t.Year, &t.TrackNumber, &t.Folder, &t.Path, &t.Format, &t.Size, &t.Duration, &t.Modified, &t.ContentHash, &t.Lyrics, &t.AlbumArtist)
+	err := l.db.QueryRow(`SELECT id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified,content_hash,lyrics,album_artist,added_at,downloaded_at FROM tracks WHERE id=?`, id).Scan(&t.ID, &t.Title, &t.Artist, &t.Album, &t.Version, &t.Year, &t.TrackNumber, &t.Folder, &t.Path, &t.Format, &t.Size, &t.Duration, &t.Modified, &t.ContentHash, &t.Lyrics, &t.AlbumArtist, &t.AddedAt, &t.DownloadedAt)
 	t.Artists = ArtistNames(t.Artist, t.AlbumArtist)
+	if err == nil {
+		err = l.attachOne(&t)
+	}
 	return t, err
 }
 func (l *Library) OpenTrack(id string) (*os.File, Track, error) {

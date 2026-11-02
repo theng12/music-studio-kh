@@ -2,6 +2,14 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.2.5 — 2026-11-03
+
+- Clear finished download records while keeping your music and active downloads safe.
+- See file sizes, indexed library totals, useful song details and clearer download progress.
+- Mark favourites and play your favourites, most played music or a shuffled selection.
+- Find recently added music with optional New badges and real added or downloaded dates.
+- Enjoy aligned vector icons and clearer sidebar and player controls with an optional opaque appearance.
+
 ## 0.2.4 — 2026-11-03
 
 - The What's new list inside the app now shows the right release notes.

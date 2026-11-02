@@ -190,7 +190,7 @@ sidecar_bin="src-tauri/binaries/tuneharbor-server-$triple"
 if [ -e "$sidecar_bin" ]; then
   retire "$sidecar_bin"
 fi
-CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "$sidecar_bin" ./cmd/tuneharbor
+CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X github.com/theng12/tuneharbor/internal/server.appVersion=$version" -o "$sidecar_bin" ./cmd/tuneharbor
 chmod 0755 "$sidecar_bin"
 
 step "Collecting dependency notices"

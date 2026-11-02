@@ -78,7 +78,11 @@ func (q *Queue) refreshParent(parent string) {
 			state = "completed"
 		}
 	}
-	q.db.Exec("UPDATE jobs SET state=?,progress=? WHERE id=?", state, float64(done)/float64(total)*100, parent)
+	completedAt := int64(0)
+	if state != "waiting" {
+		completedAt = unixMilli()
+	}
+	q.db.Exec("UPDATE jobs SET state=?,progress=?,phase='',completed_at=? WHERE id=?", state, float64(done)/float64(total)*100, completedAt, parent)
 }
 
 type limitedBuffer struct {

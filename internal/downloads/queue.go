@@ -21,18 +21,31 @@ type Importer interface {
 	Import(string, io.Reader) (library.Track, error)
 }
 type Result struct{ Files []string }
+
+// Progress is one yt-dlp progress tick. Total is 0 while unknown; callers
+// must not render "0 of 0".
+type Progress struct {
+	Percent    float64
+	Downloaded int64
+	Total      int64
+}
+
 type Runner interface {
-	Run(context.Context, string, string, func(float64)) (Result, error)
+	Run(context.Context, string, string, func(Progress)) (Result, error)
 }
 type Job struct {
-	ID        string  `json:"id"`
-	URL       string  `json:"url"`
-	State     string  `json:"state"`
-	Error     string  `json:"error"`
-	Progress  float64 `json:"progress"`
-	CreatedAt int64   `json:"createdAt"`
-	ParentID  string  `json:"parentId,omitempty"`
-	Title     string  `json:"title"`
+	ID          string  `json:"id"`
+	URL         string  `json:"url"`
+	State       string  `json:"state"`
+	Error       string  `json:"error"`
+	Progress    float64 `json:"progress"`
+	CreatedAt   int64   `json:"createdAt"`
+	ParentID    string  `json:"parentId,omitempty"`
+	Title       string  `json:"title"`
+	Phase       string  `json:"phase,omitempty"`
+	CompletedAt int64   `json:"completedAt,omitempty"`
+	BytesDone   int64   `json:"bytesDone,omitempty"`
+	BytesTotal  int64   `json:"bytesTotal,omitempty"`
 }
 type Queue struct {
 	db       *sql.DB
@@ -76,7 +89,18 @@ func Open(dataDir string, importer Importer, runner Runner) (*Queue, error) {
 		return nil, e
 	}
 	db.SetMaxOpenConns(1)
-	_, e = db.Exec(`PRAGMA journal_mode=WAL;PRAGMA busy_timeout=5000;CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,url TEXT NOT NULL,state TEXT NOT NULL,error TEXT NOT NULL DEFAULT '',progress REAL NOT NULL DEFAULT 0,created INTEGER NOT NULL,parent TEXT NOT NULL DEFAULT '',title TEXT NOT NULL DEFAULT 'YouTube audio');UPDATE jobs SET state='interrupted',error='The app stopped during this download. Retry to continue.' WHERE state='running';`)
+	_, e = db.Exec(`PRAGMA journal_mode=WAL;PRAGMA busy_timeout=5000;CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,url TEXT NOT NULL,state TEXT NOT NULL,error TEXT NOT NULL DEFAULT '',progress REAL NOT NULL DEFAULT 0,created INTEGER NOT NULL,parent TEXT NOT NULL DEFAULT '',title TEXT NOT NULL DEFAULT 'YouTube audio');`)
+	if e != nil {
+		db.Close()
+		return nil, e
+	}
+	if e = migrateJobColumns(db); e != nil {
+		db.Close()
+		return nil, e
+	}
+	// Mark jobs left running by a previous process. completed_at exists only
+	// after migrateJobColumns.
+	_, e = db.Exec(`UPDATE jobs SET state='interrupted',error='The app stopped during this download. Retry to continue.',completed_at=CAST(strftime('%s','now') AS INTEGER)*1000 WHERE state='running'`)
 	if e != nil {
 		db.Close()
 		return nil, e
@@ -103,6 +127,40 @@ func Open(dataDir string, importer Importer, runner Runner) (*Queue, error) {
 	go q.worker()
 	return q, nil
 }
+
+// migrateJobColumns adds 0.2.5 columns on older profile databases. Duplicate
+// column errors are expected on re-open and ignored.
+func migrateJobColumns(db *sql.DB) error {
+	have := map[string]bool{}
+	rows, e := db.Query("PRAGMA table_info(jobs)")
+	if e != nil {
+		return e
+	}
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notnull, pk int
+		var dflt any
+		if rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk) == nil {
+			have[name] = true
+		}
+	}
+	rows.Close()
+	for _, col := range []struct{ name, ddl string }{
+		{"archived", "INTEGER NOT NULL DEFAULT 0"},
+		{"phase", "TEXT NOT NULL DEFAULT ''"},
+		{"completed_at", "INTEGER NOT NULL DEFAULT 0"},
+		{"bytes_done", "INTEGER NOT NULL DEFAULT 0"},
+		{"bytes_total", "INTEGER NOT NULL DEFAULT 0"},
+	} {
+		if !have[col.name] {
+			if _, e := db.Exec("ALTER TABLE jobs ADD COLUMN " + col.name + " " + col.ddl); e != nil {
+				return e
+			}
+		}
+	}
+	return nil
+}
 func jobID() (string, error) {
 	b := make([]byte, 16)
 	_, e := rand.Read(b)
@@ -119,7 +177,7 @@ func (q *Queue) Submit(raw string) (Job, error) {
 		return Job{}, errors.New("download service is stopping")
 	}
 	var n int
-	if e = q.db.QueryRow("SELECT COUNT(*) FROM jobs WHERE state IN ('queued','running','paused')").Scan(&n); e != nil {
+	if e = q.db.QueryRow("SELECT COUNT(*) FROM jobs WHERE state IN ('queued','running','paused') AND archived=0").Scan(&n); e != nil {
 		return Job{}, e
 	}
 	if n >= 1000 {
@@ -141,7 +199,7 @@ func (q *Queue) signal() {
 	}
 }
 func (q *Queue) Jobs() ([]Job, error) {
-	rows, e := q.db.Query("SELECT id,url,state,error,progress,created,parent,title FROM jobs ORDER BY created DESC,id LIMIT 3000")
+	rows, e := q.db.Query("SELECT id,url,state,error,progress,created,parent,title,phase,completed_at,bytes_done,bytes_total FROM jobs WHERE archived=0 ORDER BY created DESC,id LIMIT 3000")
 	if e != nil {
 		return nil, e
 	}
@@ -149,17 +207,53 @@ func (q *Queue) Jobs() ([]Job, error) {
 	out := []Job{}
 	for rows.Next() {
 		var j Job
-		if e = rows.Scan(&j.ID, &j.URL, &j.State, &j.Error, &j.Progress, &j.CreatedAt, &j.ParentID, &j.Title); e != nil {
+		if e = rows.Scan(&j.ID, &j.URL, &j.State, &j.Error, &j.Progress, &j.CreatedAt, &j.ParentID, &j.Title, &j.Phase, &j.CompletedAt, &j.BytesDone, &j.BytesTotal); e != nil {
 			return nil, e
 		}
 		out = append(out, j)
 	}
 	return out, rows.Err()
 }
+
+// ClearFinished archives completed, failed and canceled rows so they leave the
+// list but stay in storage (recoverable by clearing archived). Active states —
+// queued, running, waiting, paused, interrupted — are never touched, and no
+// files or library tracks are deleted. Playlist parents and children in the
+// same finished states archive together; refreshParent still counts archived
+// children so an in-progress playlist keeps a correct percentage.
+func (q *Queue) ClearFinished() (int64, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.closing {
+		return 0, errors.New("download service is stopping")
+	}
+	result, e := q.db.Exec(`UPDATE jobs SET archived=1,phase='' WHERE archived=0 AND state IN ('completed','failed','canceled')`)
+	if e != nil {
+		return 0, e
+	}
+	n, _ := result.RowsAffected()
+	return n, nil
+}
+
+// RestoreFinished puts every archived row back on the list. Clear is reversible
+// because ClearFinished only flips archived and never deletes rows.
+func (q *Queue) RestoreFinished() (int64, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.closing {
+		return 0, errors.New("download service is stopping")
+	}
+	result, e := q.db.Exec(`UPDATE jobs SET archived=0 WHERE archived=1`)
+	if e != nil {
+		return 0, e
+	}
+	n, _ := result.RowsAffected()
+	return n, nil
+}
 func (q *Queue) Cancel(id string) error {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	result, e := q.db.Exec("UPDATE jobs SET state='canceled',error='' WHERE id=? AND state IN ('queued','running','waiting','paused')", id)
+	result, e := q.db.Exec("UPDATE jobs SET state='canceled',error='',phase='',completed_at=? WHERE id=? AND state IN ('queued','running','waiting','paused')", unixMilli(), id)
 	if e != nil {
 		return e
 	}
@@ -167,7 +261,7 @@ func (q *Queue) Cancel(id string) error {
 	if n == 0 {
 		return errors.New("only queued or running downloads can be canceled")
 	}
-	q.db.Exec("UPDATE jobs SET state='canceled',error='' WHERE parent=? AND state IN ('queued','running','paused')", id)
+	q.db.Exec("UPDATE jobs SET state='canceled',error='',phase='',completed_at=? WHERE parent=? AND state IN ('queued','running','paused')", unixMilli(), id)
 	var activeParent string
 	if q.activeID != "" {
 		q.db.QueryRow("SELECT parent FROM jobs WHERE id=?", q.activeID).Scan(&activeParent)
@@ -209,14 +303,14 @@ func (q *Queue) Retry(id string) error {
 		if state != "failed" && state != "canceled" && state != "interrupted" {
 			return errors.New("playlist is not retryable")
 		}
-		if _, e := q.db.Exec("UPDATE jobs SET state='queued',error='',progress=0 WHERE parent=? AND state IN ('failed','canceled','interrupted')", id); e != nil {
+		if _, e := q.db.Exec("UPDATE jobs SET state='queued',error='',progress=0,archived=0,phase='',completed_at=0,bytes_done=0,bytes_total=0 WHERE parent=? AND state IN ('failed','canceled','interrupted')", id); e != nil {
 			return e
 		}
-		q.db.Exec("UPDATE jobs SET state='waiting',error='' WHERE id=?", id)
+		q.db.Exec("UPDATE jobs SET state='waiting',error='',archived=0,phase='',completed_at=0 WHERE id=?", id)
 		q.signal()
 		return nil
 	}
-	result, e := q.db.Exec("UPDATE jobs SET state='queued',error='',progress=0 WHERE id=? AND state IN ('failed','canceled','interrupted')", id)
+	result, e := q.db.Exec("UPDATE jobs SET state='queued',error='',progress=0,archived=0,phase='',completed_at=0,bytes_done=0,bytes_total=0 WHERE id=? AND state IN ('failed','canceled','interrupted')", id)
 	if e != nil {
 		return e
 	}
@@ -272,7 +366,7 @@ func (q *Queue) next() bool {
 		return false
 	}
 	var id, u, parent string
-	e := q.db.QueryRow("SELECT id,url,parent FROM jobs WHERE state IN ('queued','paused') ORDER BY created,id LIMIT 1").Scan(&id, &u, &parent)
+	e := q.db.QueryRow("SELECT id,url,parent FROM jobs WHERE state IN ('queued','paused') AND archived=0 ORDER BY created,id LIMIT 1").Scan(&id, &u, &parent)
 	if e != nil {
 		q.mu.Unlock()
 		return false
@@ -287,7 +381,7 @@ func (q *Queue) next() bool {
 	ctx, cancel := context.WithTimeout(q.ctx, 4*time.Hour)
 	q.activeID = id
 	q.cancel = cancel
-	_, e = q.db.Exec("UPDATE jobs SET state='running',error='' WHERE id=? AND state IN ('queued','paused')", id)
+	_, e = q.db.Exec("UPDATE jobs SET state='running',error='',phase='downloading',completed_at=0,bytes_done=0,bytes_total=0 WHERE id=? AND state IN ('queued','paused')", id)
 	q.mu.Unlock()
 	if e != nil {
 		cancel()
@@ -313,9 +407,14 @@ func (q *Queue) next() bool {
 			}
 		}
 		if e == nil && !expanded {
-			result, e = q.runner.Run(ctx, u, dir, func(value float64) {
-				value = max(0, min(100, value))
-				q.db.Exec("UPDATE jobs SET progress=? WHERE id=? AND state='running'", value, id)
+			result, e = q.runner.Run(ctx, u, dir, func(p Progress) {
+				p.Percent = max(0, min(100, p.Percent))
+				// 100% download can still be converting or embedding inside yt-dlp.
+				phase := "downloading"
+				if p.Percent >= 100 {
+					phase = "processing"
+				}
+				q.db.Exec("UPDATE jobs SET progress=?,phase=?,bytes_done=?,bytes_total=? WHERE id=? AND state='running'", p.Percent, phase, p.Downloaded, p.Total, id)
 			})
 		}
 		if e == nil && !expanded {
@@ -335,6 +434,7 @@ func (q *Queue) next() bool {
 		e = errors.New("no downloadable audio found")
 	}
 	if e == nil && !expanded && !paused {
+		q.db.Exec("UPDATE jobs SET phase='importing' WHERE id=? AND state='running'", id)
 		root, rootErr := os.OpenRoot(dir)
 		if rootErr != nil {
 			e = rootErr
@@ -361,7 +461,16 @@ func (q *Queue) next() bool {
 					e = errors.New("download output is not an audio file")
 					break
 				}
-				track, err := q.importer.Import(filepath.Base(path), f)
+				// Prefer ImportDownloaded so the library stamps download
+				// provenance; fall back to Import for bare Importer doubles.
+				var track library.Track
+				if di, ok := q.importer.(interface {
+					ImportDownloaded(string, io.Reader) (library.Track, error)
+				}); ok {
+					track, err = di.ImportDownloaded(filepath.Base(path), f)
+				} else {
+					track, err = q.importer.Import(filepath.Base(path), f)
+				}
 				f.Close()
 				if err != nil {
 					e = err
@@ -382,7 +491,7 @@ func (q *Queue) next() bool {
 						e = err
 						break
 					}
-					_, err = q.db.Exec("INSERT INTO jobs(id,url,state,progress,created,parent,title) VALUES(?,?,'completed',100,?,?,?)", child, u, time.Now().UnixMilli(), id, track.Title)
+					_, err = q.db.Exec("INSERT INTO jobs(id,url,state,progress,created,parent,title,completed_at) VALUES(?,?,'completed',100,?,?,?,?)", child, u, time.Now().UnixMilli(), id, track.Title, unixMilli())
 					if err != nil {
 						e = err
 						break
@@ -425,7 +534,11 @@ func (q *Queue) next() bool {
 		if state == "completed" {
 			progress = 100
 		}
-		q.db.Exec("UPDATE jobs SET state=?,error=?,progress=? WHERE id=?", state, message, progress, id)
+		completedAt := int64(0)
+		if state == "completed" || state == "failed" || state == "interrupted" {
+			completedAt = unixMilli()
+		}
+		q.db.Exec("UPDATE jobs SET state=?,error=?,progress=?,phase='',completed_at=? WHERE id=?", state, message, progress, completedAt, id)
 	}
 	if state == "completed" || state == "canceled" || expanded {
 		os.RemoveAll(dir)

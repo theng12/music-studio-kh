@@ -334,4 +334,3 @@ func TestTrackLyricsPatchAndGet(t *testing.T) {
 		t.Fatalf("GET /api/tracks did not return lyrics: %+v", tracks)
 	}
 }
-

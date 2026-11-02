@@ -9,6 +9,7 @@ import {
   sendDesktopCommand,
   Track,
 } from "./api";
+import Icon from "./Icon";
 import Downloads from "./Downloads";
 import Library from "./Library";
 import Player from "./Player";
@@ -19,6 +20,7 @@ import WhatsNew from "./WhatsNew";
 import ImportDialog from "./ImportDialog";
 import { isImportableFile } from "./drop";
 import { APP_VERSION } from "./version";
+import { shuffledQueue } from "./playback";
 const defaults: Appearance = {
   theme: "dark",
   accent: "mint",
@@ -42,10 +44,15 @@ export default function App() {
   const [profile, setProfile] = useState<any>(null),
     [page, setPage] = useState("library"),
     [tracks, setTracks] = useState<Track[]>([]),
+    [tracksLoaded, setTracksLoaded] = useState(false),
+    [tracksError, setTracksError] = useState(""),
     [jobs, setJobs] = useState<Job[]>([]),
+    [jobsError, setJobsError] = useState(""),
+    [jobsLoaded, setJobsLoaded] = useState(false),
     [query, setQuery] = useState(""),
     [playing, setPlaying] = useState<Track | null>(null),
     [playQueue, setPlayQueue] = useState<Track[]>([]),
+    [shuffle, setShuffle] = useState(false),
     [appearance, setAppearance] = useState(defaults),
     [version, setVersion] = useState(0),
     [artwork, setArtwork] = useState<{ track: Track; album: boolean } | null>(
@@ -70,12 +77,28 @@ export default function App() {
     if (messageTimer.current) clearTimeout(messageTimer.current);
     messageTimer.current = setTimeout(() => setMessage(""), 6000);
   };
-  const loadTracks = async () =>
-    setTracks(await api("/api/tracks?q=" + encodeURIComponent(query)));
+  const loadTracks = async () => {
+    try {
+      setTracks(await api("/api/tracks"));
+      setTracksLoaded(true);
+      setTracksError("");
+    } catch (e) {
+      setTracksError((e as Error).message);
+      throw e;
+    }
+  };
   const completed = useRef(new Set<string>());
   const loadJobs = async () => {
-    const rows: Job[] = await api("/api/downloads");
-    setJobs(rows);
+    let rows: Job[];
+    try {
+      rows = await api("/api/downloads");
+      setJobs(rows);
+      setJobsLoaded(true);
+      setJobsError("");
+    } catch (e) {
+      setJobsError((e as Error).message);
+      throw e;
+    }
     if (
       rows.some((j) => j.state === "completed" && !completed.current.has(j.id))
     ) {
@@ -117,14 +140,6 @@ export default function App() {
   }, [profile]);
   useEffect(() => {
     if (!profile) return;
-    const timer = setTimeout(
-      () => loadTracks().catch((e) => notify(e.message)),
-      180,
-    );
-    return () => clearTimeout(timer);
-  }, [query, profile]);
-  useEffect(() => {
-    if (!profile) return;
     const timer = setInterval(
       () => {
         if (document.hidden) return;
@@ -145,6 +160,9 @@ export default function App() {
       document.documentElement.dataset.theme = theme;
       document.documentElement.dataset.accent = appearance.accent;
       document.documentElement.dataset.density = appearance.density;
+      document.documentElement.dataset.reduceTransparency = String(
+        appearance.reduceTransparency || false,
+      );
     };
     apply();
     const media = matchMedia("(prefers-color-scheme:dark)");
@@ -302,14 +320,52 @@ export default function App() {
         `Skipped ${skipped} already existing song${skipped === 1 ? "" : "s"}.`,
       );
     } else if (added > 0) {
-      notify(
-        `${added} song${added === 1 ? "" : "s"} added to your library.`,
+      notify(`${added} song${added === 1 ? "" : "s"} added to your library.`);
+    }
+  };
+  const updateTrack = (id: string, changes: Partial<Track>) => {
+    const merge = (t: Track) => (t.id === id ? { ...t, ...changes } : t);
+    setTracks((prev) => prev.map(merge));
+    setPlayQueue((prev) => prev.map(merge));
+    setPlaying((prev) => (prev ? merge(prev) : prev));
+  };
+  const favourite = async (track: Track, value: boolean) => {
+    try {
+      const result = await api<{ favourite: boolean }>(
+        "/api/tracks/" + track.id + "/favourite",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ favourite: value }),
+        },
       );
+      updateTrack(track.id, result);
+    } catch (e) {
+      notify((e as Error).message);
+    }
+  };
+  const played = async (track: Track) => {
+    try {
+      const result = await api<Pick<Track, "playCount" | "lastPlayedAt">>(
+        "/api/tracks/" + track.id + "/plays",
+        { method: "POST" },
+      );
+      updateTrack(track.id, result);
+    } catch (e) {
+      notify("Could not save listening history: " + (e as Error).message);
     }
   };
   const play = (track: Track, queue: Track[] = tracks) => {
-    setPlayQueue([...queue]);
+    setShuffle(false);
+    setPlayQueue([...new Map(queue.map((t) => [t.id, t])).values()]);
     setPlaying(track);
+    const audio = document.querySelector<HTMLAudioElement>("#audio");
+    if (playing?.id === track.id && audio?.paused)
+      audio.play().catch((e) => notify(e.message));
+  };
+  const playShuffled = (scope: Track[]) => {
+    const queue = shuffledQueue(scope);
+    if (queue.length) play(queue[0], queue);
   };
   const skip = (offset: number) => {
     if (!playQueue.length) return;
@@ -342,7 +398,10 @@ export default function App() {
         <section className="login-screen" id="login-screen">
           <div className="welcome">
             <div className="brand">
-              <span className="brand-mark">♪</span>Music Studio KH
+              <span className="brand-mark">
+                <Icon name="music" size={22} />
+              </span>
+              Music Studio KH
             </div>
             <p className="eyebrow">YOUR MUSIC, AT HOME</p>
             <h1>
@@ -404,9 +463,8 @@ export default function App() {
   const artistsCount = new Set(
     tracks.flatMap((t) => t.artists || [t.artist || "Unknown artist"]),
   ).size;
-  const foldersCount = new Set(
-    tracks.map((t) => t.folder || "Root library"),
-  ).size;
+  const foldersCount = new Set(tracks.map((t) => t.folder || "Root library"))
+    .size;
 
   return (
     <>
@@ -422,7 +480,10 @@ export default function App() {
               setLibraryTab("songs");
             }}
           >
-            <span className="brand-mark">♪</span>Music Studio KH
+            <span className="brand-mark">
+              <Icon name="music" size={22} />
+            </span>
+            Music Studio KH
           </a>
           <span className="sidebar-label">LIBRARY</span>
           <button
@@ -431,13 +492,16 @@ export default function App() {
               (page === "library" && libraryTab === "songs" ? "active" : "")
             }
             id="library-nav"
+            aria-label="Songs"
             onClick={() => {
               setPage("library");
               setLibraryTab("songs");
             }}
           >
-            ♫ <span>Songs</span>
-            <small className="nav-count">{songsCount}</small>
+            <Icon name="music" /> <span>Songs</span>
+            <small className="nav-count">
+              {tracksLoaded ? songsCount : "—"}
+            </small>
           </button>
           <button
             className={
@@ -445,13 +509,16 @@ export default function App() {
               (page === "library" && libraryTab === "albums" ? "active" : "")
             }
             id="nav-albums"
+            aria-label="Albums"
             onClick={() => {
               setPage("library");
               setLibraryTab("albums");
             }}
           >
-            💿 <span>Albums</span>
-            <small className="nav-count">{albumsCount}</small>
+            <Icon name="album" /> <span>Albums</span>
+            <small className="nav-count">
+              {tracksLoaded ? albumsCount : "—"}
+            </small>
           </button>
           <button
             className={
@@ -459,13 +526,16 @@ export default function App() {
               (page === "library" && libraryTab === "artists" ? "active" : "")
             }
             id="nav-artists"
+            aria-label="Artists"
             onClick={() => {
               setPage("library");
               setLibraryTab("artists");
             }}
           >
-            🎙 <span>Artists</span>
-            <small className="nav-count">{artistsCount}</small>
+            <Icon name="artist" /> <span>Artists</span>
+            <small className="nav-count">
+              {tracksLoaded ? artistsCount : "—"}
+            </small>
           </button>
           <button
             className={
@@ -473,13 +543,16 @@ export default function App() {
               (page === "library" && libraryTab === "folders" ? "active" : "")
             }
             id="nav-folders"
+            aria-label="Folders"
             onClick={() => {
               setPage("library");
               setLibraryTab("folders");
             }}
           >
-            📁 <span>Folders</span>
-            <small className="nav-count">{foldersCount}</small>
+            <Icon name="folder" /> <span>Folders</span>
+            <small className="nav-count">
+              {tracksLoaded ? foldersCount : "—"}
+            </small>
           </button>
 
           <span className="sidebar-label" style={{ marginTop: "18px" }}>
@@ -491,7 +564,7 @@ export default function App() {
             aria-label="Downloads"
             onClick={() => setPage("downloads")}
           >
-            ↓ <span>Downloads</span>
+            <Icon name="download" /> <span>Downloads</span>
             {jobs.some((j) => j.state === "running") && (
               <i className="download-dot" />
             )}
@@ -499,12 +572,13 @@ export default function App() {
           <button
             className={"nav-item " + (page === "settings" ? "active" : "")}
             id="settings-nav"
+            aria-label="Settings"
             onClick={() => {
               setSettingsSection("library");
               setPage("settings");
             }}
           >
-            ⚙︎ <span>Settings</span>
+            <Icon name="settings" /> <span>Settings</span>
           </button>
           <div className="sidebar-bottom">
             <button
@@ -553,15 +627,26 @@ export default function App() {
                 <span className="accent">.</span>
               </h1>
             </div>
-
           </header>
-          {page === "library" && (
+          {page === "library" && tracksError && (
+            <p role="alert">
+              Could not refresh your library: {tracksError}
+              {tracksLoaded ? ". Showing the last successful reading." : ""}
+            </p>
+          )}
+          {page === "library" && !tracksLoaded && !tracksError && (
+            <p role="status">Loading your music library…</p>
+          )}
+          {page === "library" && tracksLoaded && (
             <Library
               notice={notify}
               tracks={tracks}
               query={query}
               onQuery={setQuery}
               onPlay={play}
+              onPlayShuffle={playShuffled}
+              onFavourite={favourite}
+              newDays={appearance.recentDays ?? 7}
               onArtwork={(track, album) => setArtwork({ track, album })}
               chooseFiles={() => files.current?.click()}
               chooseFolder={() => folders.current?.click()}
@@ -581,7 +666,13 @@ export default function App() {
             />
           )}
           {page === "downloads" && (
-            <Downloads jobs={jobs} refresh={loadJobs} notice={notify} />
+            <Downloads
+              jobs={jobs}
+              refresh={loadJobs}
+              notice={notify}
+              loading={!jobsLoaded && !jobsError}
+              error={jobsError}
+            />
           )}
           {page === "settings" && (
             <Settings
@@ -592,7 +683,7 @@ export default function App() {
               save={saveAppearance}
               logout={logout}
               openWhatsNew={() => setWhatsNew(true)}
-              tracksCount={tracks.length}
+              tracksCount={tracksLoaded ? tracks.length : undefined}
               initialSection={settingsSection}
               onRescan={async () => {
                 await api("/api/scan", { method: "POST" });
@@ -628,7 +719,11 @@ export default function App() {
         </main>
         <Player
           queue={playQueue}
-          select={(t) => play(t, playQueue.length ? playQueue : tracks)}
+          shuffle={shuffle}
+          onShuffleChange={setShuffle}
+          onFavourite={favourite}
+          onPlayed={played}
+          select={setPlaying}
           track={playing}
           version={version}
           next={() => skip(1)}
@@ -639,12 +734,7 @@ export default function App() {
           onRepeatModeChange={(mode) =>
             saveAppearance({ ...appearance, repeatMode: mode })
           }
-          onTrackUpdated={(updated) => {
-            setTracks((prev) =>
-              prev.map((t) => (t.id === updated.id ? updated : t)),
-            );
-            if (playing?.id === updated.id) setPlaying(updated);
-          }}
+          onTrackUpdated={(updated) => updateTrack(updated.id, updated)}
           allTracks={tracks}
         />
       </div>
@@ -689,9 +779,10 @@ export default function App() {
               Keep music playing in the background?
             </h2>
             <p className="muted">
-              Choose whether clicking the red close button minimizes Music Studio KH
-              to the menu bar so your music keeps playing, or closes the window
-              and stops playback. You can change this anytime in Settings.
+              Choose whether clicking the red close button minimizes Music
+              Studio KH to the menu bar so your music keeps playing, or closes
+              the window and stops playback. You can change this anytime in
+              Settings.
             </p>
             <label
               className="checkbox"

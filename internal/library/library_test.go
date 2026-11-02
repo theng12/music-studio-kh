@@ -3,6 +3,7 @@ package library
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"image"
 	"image/png"
 	"os"
@@ -251,13 +252,17 @@ func TestAlbumArtworkAndProfileSettings(t *testing.T) {
 	if e != nil || len(art) == 0 {
 		t.Fatal("album cover not applied")
 	}
-	settings := Appearance{Theme: "light", Accent: "violet", Density: "compact", Layout: "list", CloseBehavior: "ask"}
+	settings := Appearance{Theme: "light", Accent: "violet", Density: "compact", Layout: "list", CloseBehavior: "ask", RecentDays: days(7)}
 	if e = l.SaveSettings(settings); e != nil {
 		t.Fatal(e)
 	}
 	got, e := l.Settings()
-	if e != nil || got != settings {
-		t.Fatal("appearance not persisted")
+	// Compare the persisted JSON shape: RecentDays is a pointer, so struct
+	// equality would compare addresses instead of values.
+	wantJSON, _ := json.Marshal(settings)
+	gotJSON, _ := json.Marshal(got)
+	if e != nil || string(gotJSON) != string(wantJSON) {
+		t.Fatalf("appearance not persisted: %s (err %v)", gotJSON, e)
 	}
 }
 func TestWaveDurationAndMetadataSurviveScan(t *testing.T) {
@@ -419,4 +424,3 @@ func TestLyricsExtractionAndSidecar(t *testing.T) {
 		t.Fatalf("lyrics did not survive Scan(): %q (err: %v)", afterScan.Lyrics, err)
 	}
 }
-

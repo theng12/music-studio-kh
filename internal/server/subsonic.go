@@ -4,9 +4,11 @@ import (
 	"crypto/md5"
 	"crypto/sha256"
 	"crypto/subtle"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"github.com/theng12/tuneharbor/internal/library"
 	"golang.org/x/crypto/bcrypt"
@@ -119,8 +121,7 @@ func (s *Server) subsonic(w http.ResponseWriter, r *http.Request) {
 		s.protocol(w, r, map[string]any{"genres": map[string]any{"genre": []any{}}}, 0, "")
 		return
 	case "getStarred2":
-		s.protocol(w, r, map[string]any{"starred2": map[string]any{"artist": []any{}, "album": []any{}, "song": []any{}}}, 0, "")
-		return
+		// Handled after the song list is built so it reflects real favourites.
 	case "getPlaylists":
 		s.protocol(w, r, map[string]any{"playlists": map[string]any{"playlist": []any{}}}, 0, "")
 		return
@@ -132,6 +133,27 @@ func (s *Server) subsonic(w http.ResponseWriter, r *http.Request) {
 		return
 	case "getOpenSubsonicExtensions":
 		s.protocol(w, r, map[string]any{"openSubsonicExtensions": []any{}}, 0, "")
+		return
+	case "star", "unstar", "setFavorite", "unStar":
+		// star/unstar are the standard Subsonic actions; setFavorite/unStar
+		// stay as aliases for clients already sending them.
+		on := action == "star" || (action == "setFavorite" && r.Form.Get("star") != "false")
+		if e := s.library.SetFavourite(id, on); e != nil {
+			s.protocolStateError(w, r, e)
+			return
+		}
+		s.protocol(w, r, nil, 0, "")
+		return
+	case "scrobble":
+		// submission=false is only a now-playing hint; real submissions are
+		// the same play history the web API records.
+		if r.Form.Get("submission") != "false" {
+			if _, _, e := s.library.RecordPlay(id); e != nil {
+				s.protocolStateError(w, r, e)
+				return
+			}
+		}
+		s.protocol(w, r, nil, 0, "")
 		return
 	case "stream", "download":
 		s.serveTrack(w, r, id)
@@ -231,16 +253,37 @@ func (s *Server) subsonic(w http.ResponseWriter, r *http.Request) {
 			return out
 		}
 		s.protocol(w, r, map[string]any{"searchResult3": map[string]any{"song": page(r, filter(songs, "title", "artist", "album"), "songCount", "songOffset", 20), "artist": page(r, filter(byName(artists), "name"), "artistCount", "artistOffset", 20), "album": page(r, filter(byName(albums), "name", "artist"), "albumCount", "albumOffset", 20)}}, 0, "")
+	case "getStarred2":
+		starred := []any{}
+		for _, entry := range songs {
+			if _, ok := entry.(map[string]any)["starred"]; ok {
+				starred = append(starred, entry)
+			}
+		}
+		s.protocol(w, r, map[string]any{"starred2": map[string]any{"artist": []any{}, "album": []any{}, "song": starred}}, 0, "")
 	default:
 		s.protocol(w, r, nil, 0, "endpoint not implemented")
 	}
+}
+func (s *Server) protocolStateError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, sql.ErrNoRows) {
+		s.protocol(w, r, nil, 70, "song not found")
+		return
+	}
+	s.protocol(w, r, nil, 0, "library unavailable")
 }
 func identifier(value string) string {
 	h := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(h[:16])
 }
 func song(t library.Track, parent string) map[string]any {
-	return map[string]any{"id": t.ID, "parent": parent, "isDir": false, "title": t.Title, "artist": t.Artist, "album": t.Album, "artistId": identifier(library.ArtistNames(t.Artist, t.AlbumArtist)[0]), "albumId": parent, "coverArt": t.ID, "suffix": t.Format, "contentType": contentType(t.Format), "size": t.Size, "duration": int(t.Duration), "bitRate": 128}
+	// bitRate is omitted: the indexer does not measure it, and an invented
+	// number would be a false quality claim.
+	m := map[string]any{"id": t.ID, "parent": parent, "isDir": false, "title": t.Title, "artist": t.Artist, "album": t.Album, "artistId": identifier(library.ArtistNames(t.Artist, t.AlbumArtist)[0]), "albumId": parent, "coverArt": t.ID, "suffix": t.Format, "contentType": contentType(t.Format), "size": t.Size, "duration": int(t.Duration)}
+	if t.StarredAt > 0 {
+		m["starred"] = time.Unix(int64(t.StarredAt), 0).UTC().Format(time.RFC3339)
+	}
+	return m
 }
 func ordered(items map[string]map[string]any) []any {
 	keys := []string{}
@@ -254,8 +297,14 @@ func ordered(items map[string]map[string]any) []any {
 	}
 	return out
 }
+
+// appVersion is the packaged app version. Normal builds honestly report
+// "development"; releases stamp it via
+// -ldflags "-X github.com/theng12/tuneharbor/internal/server.appVersion=<version>".
+var appVersion = "development"
+
 func (s *Server) protocol(w http.ResponseWriter, r *http.Request, payload map[string]any, code int, message string) {
-	result := map[string]any{"status": "ok", "version": "1.16.1", "type": "tuneharbor", "serverVersion": "0.1.0-dev", "openSubsonic": true}
+	result := map[string]any{"status": "ok", "version": "1.16.1", "type": "tuneharbor", "serverVersion": appVersion, "openSubsonic": true}
 	if message != "" {
 		result["status"] = "failed"
 		result["error"] = map[string]any{"code": code, "message": message}

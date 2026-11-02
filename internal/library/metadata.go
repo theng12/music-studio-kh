@@ -53,6 +53,10 @@ func migrate(db *sql.DB) error {
 		{"content_hash", "TEXT NOT NULL DEFAULT ''"},
 		{"lyrics", "TEXT NOT NULL DEFAULT ''"},
 		{"album_artist", "TEXT NOT NULL DEFAULT ''"},
+		// Provenance: 0 means unknown and stays unknown — never backfilled
+		// from migration time or file mtime.
+		{"added_at", "REAL NOT NULL DEFAULT 0"},
+		{"downloaded_at", "REAL NOT NULL DEFAULT 0"},
 	}
 	for _, col := range alterations {
 		if !columns[col.name] {
@@ -60,6 +64,19 @@ func migrate(db *sql.DB) error {
 				return e
 			}
 		}
+	}
+	// Favourites and play history live outside the tracks table so rescans and
+	// Forget (index/identity reset) never destroy them; state keys by track id.
+	if _, e = db.Exec(`CREATE TABLE IF NOT EXISTS favourites (
+		track_id TEXT PRIMARY KEY,
+		starred_at REAL NOT NULL
+	);
+	CREATE TABLE IF NOT EXISTS play_history (
+		track_id TEXT NOT NULL,
+		played_at REAL NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_play_history_track ON play_history(track_id);`); e != nil {
+		return e
 	}
 	if _, e = db.Exec(`CREATE TABLE IF NOT EXISTS metadata_overrides (
 		id TEXT PRIMARY KEY,
@@ -89,7 +106,7 @@ func migrate(db *sql.DB) error {
 			_, _ = db.Exec("ALTER TABLE metadata_overrides ADD COLUMN lyrics TEXT NOT NULL DEFAULT ''")
 		}
 	}
-	_, e = db.Exec("PRAGMA user_version=5")
+	_, e = db.Exec("PRAGMA user_version=6")
 	return e
 }
 func (l *Library) SetDuration(id string, value float64) error {

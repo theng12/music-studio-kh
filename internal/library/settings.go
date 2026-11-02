@@ -15,7 +15,13 @@ type Appearance struct {
 	RepeatMode    string `json:"repeatMode,omitempty"`
 	DefaultTab    string `json:"defaultTab,omitempty"`
 	CloseBehavior string `json:"closeBehavior,omitempty"`
+	// RecentDays nil = never saved, so the getter serves the default (7);
+	// an explicit 0 turns the recent window off.
+	RecentDays         *int `json:"recentDays,omitempty"`
+	ReduceTransparency bool `json:"reduceTransparency,omitempty"`
 }
+
+func days(n int) *int { return &n }
 
 func defaultAppearance() Appearance {
 	return Appearance{
@@ -24,6 +30,7 @@ func defaultAppearance() Appearance {
 		Density:       "comfortable",
 		Layout:        "grid",
 		CloseBehavior: "ask",
+		RecentDays:    days(7),
 	}
 }
 
@@ -40,6 +47,9 @@ func (l *Library) Settings() (Appearance, error) {
 	e = json.Unmarshal([]byte(value), &a)
 	if a.CloseBehavior == "" {
 		a.CloseBehavior = "ask"
+	}
+	if a.RecentDays == nil {
+		a.RecentDays = days(7)
 	}
 	return a, e
 }
@@ -58,6 +68,9 @@ func (l *Library) SaveSettings(a Appearance) error {
 	if !valid(a.StreamQuality, "", "original", "mp3") || !valid(a.RepeatMode, "", "all", "one", "off") || !valid(a.DefaultTab, "", "songs", "albums", "artists", "folders") || !valid(a.CloseBehavior, "", "ask", "background", "quit") {
 		return errors.New("choose a supported playback or library preference")
 	}
+	if a.RecentDays != nil && *a.RecentDays < 0 {
+		return errors.New("recent window must be 0 days or more; 0 turns it off")
+	}
 	value, e := json.Marshal(a)
 	if e != nil {
 		return e
@@ -65,4 +78,3 @@ func (l *Library) SaveSettings(a Appearance) error {
 	_, e = l.db.Exec("INSERT INTO settings(key,value) VALUES('appearance',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", string(value))
 	return e
 }
-

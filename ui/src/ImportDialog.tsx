@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import { ImportItem, MetadataInput } from "./api";
 import { isImportableFile } from "./drop";
+import Icon from "./Icon";
 
 export default function ImportDialog({
   open,
@@ -124,7 +125,7 @@ export default function ImportDialog({
             id="pick-import-files"
             onClick={() => fileInput.current?.click()}
           >
-            ♫ Choose audio files…
+            <Icon name="music" /> Choose audio files…
           </button>
           <button
             type="button"
@@ -132,7 +133,7 @@ export default function ImportDialog({
             id="pick-import-folder"
             onClick={() => folderInput.current?.click()}
           >
-            📁 Choose music folder…
+            <Icon name="folder" /> Choose music folder…
           </button>
         </div>
 
@@ -161,7 +162,10 @@ export default function ImportDialog({
           }}
         />
 
-        <small className="import-selection-summary" id="import-selection-summary">
+        <small
+          className="import-selection-summary"
+          id="import-selection-summary"
+        >
           {audioItems.length > 0
             ? `${audioItems.length} ${audioItems.length === 1 ? "song" : "songs"} selected (${audioItems[0].relPath || audioItems[0].file.name}${audioItems.length > 1 ? ` + ${audioItems.length - 1} more` : ""})`
             : "No files or folder selected yet."}

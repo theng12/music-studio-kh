@@ -17,14 +17,14 @@ import (
 
 type runner struct{}
 
-func (runner) Run(ctx context.Context, u, dir string, p func(float64)) (downloads.Result, error) {
+func (runner) Run(ctx context.Context, u, dir string, p func(downloads.Progress)) (downloads.Result, error) {
 	for i := 0; i <= 100; i += 20 {
 		select {
 		case <-ctx.Done():
 			return downloads.Result{}, ctx.Err()
 		case <-time.After(100 * time.Millisecond):
 		}
-		p(float64(i))
+		p(downloads.Progress{Percent: float64(i)})
 	}
 	path := filepath.Join(dir, "Downloaded fixture.wav")
 	audio := append([]byte("RIFF\x28\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x40\x1f\x00\x00\x80\x3e\x00\x00\x02\x00\x10\x00data\x04\x00\x00\x00"), 0, 0, 0, 0)
@@ -37,9 +37,18 @@ func main() {
 	flag.Parse()
 	music := filepath.Join(*root, "music")
 	os.MkdirAll(music, 0700)
-	profile, e := profiles.Create(filepath.Join(*root, "profiles"), profiles.Input{Name: "Download test", Library: music, Username: "owner", Password: "123456", Port: *port})
+	items, e := profiles.List(filepath.Join(*root, "profiles"))
 	if e != nil {
 		panic(e)
+	}
+	var profile profiles.Profile
+	if len(items) == 0 {
+		profile, e = profiles.Create(filepath.Join(*root, "profiles"), profiles.Input{Name: "Download test", Library: music, Username: "owner", Password: "123456", Port: *port})
+		if e != nil {
+			panic(e)
+		}
+	} else {
+		profile = items[0]
 	}
 	lib, e := library.Open(profile.DataDir, music)
 	if e != nil {

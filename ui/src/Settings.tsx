@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Appearance, api, sendDesktopCommand } from "./api";
+import { Appearance, api, sendDesktopCommand, StorageSummary } from "./api";
+import { formatBytes as bytes } from "./format";
 import { APP_VERSION } from "./version";
 import StreamingActivity from "./StreamingActivity";
+import Icon from "./Icon";
 
 export default function Settings({
   profile,
@@ -31,7 +33,9 @@ export default function Settings({
     return s;
   };
 
-  const [section, setSection] = useState(() => normalizeSection(initialSection));
+  const [section, setSection] = useState(() =>
+    normalizeSection(initialSection),
+  );
   const [name, setName] = useState(profile?.name || "");
   const [username, setUsername] = useState(profile?.username || "");
   const [password, setPassword] = useState("");
@@ -41,6 +45,28 @@ export default function Settings({
     null | "single" | "all"
   >(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [storage, setStorage] = useState<StorageSummary | null>(null);
+  const [storageError, setStorageError] = useState("");
+  useEffect(() => {
+    if (section !== "library" || rescanning) return;
+    let active = true;
+    api<StorageSummary>("/api/storage")
+      .then((value) => {
+        if (active) {
+          setStorage(value);
+          setStorageError("");
+        }
+      })
+      .catch((e) => {
+        if (active) {
+          setStorage(null);
+          setStorageError(e.message);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [section, rescanning, profile?.library, tracksCount]);
 
   useEffect(() => {
     setSection(normalizeSection(initialSection));
@@ -142,22 +168,69 @@ export default function Settings({
         <div className="settings-card" id="library-settings-card">
           <h2>Music library folder</h2>
           <p className="settings-description">
-            Your audio files are stored locally on this computer. Music Studio KH
-            organizes and plays them without moving or altering your files.
+            This folder is on the computer running your Music Studio KH server.
+            The library reads your audio in place; editing song details or
+            artwork updates those files.
           </p>
           <div className="settings-folder-box" id="settings-folder">
             {profile.library}
           </div>
+          <div
+            className="storage-summary"
+            id="storage-summary"
+            aria-live="polite"
+          >
+            {storage ? (
+              <>
+                <strong>
+                  {storage.indexedFiles} indexed music files ·{" "}
+                  {bytes(storage.indexedBytes)}
+                </strong>
+                <p>
+                  Music in this profile’s index, including subfolders. This is
+                  not the size of all disk contents.
+                </p>
+                <p>
+                  Server volume: {bytes(storage.diskFreeBytes)} available of{" "}
+                  {bytes(storage.diskTotalBytes)} capacity.
+                </p>
+                {storage.rootAvailable && storage.rootError && (
+                  <p role="alert">{storage.rootError}</p>
+                )}
+                {!storage.rootAvailable && (
+                  <p role="alert">
+                    Music folder unavailable:{" "}
+                    {storage.rootError || "Cannot read this folder"}. Indexed
+                    totals are from the last scan.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p>
+                {storageError
+                  ? "Storage information unavailable: " + storageError
+                  : "Loading storage information…"}
+              </p>
+            )}
+          </div>
           <p className="settings-description">
-            Add files to this folder and they appear automatically, usually within about 20 seconds.
+            Add files to this folder and they appear automatically, usually
+            within about 20 seconds. Downloads save here too.
           </p>
-          {!(window as any).__TUNEHARBOR_DESKTOP__ && <p className="settings-description">
-            To choose a different folder or change phone access, open this profile's settings in the desktop app.
-          </p>}
+          {!(window as any).__TUNEHARBOR_DESKTOP__ && (
+            <p className="settings-description">
+              To choose a different folder or change phone access, open this
+              profile's settings in the desktop app.
+            </p>
+          )}
           <div className="action-row">
             {(window as any).__TUNEHARBOR_DESKTOP__ && (
-              <button type="button" className="primary" id="manage-library-folder"
-                onClick={() => sendDesktopCommand("manage-profile")}>
+              <button
+                type="button"
+                className="primary"
+                id="manage-library-folder"
+                onClick={() => sendDesktopCommand("manage-profile")}
+              >
                 Manage music folder & access
               </button>
             )}
@@ -168,7 +241,8 @@ export default function Settings({
               disabled={rescanning}
               onClick={handleRescan}
             >
-              {rescanning ? "Scanning…" : "↻ Rescan music folder"}
+              <Icon name="refresh" />{" "}
+              {rescanning ? "Scanning…" : "Rescan music folder"}
             </button>
             <span className="state-pill completed">
               {typeof tracksCount === "number"
@@ -257,9 +331,7 @@ export default function Settings({
                 save({ ...settings, streamQuality: e.target.value })
               }
             >
-              <option value="original">
-                Original file quality (Lossless / Native)
-              </option>
+              <option value="original">Original file (no conversion)</option>
               <option value="mp3">
                 Compatible MP3 transcode (Best for older browsers)
               </option>
@@ -297,9 +369,7 @@ export default function Settings({
               <option value="background">
                 Keep playing in background (Minimize to menu bar)
               </option>
-              <option value="quit">
-                Close window and stop music playback
-              </option>
+              <option value="quit">Close window and stop music playback</option>
             </select>
           </label>
           <p className="muted">
@@ -376,6 +446,55 @@ export default function Settings({
               </select>
             </label>
           ))}
+          <label htmlFor="recentDays">
+            Show New badges for this many days (0 turns them off)
+            <input
+              id="recentDays"
+              type="number"
+              min="0"
+              step="1"
+              key={settings.recentDays ?? 7}
+              defaultValue={settings.recentDays ?? 7}
+              onBlur={(e) => {
+                const days = Number(e.currentTarget.value);
+                if (
+                  e.currentTarget.value !== "" &&
+                  Number.isSafeInteger(days) &&
+                  days >= 0
+                ) {
+                  if (days !== (settings.recentDays ?? 7))
+                    save({ ...settings, recentDays: days });
+                } else {
+                  e.currentTarget.value = String(settings.recentDays ?? 7);
+                  notice(
+                    "Use a whole number of days, or 0 to turn New badges off.",
+                  );
+                }
+              }}
+            />
+          </label>
+          <p className="muted">
+            Uses a known date added or downloaded, separate from a song’s
+            release year. Older tracks without that date stay unmarked.
+          </p>
+          <label htmlFor="reduceTransparency">
+            Control surface appearance
+            <select
+              id="reduceTransparency"
+              value={settings.reduceTransparency ? "opaque" : "system"}
+              onChange={(e) =>
+                save({
+                  ...settings,
+                  reduceTransparency: e.target.value === "opaque",
+                })
+              }
+            >
+              <option value="system">
+                Glass style, respecting system accessibility
+              </option>
+              <option value="opaque">Opaque controls</option>
+            </select>
+          </label>
           <p className="muted">
             Saved to this profile. Your desktop and browser player share these
             defaults.
@@ -409,9 +528,9 @@ export default function Settings({
             )}
           </dl>
           <p className="muted">
-            Use a phone address, username, and password in Subsonic, Amperfy, or Symfonium.
-            Keep this computer awake and Music Studio KH running. Local-network mode
-            uses HTTP on your trusted Wi-Fi.
+            Use a phone address, username, and password in Subsonic, Amperfy, or
+            Symfonium. Keep this computer awake and Music Studio KH running.
+            Local-network mode uses HTTP on your trusted Wi-Fi.
           </p>
           <StreamingActivity />
         </div>
@@ -455,13 +574,13 @@ export default function Settings({
               id="settings-whats-new"
               onClick={openWhatsNew}
             >
-              ✦ What’s new
+              What’s new
             </button>
           </div>
           <p className="muted">
-            Desktop music library and local Subsonic streaming server.
-            App and download tools update together through a new installer.
-            Profiles and music are preserved.
+            Desktop music library and local Subsonic streaming server. App and
+            download tools update together through a new installer. Profiles and
+            music are preserved.
           </p>
         </div>
       )}
