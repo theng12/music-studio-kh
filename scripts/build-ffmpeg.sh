@@ -53,6 +53,7 @@ PKG_CONFIG_PATH="$PREFIX_DIR/lib/pkgconfig" ./configure \
   --disable-shared \
   --enable-static \
   --disable-autodetect \
+  --enable-zlib \
   --disable-doc \
   --disable-debug \
   --disable-ffplay \
@@ -105,6 +106,8 @@ if [ "$(uname -s)" = "Darwin" ]; then
   grep -q '#define CONFIG_STATIC 1' config.h || { echo "ERROR: config.h missing CONFIG_STATIC 1" >&2; exit 1; }
   grep -q '#define CONFIG_LIBMP3LAME 1' config.h || { echo "ERROR: config.h missing CONFIG_LIBMP3LAME 1" >&2; exit 1; }
   grep -q '#define CONFIG_NETWORK 0' config.h || { echo "ERROR: config.h missing CONFIG_NETWORK 0" >&2; exit 1; }
+  grep -q '#define CONFIG_ZLIB 1' config.h || { echo "ERROR: PNG artwork conversion needs zlib" >&2; exit 1; }
+  "$OUTPUT_DIR/ffmpeg" -hide_banner -loglevel error -f lavfi -i color=s=16x16 -frames:v 1 -f image2pipe -c:v png - >/dev/null
 fi
 
 mkdir -p "$OUTPUT_DIR/notices" "$OUTPUT_DIR/sources"

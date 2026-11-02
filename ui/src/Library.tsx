@@ -47,60 +47,64 @@ export default function Library(p: Props) {
     return [...map.values()];
   }, [p.tracks, view]);
   const items = view === "songs" ? p.tracks.map((t) => [t]) : groups;
+
+  const viewHeading =
+    view === "albums"
+      ? "Albums"
+      : view === "artists"
+        ? "Artists"
+        : view === "folders"
+          ? "Folders"
+          : "Songs";
+
   return (
     <section id="library-page">
-      <div className="hero">
+      <div className="library-toolbar">
         <div>
-          <span className="eyebrow">MAKE YOURSELF AT HOME</span>
           <h2>
-            Good music.
-            <br />
-            Your own little corner.
+            {viewHeading}{" "}
+            <span className="count" id="track-count">
+              {items.length}
+            </span>
           </h2>
           <p>
-            Import individual songs or entire album folders with custom names,
-            versions, and cover artwork.
+            {view === "albums"
+              ? `${items.length} ${items.length === 1 ? "album" : "albums"}`
+              : view === "artists"
+                ? `${items.length} ${items.length === 1 ? "artist" : "artists"}`
+                : view === "folders"
+                  ? `${items.length} ${items.length === 1 ? "folder" : "folders"}`
+                  : songs(p.tracks.length)}
+            , ready to listen.
           </p>
-          <div className="action-row">
+        </div>
+        <div className="toolbar-controls">
+          <div className="add-music-menu" role="group" aria-label="Add music">
             <button
-              className="primary"
+              className="primary compact-button"
               id="choose-music"
               onClick={p.chooseFiles}
+              title="Add individual music files"
             >
               ＋ Add music
             </button>
             <button
-              className="secondary"
+              className="secondary compact-button"
               id="choose-folder"
               onClick={p.chooseFolder}
+              title="Import whole album or artist folder"
             >
-              📁 Import folder
+              📁 Folder
             </button>
             <button
-              className="secondary"
+              className="secondary compact-button"
               id="open-custom-import"
               onClick={p.openCustomImport}
+              title="Import files with custom metadata and cover artwork"
             >
-              ✦ Import with details…
+              ✦ Details…
             </button>
           </div>
-        </div>
-        <div className="hero-art" aria-hidden="true">
-          <div className="small-record" />
-          <span className="hero-note">♫</span>
-        </div>
-      </div>
-      <div className="library-toolbar">
-        <div>
-          <h2>
-            Your collection{" "}
-            <span className="count" id="track-count">
-              {p.tracks.length}
-            </span>
-          </h2>
-          <p>{songs(p.tracks.length)}, ready to listen.</p>
-        </div>
-        <div className="toolbar-controls">
           <label className="search-label">
             <span>⌕</span>
             <input
@@ -120,24 +124,11 @@ export default function Library(p: Props) {
             id="layout-toggle"
             onClick={p.toggleLayout}
             aria-label="Toggle grid or list"
+            title={p.layout === "list" ? "Switch to grid view" : "Switch to list view"}
           >
-            ▦
+            {p.layout === "list" ? "▦" : "☷"}
           </button>
         </div>
-      </div>
-      <div className="queue-tabs">
-        {(["songs", "albums", "artists", "folders"] as const).map((v) => (
-          <button
-            key={v}
-            className={view === v ? "selected" : ""}
-            onClick={() => {
-              setView(v);
-              setLimit(100);
-            }}
-          >
-            {v[0].toUpperCase() + v.slice(1)}
-          </button>
-        ))}
       </div>
       <div
         id="drop-zone"
@@ -257,13 +248,11 @@ export default function Library(p: Props) {
                       className="icon-button"
                       aria-label={"Edit artwork for " + title}
                       onClick={() =>
-                        p.onArtwork(
-                          t,
-                          view === "albums" || view === "folders",
-                        )
+                        p.onArtwork(t, view === "albums" || view === "folders")
                       }
+                      title="Edit artwork and metadata"
                     >
-                      ⋯
+                      ✎
                     </button>
                   </div>
                 </article>
@@ -272,17 +261,20 @@ export default function Library(p: Props) {
           </div>
         )}
       </div>
-      {items.length > limit && (
-        <button
-          className="secondary load-more"
-          onClick={() => setLimit((n) => n + 100)}
-        >
-          Show more
-        </button>
+      {limit < items.length && (
+        <div className="action-row load-more">
+          <button
+            className="secondary"
+            id="load-more"
+            onClick={() => setLimit(limit + 100)}
+          >
+            Show more ({items.length - limit} remaining)
+          </button>
+        </div>
       )}
       {album && (
         <div className="modal-backdrop">
-          <section className="settings-card album-dialog">
+          <section className="settings-card album-dialog" role="dialog" aria-modal="true" aria-label="Album tracks">
             <button
               className="close-dialog"
               aria-label="Close album"
@@ -296,9 +288,6 @@ export default function Library(p: Props) {
               alt=""
             />
             <div className="whats-new-header">
-              <span className="eyebrow">
-                {view === "folders" ? "FOLDER" : "ALBUM"}
-              </span>
               {album[0].version && (
                 <span className="version-badge">{album[0].version}</span>
               )}

@@ -28,6 +28,15 @@ export default function Profiles({
     [lan, setLAN] = useState(false);
   const refresh = async () => setProfiles(await rpc("profiles"));
   useEffect(() => {
+    const manage = (event: Event) => {
+      const profile = profiles.find(p => p.id === (event as CustomEvent<string>).detail);
+      if (profile) setEditing({ ...profile });
+    };
+    window.addEventListener("manage-profile", manage);
+    return () => window.removeEventListener("manage-profile", manage);
+  }, [profiles]);
+
+  useEffect(() => {
     rpc("doctor").catch((e) => setToolProblem(String(e)));
     refresh().catch((e) => notice(String(e)));
     const timer = setInterval(() => refresh().catch(() => {}), 5000);

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Appearance, api } from "./api";
+import { Appearance, api, sendDesktopCommand } from "./api";
 import { APP_VERSION } from "./version";
+import StreamingActivity from "./StreamingActivity";
 
 export default function Settings({
   profile,
@@ -11,7 +12,8 @@ export default function Settings({
   logout,
   notice,
   openWhatsNew,
-  initialSection = "all",
+  initialSection = "library",
+  onRescan,
 }: {
   profile: any;
   onProfileUpdated?: (p: any) => void;
@@ -22,19 +24,26 @@ export default function Settings({
   notice: (s: string) => void;
   openWhatsNew: () => void;
   initialSection?: string;
+  onRescan?: () => Promise<void> | void;
 }) {
-  const [section, setSection] = useState(initialSection);
+  const normalizeSection = (s?: string) => {
+    if (!s || s === "all") return "library";
+    return s;
+  };
+
+  const [section, setSection] = useState(() => normalizeSection(initialSection));
   const [name, setName] = useState(profile?.name || "");
   const [username, setUsername] = useState(profile?.username || "");
   const [password, setPassword] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
+  const [rescanning, setRescanning] = useState(false);
   const [confirmLogoutMode, setConfirmLogoutMode] = useState<
     null | "single" | "all"
   >(null);
   const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
-    setSection(initialSection);
+    setSection(normalizeSection(initialSection));
   }, [initialSection]);
 
   useEffect(() => {
@@ -42,10 +51,12 @@ export default function Settings({
     setUsername(profile?.username || "");
   }, [profile?.name, profile?.username]);
 
-  const show = (id: string) =>
-    section === "all" ||
-    section === id ||
-    (section === "appearance" && (id === "appearance" || id === "server"));
+  const selectSection = (id: string) => {
+    setSection(id);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
+
+  const show = (id: string) => section === id;
 
   const saveProfileAccount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,6 +81,22 @@ export default function Settings({
     }
   };
 
+  const handleRescan = async () => {
+    setRescanning(true);
+    try {
+      if (onRescan) {
+        await onRescan();
+      } else {
+        await api("/api/scan", { method: "POST" });
+        notice("Library scan completed.");
+      }
+    } catch (e) {
+      notice((e as Error).message);
+    } finally {
+      setRescanning(false);
+    }
+  };
+
   const executeLogout = async () => {
     if (!confirmLogoutMode) return;
     setLoggingOut(true);
@@ -86,29 +113,71 @@ export default function Settings({
     }
   };
 
+  const SETTINGS_SECTIONS = [
+    ["library", "Library & storage"],
+    ["profile", "Profile & account"],
+    ["playback", "Playback & audio"],
+    ["appearance", "Appearance & display"],
+    ["server", "Streaming & access"],
+    ["session", "Session & about"],
+  ] as const;
+
   return (
     <section id="settings-page">
-      <div className="queue-tabs settings-tabs" role="tablist">
-        {[
-          ["all", "All settings"],
-          ["profile", "Profile & account"],
-          ["playback", "Playback & audio"],
-          ["appearance", "Appearance & access"],
-          ["server", "Server & mobile access"],
-          ["session", "Session & about"],
-        ].map(([id, label]) => (
+      <nav className="settings-tabs" aria-label="Settings categories">
+        {SETTINGS_SECTIONS.map(([id, label]) => (
           <button
             key={id}
             type="button"
-            role="tab"
-            aria-selected={section === id}
+            aria-pressed={section === id}
             className={section === id ? "selected" : ""}
-            onClick={() => setSection(id)}
+            onClick={() => selectSection(id)}
           >
             {label}
           </button>
         ))}
-      </div>
+      </nav>
+
+      {show("library") && (
+        <div className="settings-card" id="library-settings-card">
+          <h2>Music library folder</h2>
+          <p className="settings-description">
+            Your audio files are stored locally on this computer. Music Studio KH
+            organizes and plays them without moving or altering your files.
+          </p>
+          <div className="settings-folder-box" id="settings-folder">
+            {profile.library}
+          </div>
+          <p className="settings-description">
+            Add files to this folder and they appear automatically, usually within about 20 seconds.
+          </p>
+          {!(window as any).__TUNEHARBOR_DESKTOP__ && <p className="settings-description">
+            To choose a different folder or change phone access, open this profile's settings in the desktop app.
+          </p>}
+          <div className="action-row">
+            {(window as any).__TUNEHARBOR_DESKTOP__ && (
+              <button type="button" className="primary" id="manage-library-folder"
+                onClick={() => sendDesktopCommand("manage-profile")}>
+                Manage music folder & access
+              </button>
+            )}
+            <button
+              type="button"
+              className="secondary"
+              id="settings-rescan"
+              disabled={rescanning}
+              onClick={handleRescan}
+            >
+              {rescanning ? "Scanning…" : "↻ Rescan music folder"}
+            </button>
+            <span className="state-pill completed">
+              {typeof tracksCount === "number"
+                ? `${tracksCount} ${tracksCount === 1 ? "song" : "songs"} indexed`
+                : "Active"}
+            </span>
+          </div>
+        </div>
+      )}
 
       {show("profile") && (
         <div className="settings-card" id="profile-settings-card">
@@ -118,7 +187,6 @@ export default function Settings({
                 {(profile.name || "TH").slice(0, 2).toUpperCase()}
               </span>
               <div>
-                <span className="eyebrow">PROFILE & ACCOUNT</span>
                 <h2>{profile.name}</h2>
               </div>
             </div>
@@ -179,9 +247,8 @@ export default function Settings({
 
       {show("playback") && (
         <div className="settings-card" id="playback-settings-card">
-          <span className="eyebrow">PLAYBACK & AUDIO</span>
           <h2>Listening preferences</h2>
-          <label>
+          <label htmlFor="streamQuality">
             Streaming audio quality
             <select
               id="streamQuality"
@@ -198,7 +265,7 @@ export default function Settings({
               </option>
             </select>
           </label>
-          <label>
+          <label htmlFor="repeatMode">
             Queue & repeat behavior
             <select
               id="repeatMode"
@@ -245,7 +312,6 @@ export default function Settings({
 
       {show("appearance") && (
         <div className="settings-card" id="appearance-settings-card">
-          <span className="eyebrow">MAKE IT YOURS</span>
           <h2>Appearance & display</h2>
           {(
             [
@@ -295,7 +361,7 @@ export default function Settings({
               ],
             ] as const
           ).map(([key, label, choices]) => (
-            <label key={key}>
+            <label key={key} htmlFor={key}>
               {label}
               <select
                 id={key}
@@ -319,21 +385,18 @@ export default function Settings({
 
       {show("server") && (
         <div className="settings-card" id="server-settings-card">
-          <span className="eyebrow">LISTEN AROUND THE HOUSE</span>
-          <h2>Your server & mobile access</h2>
+          <h2>Your server & streaming access</h2>
           <dl>
             <dt>Profile</dt>
             <dd id="settings-profile">{profile.name}</dd>
             <dt>Username</dt>
             <dd id="settings-username">{profile.username}</dd>
-            <dt>Address</dt>
+            <dt>Server address</dt>
             <dd id="settings-address">{location.origin}</dd>
-            <dt>Access</dt>
+            <dt>Access mode</dt>
             <dd id="settings-access">
               {profile.lan ? "Local network enabled" : "This computer only"}
             </dd>
-            <dt>Music folder</dt>
-            <dd id="settings-folder">{profile.library}</dd>
             {profile.lan && profile.addresses?.length > 0 && (
               <>
                 <dt>Phone addresses</dt>
@@ -346,18 +409,18 @@ export default function Settings({
             )}
           </dl>
           <p className="muted">
-            Use a phone address, username, and password in Amperfy or Symfonium.
+            Use a phone address, username, and password in Subsonic, Amperfy, or Symfonium.
             Keep this computer awake and Music Studio KH running. Local-network mode
             uses HTTP on your trusted Wi-Fi.
           </p>
+          <StreamingActivity />
         </div>
       )}
 
       {show("session") && (
         <div className="settings-card" id="session-settings-card">
-          <span className="eyebrow">SESSION & ABOUT</span>
           <h2>Session security & release</h2>
-          <p>
+          <p className="settings-description">
             Signing out closes your current browser or desktop session without
             stopping the background music server or touching your library files.
           </p>
@@ -426,7 +489,6 @@ export default function Settings({
             >
               ×
             </button>
-            <span className="eyebrow">CONFIRM SIGN OUT</span>
             <h2 id="logout-confirm-title">
               {confirmLogoutMode === "all"
                 ? "Sign out all browser devices?"

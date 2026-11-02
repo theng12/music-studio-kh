@@ -51,6 +51,12 @@ To build the desktop app, run `python scripts/prepare-runtime.py` and `scripts/b
 
 Profile data defaults to the operating system's user configuration directory under `TuneHarbor/profiles`. To use another location, put `--data /path/to/profiles` **before** the command.
 
+## Your music folder
+
+Each profile reads the music folder you choose. Music stays there: you can add songs and album folders in Finder and the running app scans them automatically. They normally appear within about 20 seconds, then become available in the library and for authenticated streaming. The Import controls copy files into that same folder without moving the originals or overwriting existing songs.
+
+Downloads also finish in the profile's music folder. The Downloads page shows its actual path on the server computer; this may differ from the device you use to browse the library. Library setup belongs in Settings, while Songs, Albums, Artists and Folders browse the collection.
+
 ## Multiple profiles
 
 Create a second profile with another port:
@@ -73,6 +79,8 @@ Add `--lan` when creating a profile to enable listening on network interfaces. T
 
 Phone apps sign in with the profile's server address (shown in Settings), username and password. Both Subsonic password mode (including `enc:` hex encoding, which is not encryption) and token-and-salt mode are supported. Token mode needs the password saved, encrypted, through the OS keychain; if the keychain was locked when the profile was created, enter the password once in the profile settings. Endpoints include `ping`, `getLicense`, `getMusicFolders`, `getArtists`, `getArtist`, `getAlbumList2`, `getAlbum`, `getSong`, `getRandomSongs`, `search3`, `getCoverArt`, `stream`, and `download`, plus empty responses for genres, starred items, playlists and radio. Saved playlists, scrobbling and favorites are not implemented. Interoperability with real iOS and Android clients is a release gate that still needs a run on real devices (see the checklist).
 
+In **Settings → Streaming & access**, activity shows open audio requests and authenticated clients seen in the last five minutes. A player can keep playing buffered music after its audio request finishes. Browser sessions and phone-app requests identify clients; this is not device discovery, and one device may have several sessions. The view reports its 100-client tracking limit if reached and shows refresh errors explicitly.
+
 ## Verification
 
 ```sh
@@ -85,7 +93,7 @@ npx playwright install chromium
 npm run test:browser
 ```
 
-`scripts/desktop-e2e.sh` drives an installed Linux package under a virtual display: first-run profile creation through the real folder dialog, the signed-in library window, import, playback, close-to-tray and server cleanup. CI runs it after building the `.deb`. The browser smoke script runs on Linux/macOS; the Go CI matrix also tests Windows. Browser testing creates temporary profiles and real audio/image fixtures, checks login/import/playback/search/artwork/theme behavior, and removes the temporary data afterward. It writes desktop/mobile screenshots under `artifacts/`.
+`scripts/desktop-e2e.sh` drives an installed Linux package under a virtual display: first-run profile creation through the real folder dialog, the signed-in library window, import, playback, close-to-tray and server cleanup. CI runs it after building the `.deb`. The browser smoke script runs on Linux/macOS; the Go CI matrix also tests Windows. Browser testing creates temporary profiles and real audio/image fixtures, checks login/import/playback/search/artwork/theme behavior, and retires its temporary data to project trash afterward. It writes desktop/mobile screenshots under `artifacts/`. `node scripts/settings-layout-smoke.mjs` checks stable Settings geometry in Chromium and WebKit when installed; `node scripts/library-folder-smoke.mjs` checks direct folder additions and authenticated streaming; `node scripts/downloads-smoke.mjs` checks the fixture queue and actual save location. `python3 scripts/audio-tools-smoke.py /path/to/runtime-tools` checks five audio formats, PNG conversion and embedded cover art without network calls.
 
 Go sources are cross-compiled for Windows x64 and macOS Intel/Apple Silicon during development. Native runtime tests, mobile interoperability, installer signing, and notarization are distinct release checks.
 

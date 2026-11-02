@@ -174,7 +174,7 @@ fn open_profile(
         return Ok(());
     }
     let script = format!(
-        "window.__TUNEHARBOR_BOOTSTRAP__ = {};",
+        "window.__TUNEHARBOR_DESKTOP__ = true; window.__TUNEHARBOR_BOOTSTRAP__ = {};",
         serde_json::to_string(&opened.bootstrap).map_err(|_| "Invalid bootstrap")?
     );
     let port = url.port();
@@ -235,6 +235,17 @@ fn open_profile(
                             let _ = window.eval(
                                 "if (typeof window.__TH_DESKTOP_STATE__ === 'function') { window.__TH_DESKTOP_STATE__({\"mini\":false}); } else if (window.__TH_DESKTOP_STATE__) { Object.assign(window.__TH_DESKTOP_STATE__, {\"mini\":false}); }"
                             );
+                        }
+                    }
+                    "manage-profile" => {
+                        if let Some(main) = window.app_handle().get_webview_window("main") {
+                            let _ = main.show();
+                            let _ = main.unminimize();
+                            let _ = main.set_focus();
+                            let id = window.label().strip_prefix("profile-").unwrap_or("");
+                            let _ = main.eval(&format!(
+                                "window.dispatchEvent(new CustomEvent('manage-profile', {{detail: {:?}}}));", id
+                            ));
                         }
                     }
                     "hide-window" => {
