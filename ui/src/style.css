@@ -293,6 +293,9 @@ small {
 }
 .sidebar .brand {
   margin-bottom: 55px;
+  font-size: 16px;
+  letter-spacing: -0.4px;
+  white-space: nowrap;
 }
 .sidebar-label {
   font-size: 9px;
@@ -1130,7 +1133,9 @@ dialog small {
   }
   .sidebar .brand {
     margin: 0 auto 0 0;
-    font-size: 16px;
+    font-size: 15px;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
   .brand-mark {
     width: 31px;
@@ -1512,6 +1517,11 @@ dialog small {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  flex-wrap: wrap;
+}
+.manager-topbar .brand {
+  font-size: 18px;
+  flex-wrap: wrap;
 }
 .manager-heading {
   display: flex;
