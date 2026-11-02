@@ -342,7 +342,7 @@ export default function App() {
         <section className="login-screen" id="login-screen">
           <div className="welcome">
             <div className="brand">
-              <span className="brand-mark">♪</span>TuneHarbor
+              <span className="brand-mark">♪</span>Music Studio KH
             </div>
             <p className="eyebrow">YOUR MUSIC, AT HOME</p>
             <h1>
@@ -357,7 +357,7 @@ export default function App() {
               Ready whenever you want to listen.
             </p>
             <div className="record">
-              <div className="record-center">TH</div>
+              <div className="record-center">KH</div>
             </div>
           </div>
           <form className="login-card" id="login-form" onSubmit={login}>
@@ -423,7 +423,7 @@ export default function App() {
               setLibraryTab("songs");
             }}
           >
-            <span className="brand-mark">♪</span>TuneHarbor
+            <span className="brand-mark">♪</span>Music Studio KH
           </a>
           <span className="sidebar-label">LIBRARY</span>
           <button
@@ -701,7 +701,7 @@ export default function App() {
               Keep music playing in the background?
             </h2>
             <p className="muted">
-              Choose whether clicking the red close button minimizes TuneHarbor
+              Choose whether clicking the red close button minimizes Music Studio KH
               to the menu bar so your music keeps playing, or closes the window
               and stops playback. You can change this anytime in Settings.
             </p>

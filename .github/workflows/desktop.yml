@@ -118,7 +118,7 @@ jobs:
           retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
-          name: TuneHarbor-unsigned-dev-${{ matrix.runtime }}
+          name: Music Studio KH-unsigned-dev-${{ matrix.runtime }}
           path: |
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage

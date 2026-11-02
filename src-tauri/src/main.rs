@@ -179,7 +179,7 @@ fn open_profile(
     );
     let port = url.port();
     WebviewWindowBuilder::new(&app, label, WebviewUrl::External(url))
-        .title("TuneHarbor · Music library")
+        .title("Music Studio KH · Music library")
         .inner_size(1160.0, 850.0)
         .min_inner_size(340.0, 140.0)
         .disable_drag_drop_handler()
@@ -287,7 +287,7 @@ fn executable(app: &tauri::AppHandle) -> Result<PathBuf, String> {
             return Ok(dev);
         }
     }
-    Err("Music server is missing from this installation. Reinstall TuneHarbor.".into())
+    Err("Music server is missing from this installation. Reinstall Music Studio KH.".into())
 }
 
 fn show(app: &tauri::AppHandle) {
@@ -334,11 +334,11 @@ fn explain_tray_once(app: &tauri::AppHandle) {
     }
     app.dialog()
         .message(
-            "TuneHarbor is still running in the tray so your music stays available to your \
+            "Music Studio KH is still running in the tray so your music stays available to your \
              browser and phone. To stop all servers, choose “Quit and stop servers” from the \
              tray icon.",
         )
-        .title("TuneHarbor keeps playing in the background")
+        .title("Music Studio KH keeps playing in the background")
         .kind(MessageDialogKind::Info)
         .show(|_| {});
 }
@@ -377,8 +377,8 @@ fn main() {
                     &PredefinedMenuItem::separator(app)?,
                     &MenuItem::with_id(app, "toggle_pin", "Pin Window on Top", true, None::<&str>)?,
                     &MenuItem::with_id(app, "toggle_mini", "Toggle Mini Player", true, None::<&str>)?,
-                    &MenuItem::with_id(app, "toggle_hide", "Hide / Show TuneHarbor", true, None::<&str>)?,
-                    &MenuItem::with_id(app, "show", "Open TuneHarbor Manager", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "toggle_hide", "Hide / Show Music Studio KH", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "show", "Open Music Studio KH Manager", true, None::<&str>)?,
                     &PredefinedMenuItem::separator(app)?,
                     &MenuItem::with_id(app, "quit", "Quit and stop servers", true, None::<&str>)?,
                 ],
@@ -386,7 +386,7 @@ fn main() {
 
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().ok_or("App icon missing")?.clone())
-                .tooltip("TuneHarbor · Your music, at home")
+                .tooltip("Music Studio KH · Your music, at home")
                 .menu(&tray_menu)
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::DoubleClick { .. } = event {
@@ -397,10 +397,10 @@ fn main() {
 
             let app_menu_tuneharbor = Submenu::with_items(
                 app,
-                "TuneHarbor",
+                "Music Studio KH",
                 true,
                 &[
-                    &MenuItem::with_id(app, "show", "Open TuneHarbor Manager", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "show", "Open Music Studio KH Manager", true, None::<&str>)?,
                     &PredefinedMenuItem::separator(app)?,
                     &PredefinedMenuItem::about(app, None, None)?,
                     &PredefinedMenuItem::separator(app)?,
@@ -449,8 +449,8 @@ fn main() {
                 &[
                     &MenuItem::with_id(app, "toggle_pin", "Pin Window on Top", true, None::<&str>)?,
                     &MenuItem::with_id(app, "toggle_mini", "Toggle Mini Player", true, None::<&str>)?,
-                    &MenuItem::with_id(app, "toggle_hide", "Hide / Show TuneHarbor", true, None::<&str>)?,
-                    &MenuItem::with_id(app, "show", "Open TuneHarbor Manager", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "toggle_hide", "Hide / Show Music Studio KH", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "show", "Open Music Studio KH Manager", true, None::<&str>)?,
                     &PredefinedMenuItem::separator(app)?,
                     &PredefinedMenuItem::minimize(app, None)?,
                     &PredefinedMenuItem::maximize(app, None)?,
@@ -501,7 +501,7 @@ fn main() {
             }
         })
         .build(tauri::generate_context!())
-        .expect("TuneHarbor could not initialize")
+        .expect("Music Studio KH could not initialize")
         .run(|app, event| {
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
                 if !app.state::<Closing>().0.load(Ordering::SeqCst) {
@@ -553,7 +553,7 @@ mod tests {
             Some("quit-app")
         );
         assert_eq!(
-            "TuneHarbor · Music library".strip_prefix("__TH_CMD__:"),
+            "Music Studio KH · Music library".strip_prefix("__TH_CMD__:"),
             None
         );
 

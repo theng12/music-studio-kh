@@ -19,7 +19,7 @@ func (m *Manager) Doctor() error {
 		}
 		info, e := os.Stat(tool.path)
 		if e != nil || !info.Mode().IsRegular() {
-			return errors.New("Downloads and audio conversion are unavailable: " + tool.name + " is missing from this installation. Reinstall TuneHarbor.")
+			return errors.New("Downloads and audio conversion are unavailable: " + tool.name + " is missing from this installation. Reinstall Music Studio KH.")
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		cmd := exec.CommandContext(ctx, tool.path, tool.arg)
@@ -30,7 +30,7 @@ func (m *Manager) Doctor() error {
 		e = cmd.Run()
 		cancel()
 		if e != nil {
-			return errors.New("Downloads and audio conversion are unavailable: " + tool.name + " could not start. Check app permissions or reinstall TuneHarbor.")
+			return errors.New("Downloads and audio conversion are unavailable: " + tool.name + " could not start. Check app permissions or reinstall Music Studio KH.")
 		}
 	}
 	return nil

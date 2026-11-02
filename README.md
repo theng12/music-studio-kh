@@ -1,12 +1,12 @@
-# TuneHarbor
+# Music Studio KH
 
 **Your music, at home.**
 
-TuneHarbor is a music library and server for Windows, macOS, and Linux. The approved product will offer a desktop installer, yt-dlp downloads, artwork, profiles, and Subsonic-compatible listening without Docker.
+Music Studio KH is a music library and server for Windows, macOS, and Linux. The approved product will offer a desktop installer, yt-dlp downloads, artwork, profiles, and Subsonic-compatible listening without Docker.
 
 ## Current build: release candidate (unsigned)
 
-TuneHarbor is a desktop app with its own music server. Install it, create a profile, choose a music folder, and listen in the app, in a browser, or in a Subsonic phone app such as Amperfy on the same Wi-Fi. Docker, a terminal and separately installed tools are not needed: yt-dlp, FFmpeg and Deno ship inside the app.
+Music Studio KH is a desktop app with its own music server. Install it, create a profile, choose a music folder, and listen in the app, in a browser, or in a Subsonic phone app such as Amperfy on the same Wi-Fi. Docker, a terminal and separately installed tools are not needed: yt-dlp, FFmpeg and Deno ship inside the app.
 
 What works:
 
@@ -25,13 +25,13 @@ No code was copied from Navidrome or MeTube.
 
 ## Build the app on your Mac
 
-`scripts/build-mac.sh` builds TuneHarbor.app on your own Mac and installs it in Applications, with no GitHub Actions minutes used. It needs Apple's command line tools and [Homebrew](https://brew.sh); the script installs everything else. From the project folder:
+`scripts/build-mac.sh` produces an ad-hoc signed Music Studio KH DMG under `artifacts/`, without installing or opening the app. It builds for this Mac's processor and needs Apple's command line tools, Go, Node.js, Rust, Python, make and pkg-config. Missing tools are reported before building. The app requires macOS 13 or later; this release was tested on Apple Silicon, and Intel remains unverified. From the project folder:
 
 ```sh
 bash scripts/build-mac.sh
 ```
 
-The first build takes roughly 15–20 minutes; later builds take a few. The result bundles Homebrew's FFmpeg and is for personal use, not redistribution. Installers for other people come from the **Desktop installers** workflow, which now runs only when started by hand (Actions → Desktop installers → Run workflow) or for a `v*` tag.
+The first build includes compiling LGPL FFmpeg from checksum-verified sources; later builds reuse compatible audio tools. The DMG bundles yt-dlp, Deno, FFmpeg, ffprobe and their notices, so the installed app needs no Homebrew tools. The script prints the DMG path, SHA-256, bundle identifier and version for Update Studio KH's `app-dmg` recipe. It does not publish to the update feed. Cross-platform installers are also available through the manually started **Desktop installers** workflow or a `v*` tag.
 
 ## Run the development build
 

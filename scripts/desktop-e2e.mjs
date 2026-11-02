@@ -133,11 +133,11 @@ try {
 
   // Closing the manager hides it to the tray; the server keeps running.
   // Close the manager as a user would, through the window manager (Alt+F4).
-  const managerWindow = execFileSync("xdotool", ["search", "--onlyvisible", "--name", "^TuneHarbor$"], { encoding: "utf8" }).trim().split("\n")[0];
+  const managerWindow = execFileSync("xdotool", ["search", "--onlyvisible", "--name", "^Music Studio KH$"], { encoding: "utf8" }).trim().split("\n")[0];
   execFileSync("xdotool", ["windowactivate", "--sync", managerWindow]);
   execFileSync("xdotool", ["key", "--clearmodifiers", "alt+F4"]);
   await until("tray explanation on first close", () =>
-    execFileSync("xdotool", ["search", "--onlyvisible", "--name", "TuneHarbor keeps playing in the background"], { encoding: "utf8" }).trim(),
+    execFileSync("xdotool", ["search", "--onlyvisible", "--name", "Music Studio KH keeps playing in the background"], { encoding: "utf8" }).trim(),
   );
   assert.equal(servers().length, 1, "server keeps running after closing the window");
   passed = true;

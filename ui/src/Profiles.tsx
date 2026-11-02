@@ -229,7 +229,7 @@ export default function Profiles({
     <main className="profile-manager">
       <div className="manager-topbar">
         <div className="brand">
-          <span className="brand-mark">♪</span>TuneHarbor
+          <span className="brand-mark">♪</span>Music Studio KH
           <span className="version-badge">v{APP_VERSION}</span>
         </div>
         <button
@@ -267,7 +267,7 @@ export default function Profiles({
           <div>
             <h2>Let’s make room for your music.</h2>
             <p>
-              Choose a folder and a simple password. TuneHarbor handles the
+              Choose a folder and a simple password. Music Studio KH handles the
               server for you.
             </p>
             <button

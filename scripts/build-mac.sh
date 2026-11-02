@@ -1,68 +1,279 @@
 #!/usr/bin/env bash
-# Build TuneHarbor.app on this Mac and install it in /Applications.
-# For personal use: it bundles Homebrew's FFmpeg instead of the LGPL build
-# that release installers use, so do not redistribute the result.
+# Build portable ad-hoc-signed Music Studio KH .app and DMG under artifacts/.
 #
-# Run from the project folder:  bash scripts/build-mac.sh
+# Usage:
+#   bash scripts/build-mac.sh          # Full build
+#   bash scripts/build-mac.sh --check  # Quick preflight / portability validation
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 step() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 fail() { printf '\n\033[31mStopped: %s\033[0m\n' "$1" >&2; exit 1; }
 
-[ "$(uname -s)" = Darwin ] || fail "this script builds the macOS app; run it on a Mac."
-case "$(uname -m)" in
-  arm64) runtime=macos-arm64 ;;
-  x86_64) runtime=macos-x64 ;;
-  *) fail "unsupported Mac processor: $(uname -m)" ;;
+# Protecting work: never rm. Move to trash preserving directory structure.
+retire() {
+  local target="$1"
+  if [ -e "$target" ] || [ -L "$target" ]; then
+    local trash_root="${HOME}/Developer/_trash/tuneharbor"
+    local timestamp
+    timestamp="$(date +%Y%m%d-%H%M%S)"
+    local rel_path="${target#/}"
+    rel_path="${rel_path#./}"
+    local dest="$trash_root/$rel_path.$timestamp"
+    mkdir -p "$(dirname "$dest")"
+    mv "$target" "$dest"
+    printf 'Retired %s -> %s\n' "$target" "$dest"
+  fi
+}
+
+[ "$(uname -s)" = Darwin ] || fail "this script builds the macOS app; run it on macOS."
+host_arch="$(uname -m)"
+case "$host_arch" in
+  arm64) runtime="macos-arm64"; dmg_arch="arm64" ;;
+  x86_64) runtime="macos-x64"; dmg_arch="x86_64" ;;
+  *) fail "unsupported Mac processor: $host_arch" ;;
 esac
 
-step "Checking Apple's command line tools"
+# Ensure standard tool paths are on PATH
+for p in /opt/homebrew/bin /opt/homebrew/opt/rustup/bin "${HOME}/.cargo/bin" /usr/local/bin; do
+  [ -d "$p" ] && [[ ":$PATH:" != *":$p:"* ]] && export PATH="$p:$PATH"
+done
+
+step "Checking required developer tools"
 if ! xcode-select -p >/dev/null 2>&1; then
-  xcode-select --install || true
-  fail "a window asks to install Apple's command line tools. Install them, then run this script again."
+  fail "Xcode command line tools are missing. Run 'xcode-select --install' and retry."
 fi
 
-step "Checking Homebrew"
-if ! command -v brew >/dev/null 2>&1; then
-  for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew; do
-    [ -x "$candidate" ] && eval "$("$candidate" shellenv)" && break
+require_tool() {
+  local cmd="$1"
+  local help="$2"
+  command -v "$cmd" >/dev/null 2>&1 || fail "Required tool '$cmd' is missing. $help"
+}
+
+require_tool go "Install Go from https://go.dev/dl/ or via package manager."
+require_tool node "Install Node.js (v20+) from https://nodejs.org/."
+require_tool npm "npm is bundled with Node.js."
+require_tool rustc "Install Rust via rustup (https://rustup.rs)."
+require_tool cargo "cargo is bundled with Rust."
+require_tool python3 "Install Python 3 (https://python.org)."
+require_tool make "Install make via Xcode command line tools or package manager."
+require_tool pkg-config "Install pkg-config via package manager."
+require_tool lipo "lipo is part of Xcode command line tools."
+require_tool hdiutil "hdiutil is a built-in macOS tool."
+require_tool codesign "codesign is part of macOS command line tools."
+require_tool otool "otool is part of macOS command line tools."
+require_tool vtool "vtool is part of Xcode command line tools."
+
+step "Reading project configuration and verifying version consistency"
+[ -f src-tauri/tauri.conf.json ] || fail "src-tauri/tauri.conf.json not found."
+
+product_name="$(python3 -c "import json; print(json.load(open('src-tauri/tauri.conf.json')).get('productName', 'Music Studio KH'))")"
+version="$(python3 -c "import json; print(json.load(open('src-tauri/tauri.conf.json')).get('version', ''))")"
+bundle_id="$(python3 -c "import json; print(json.load(open('src-tauri/tauri.conf.json')).get('identifier', ''))")"
+
+[ -n "$version" ] || fail "could not read version from src-tauri/tauri.conf.json"
+[ "$bundle_id" = "app.tuneharbor.desktop" ] || fail "expected bundle identifier app.tuneharbor.desktop, got $bundle_id"
+
+cargo_ver="$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -n1)"
+pkg_ver="$(python3 -c "import json; print(json.load(open('package.json')).get('version', ''))" 2>/dev/null || true)"
+
+printf 'Config version:    %s\n' "$version"
+printf 'Product name:      %s\n' "$product_name"
+printf 'Bundle identifier: %s\n' "$bundle_id"
+printf 'Cargo.toml:        %s\n' "$cargo_ver"
+printf 'package.json:      %s\n' "$pkg_ver"
+
+[ "$cargo_ver" = "$version" ] || fail "Cargo.toml version ($cargo_ver) does not match config version ($version)"
+[ "$pkg_ver" = "$version" ] || fail "package.json version ($pkg_ver) does not match config version ($version)"
+
+[ -f CHANGELOG.md ] || fail "CHANGELOG.md not found"
+top_changelog_ver="$(sed -n 's/^## \[\([0-9][^]]*\)\].*/\1/p' CHANGELOG.md | head -n1)"
+[ -n "$top_changelog_ver" ] || fail "could not parse top version from CHANGELOG.md"
+[ "$top_changelog_ver" = "$version" ] || fail "CHANGELOG.md top version ($top_changelog_ver) does not match config version ($version)"
+printf 'CHANGELOG.md top:  %s\n' "$top_changelog_ver"
+
+check_native_ffmpeg() {
+  local dir="$1"
+  [ -d "$dir" ] || return 1
+  [ -x "$dir/ffmpeg" ] || return 1
+  [ -x "$dir/ffprobe" ] || return 1
+  "$dir/ffmpeg" -version >/dev/null 2>&1 || return 1
+  "$dir/ffprobe" -version >/dev/null 2>&1 || return 1
+
+  # Check config.h for LGPL flags
+  local cfg="$dir/notices/ffmpeg-build-config.h"
+  [ -f "$cfg" ] || return 1
+  grep -q '#define CONFIG_GPL 0' "$cfg" || return 1
+  grep -q '#define CONFIG_NONFREE 0' "$cfg" || return 1
+  grep -q '#define CONFIG_SHARED 0' "$cfg" || return 1
+  grep -q '#define CONFIG_STATIC 1' "$cfg" || return 1
+  grep -q '#define CONFIG_LIBMP3LAME 1' "$cfg" || return 1
+  grep -q '#define CONFIG_NETWORK 0' "$cfg" || return 1
+
+  # Check host arch, dylibs, and Mach-O minos <= 13.0
+  for bin in "$dir/ffmpeg" "$dir/ffprobe"; do
+    local bin_arch
+    bin_arch="$(lipo -archs "$bin" 2>/dev/null || true)"
+    [ "$bin_arch" = "$host_arch" ] || return 1
+
+    local bad_dylibs
+    bad_dylibs="$(otool -L "$bin" 2>/dev/null | awk 'NR>1 {print $1}' | grep -v -E '^/(System/Library/|usr/lib/)' || true)"
+    [ -z "$bad_dylibs" ] || return 1
+
+    local minos
+    minos="$(vtool -show-build "$bin" 2>/dev/null | awk '$1 == "minos" {print $2}' || true)"
+    [ -n "$minos" ] || return 1
+    python3 -c "import sys; v=sys.argv[1].split('.'); sys.exit(0 if (int(v[0]), int(v[1]) if len(v)>1 else 0) <= (13, 0) else 1)" "$minos" || return 1
   done
+  return 0
+}
+
+# Preflight / self-check mode: strictly tests tool requirements, version consistency, trash helper, and cache status
+if [ "${1:-}" = "--check" ] || [ "${1:-}" = "--dry-run" ]; then
+  step "Self-check mode: testing preflight validations (no installs or builds)"
+  test_tmp="$(mktemp /tmp/tuneharbor-check.XXXXXX)"
+  touch "$test_tmp"
+  retire "$test_tmp"
+  printf 'Trash retirement helper: verified\n'
+
+  if check_native_ffmpeg "artifacts/native-ffmpeg" >/dev/null 2>&1; then
+    printf 'Native FFmpeg cache: valid and portable (minos <= 13.0, %s, LGPL flags)\n' "$host_arch"
+  else
+    printf 'Native FFmpeg cache: invalid or minos > 13.0 (will be automatically retired and rebuilt on full run)\n'
+  fi
+
+  printf '\n\033[32mPreflight check passed. All versions match %s. Ready to build.\033[0m\n' "$version"
+  exit 0
 fi
-if ! command -v brew >/dev/null 2>&1; then
-  fail "Homebrew is not installed. Install it from https://brew.sh (one command), then run this script again."
+
+step "Validating native LGPL FFmpeg/ffprobe"
+mkdir -p artifacts/native-ffmpeg
+if check_native_ffmpeg "artifacts/native-ffmpeg"; then
+  step "Reusing verified portable native FFmpeg from artifacts/native-ffmpeg"
+else
+  if [ -e "artifacts/native-ffmpeg/ffmpeg" ]; then
+    step "Retiring incompatible or non-portable native FFmpeg build to trash"
+    retire "artifacts/native-ffmpeg"
+  fi
+  step "Preparing verified source archives for static LGPL FFmpeg and LAME"
+  python3 scripts/prepare-runtime.py --target "$runtime" --sources-only
+  ffmpeg_ver="$(python3 -c "import json; print(json.load(open('packaging/runtime-tools.json'))['ffmpeg']['version'])")"
+  lame_ver="$(python3 -c "import json; print(json.load(open('packaging/runtime-tools.json'))['lame']['version'])")"
+  step "Building portable static LGPL FFmpeg and LAME (MACOSX_DEPLOYMENT_TARGET=13.0)"
+  bash scripts/build-ffmpeg.sh \
+    "$PWD/artifacts/tool-cache/ffmpeg-${ffmpeg_ver}.tar.gz" \
+    "$PWD/artifacts/tool-cache/lame-${lame_ver}.tar.gz" \
+    "$PWD/artifacts/native-ffmpeg"
+  check_native_ffmpeg "artifacts/native-ffmpeg" || fail "built FFmpeg failed portability checks"
 fi
 
-step "Installing build tools (Go, Node.js, Rust, Python, FFmpeg). The first time can take several minutes."
-brew install go node rust python ffmpeg
-export PATH="$(brew --prefix rustup 2>/dev/null || echo /opt/homebrew/opt/rustup)/bin:$(brew --prefix)/bin:$PATH"
-# Homebrew's Python has current certificates for the verified downloads below.
-python="$(brew --prefix python)/libexec/bin/python3"
-[ -x "$python" ] || python="$(brew --prefix)/bin/python3"
+step "Preparing verified runtime tools (yt-dlp, Deno, LGPL FFmpeg)"
+if [ -d "src-tauri/runtime-tools" ]; then
+  retire "src-tauri/runtime-tools"
+fi
+python3 scripts/prepare-runtime.py --target "$runtime" --ffmpeg-dir "artifacts/native-ffmpeg"
+for tool in ffmpeg ffprobe yt-dlp deno; do
+  [ -x "src-tauri/runtime-tools/$tool" ] || fail "runtime tool missing or not executable: src-tauri/runtime-tools/$tool"
+done
 
-step "Downloading checksum-verified yt-dlp and Deno"
-rm -rf src-tauri/runtime-tools
-"$python" scripts/prepare-runtime.py --target "$runtime" --local --ffmpeg-dir "$(brew --prefix ffmpeg)/bin"
-
-step "Building the interface"
+step "Building frontend web assets"
 npm ci --no-audit --no-fund
 npm run build:web
 
-step "Building the music server"
+step "Building music server sidecar"
 triple="$(rustc -vV | sed -n 's/^host: //p')"
 mkdir -p src-tauri/binaries
-# Go downloads the toolchain version go.mod asks for if Homebrew's is older.
-GOTOOLCHAIN=auto CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "src-tauri/binaries/tuneharbor-server-$triple" ./cmd/tuneharbor
+sidecar_bin="src-tauri/binaries/tuneharbor-server-$triple"
+if [ -e "$sidecar_bin" ]; then
+  retire "$sidecar_bin"
+fi
+CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "$sidecar_bin" ./cmd/tuneharbor
+chmod 0755 "$sidecar_bin"
 
-step "Building TuneHarbor.app (the first Rust build takes a few minutes)"
+step "Collecting dependency notices"
+python3 scripts/collect-notices.py
+
+step "Building .app bundle via Tauri"
 npm run build:desktop -- --bundles app
-app="src-tauri/target/release/bundle/macos/TuneHarbor.app"
-[ -d "$app" ] || fail "the app bundle was not produced; see the messages above."
 
-step "Installing into /Applications"
-osascript -e 'tell application "TuneHarbor" to quit' >/dev/null 2>&1 || true
-sleep 2
-rm -rf /Applications/TuneHarbor.app
-cp -R "$app" /Applications/
-printf '\n\033[32mDone. Open TuneHarbor from Applications or Launchpad.\033[0m\n'
-open /Applications/TuneHarbor.app
+app="src-tauri/target/release/bundle/macos/${product_name}.app"
+if [ ! -d "$app" ]; then
+  app="src-tauri/target/${triple}/release/bundle/macos/${product_name}.app"
+fi
+[ -d "$app" ] || fail "the .app bundle was not produced at expected path: $app"
+printf 'Found app bundle: %s\n' "$app"
+
+validate_plist() {
+  local plist="$1"
+  [ -f "$plist" ] || fail "Info.plist missing at $plist"
+  python3 -c "import plistlib, sys; p = plistlib.load(open(sys.argv[1], 'rb')); assert p.get('CFBundleIdentifier') == sys.argv[2], f'ID mismatch: {p.get(\"CFBundleIdentifier\")} != {sys.argv[2]}'; assert p.get('CFBundleShortVersionString') == sys.argv[3], f'Version mismatch: {p.get(\"CFBundleShortVersionString\")} != {sys.argv[3]}'; assert p.get('CFBundleName') == sys.argv[4], f'Name mismatch: {p.get(\"CFBundleName\")} != {sys.argv[4]}'" \
+    "$plist" "$bundle_id" "$version" "$product_name"
+}
+
+validate_plist "$app/Contents/Info.plist"
+
+step "Ad-hoc code-signing nested binaries and application bundle"
+exe_name="$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$app/Contents/Info.plist")"
+[ -n "$exe_name" ] || fail "could not read CFBundleExecutable from $app/Contents/Info.plist"
+[ -x "$app/Contents/MacOS/$exe_name" ] || fail "executable $app/Contents/MacOS/$exe_name not found or not executable"
+[ -x "$app/Contents/MacOS/tuneharbor-server" ] || fail "sidecar binary $app/Contents/MacOS/tuneharbor-server not found or not executable"
+
+# Four runtime tools (explicit signing, no error suppression)
+codesign --force --sign - "$app/Contents/Resources/runtime-tools/ffmpeg"
+codesign --force --sign - "$app/Contents/Resources/runtime-tools/ffprobe"
+codesign --force --sign - "$app/Contents/Resources/runtime-tools/yt-dlp"
+codesign --force --sign - "$app/Contents/Resources/runtime-tools/deno"
+
+# MacOS binaries (explicit signing of CFBundleExecutable and sidecar, no error suppression)
+codesign --force --sign - "$app/Contents/MacOS/tuneharbor-server"
+codesign --force --sign - "$app/Contents/MacOS/$exe_name"
+
+# Deep sign the app bundle
+codesign --force --deep --sign - "$app"
+# Strict verification
+codesign --verify --deep --strict --verbose=2 "$app"
+
+step "Creating and signing deterministic DMG"
+mkdir -p artifacts
+dmg_name="Music-Studio-KH-${version}-${dmg_arch}.dmg"
+dmg_path="artifacts/${dmg_name}"
+if [ -e "$dmg_path" ]; then
+  retire "$dmg_path"
+fi
+
+dmg_staging="$(mktemp -d /tmp/dmg-staging.XXXXXX)"
+cp -R "$app" "$dmg_staging/"
+ln -s /Applications "$dmg_staging/Applications"
+
+hdiutil create -volname "$product_name" -srcfolder "$dmg_staging" -ov -format UDZO "$dmg_path"
+retire "$dmg_staging"
+
+codesign --force --sign - "$dmg_path"
+codesign --verify --verbose=2 "$dmg_path"
+
+step "Verifying DMG payload"
+verify_mount="$(mktemp -d /tmp/dmg-verify.XXXXXX)"
+hdiutil attach -nobrowse -mountpoint "$verify_mount" "$dmg_path"
+mounted_app="$verify_mount/${product_name}.app"
+[ -d "$mounted_app" ] || { hdiutil detach "$verify_mount"; retire "$verify_mount"; fail "DMG does not contain ${product_name}.app"; }
+validate_plist "$mounted_app/Contents/Info.plist"
+codesign --verify --deep --strict --verbose=2 "$mounted_app"
+hdiutil detach "$verify_mount"
+retire "$verify_mount"
+
+dest_app="artifacts/${product_name}.app"
+if [ -e "$dest_app" ]; then
+  retire "$dest_app"
+fi
+cp -R "$app" "$dest_app"
+
+step "Build complete"
+dmg_checksum="$(shasum -a 256 "$dmg_path" | awk '{print $1}')"
+printf '\n\033[32mPortable macOS release ready:\033[0m\n'
+printf '  App bundle:       %s\n' "$dest_app"
+printf '  DMG artifact:     %s\n' "$dmg_path"
+printf '  DMG SHA-256:      %s\n' "$dmg_checksum"
+printf '  Bundle ID:        %s\n' "$bundle_id"
+printf '  Version:          %s\n' "$version"
+printf '  Architecture:     %s\n' "$dmg_arch"
+printf '  Minimum macOS:    13.0 (Ventura)\n\n'

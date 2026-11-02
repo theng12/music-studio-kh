@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Linux desktop end-to-end check for an installed TuneHarbor package.
+# Linux desktop end-to-end check for an installed Music Studio KH package.
 # Requires: xvfb-run, dbus-run-session, gnome-keyring, openbox, WebKitWebDriver, tauri-driver, node.
 set -euo pipefail
 cd "$(dirname "$0")/.."

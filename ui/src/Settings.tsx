@@ -347,7 +347,7 @@ export default function Settings({
           </dl>
           <p className="muted">
             Use a phone address, username, and password in Amperfy or Symfonium.
-            Keep this computer awake and TuneHarbor running. Local-network mode
+            Keep this computer awake and Music Studio KH running. Local-network mode
             uses HTTP on your trusted Wi-Fi.
           </p>
         </div>
@@ -384,7 +384,7 @@ export default function Settings({
               <span className="version-badge" id="settings-version">
                 v{APP_VERSION}
               </span>
-              <span>TuneHarbor {APP_VERSION}</span>
+              <span>Music Studio KH {APP_VERSION}</span>
             </div>
             <button
               type="button"
@@ -396,6 +396,7 @@ export default function Settings({
             </button>
           </div>
           <p className="muted">
+            Desktop music library and local Subsonic streaming server.
             App and download tools update together through a new installer.
             Profiles and music are preserved.
           </p>
