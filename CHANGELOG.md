@@ -2,11 +2,10 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
-## [0.2.3] - November 2026
+## 0.2.3 — 2026-11-03
 
-### Artists, together
-
-- Artists groups collaborations under the main artist, using Album Artist tags when present, and lists featured performers separately. Full song credits and band names such as Simon & Garfunkel stay intact; audio tags are never rewritten.
+- Find collaborations under the main artist, with featured performers listed separately.
+- Keep full song credits and band names such as Simon & Garfunkel. Your music files stay unchanged.
 
 ## [0.2.2] - November 2026
 
