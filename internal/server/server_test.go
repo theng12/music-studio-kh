@@ -121,7 +121,7 @@ func TestSubsonicPasswordAuthAndEnvelopes(t *testing.T) {
 func TestEmbeddedPlayerAndLibrary(t *testing.T) {
 	s, _ := fixture(t)
 	w := request(s, "GET", "/", "", nil)
-	if w.Code != 200 || !strings.Contains(w.Body.String(), "TuneHarbor") {
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "Music Studio KH") {
 		t.Fatal("missing player")
 	}
 	c := login(t, s)

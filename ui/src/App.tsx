@@ -342,7 +342,7 @@ export default function App() {
         <section className="login-screen" id="login-screen">
           <div className="welcome">
             <div className="brand">
-              <span className="brand-mark">♪</span>TuneHarbor
+              <span className="brand-mark">♪</span>Music Studio KH
             </div>
             <p className="eyebrow">YOUR MUSIC, AT HOME</p>
             <h1>
@@ -357,11 +357,10 @@ export default function App() {
               Ready whenever you want to listen.
             </p>
             <div className="record">
-              <div className="record-center">TH</div>
+              <div className="record-center">KH</div>
             </div>
           </div>
           <form className="login-card" id="login-form" onSubmit={login}>
-            <span className="eyebrow">WELCOME ABOARD</span>
             <h2>Open your library</h2>
             <p>Sign in to the profile running at this address.</p>
             <label>
@@ -423,7 +422,7 @@ export default function App() {
               setLibraryTab("songs");
             }}
           >
-            <span className="brand-mark">♪</span>TuneHarbor
+            <span className="brand-mark">♪</span>Music Studio KH
           </a>
           <span className="sidebar-label">LIBRARY</span>
           <button
@@ -501,7 +500,7 @@ export default function App() {
             className={"nav-item " + (page === "settings" ? "active" : "")}
             id="settings-nav"
             onClick={() => {
-              setSettingsSection("all");
+              setSettingsSection("library");
               setPage("settings");
             }}
           >
@@ -545,7 +544,6 @@ export default function App() {
         <main>
           <header className="topbar">
             <div>
-              <span className="eyebrow">YOUR PERSONAL MUSIC SERVER</span>
               <h1 id="page-title">
                 {page === "downloads"
                   ? "Downloads"
@@ -555,21 +553,7 @@ export default function App() {
                 <span className="accent">.</span>
               </h1>
             </div>
-            <button
-              className="secondary"
-              id="rescan"
-              onClick={async () => {
-                try {
-                  await api("/api/scan", { method: "POST" });
-                  await loadTracks();
-                  notify("Library refreshed.");
-                } catch (e) {
-                  notify((e as Error).message);
-                }
-              }}
-            >
-              ↻ Rescan library
-            </button>
+
           </header>
           {page === "library" && (
             <Library
@@ -610,6 +594,11 @@ export default function App() {
               openWhatsNew={() => setWhatsNew(true)}
               tracksCount={tracks.length}
               initialSection={settingsSection}
+              onRescan={async () => {
+                await api("/api/scan", { method: "POST" });
+                await loadTracks();
+                notify("Library refreshed.");
+              }}
             />
           )}
           <input
@@ -696,12 +685,11 @@ export default function App() {
             >
               ×
             </button>
-            <span className="eyebrow">WINDOW CLOSE BEHAVIOR</span>
             <h2 id="close-behavior-title">
               Keep music playing in the background?
             </h2>
             <p className="muted">
-              Choose whether clicking the red close button minimizes TuneHarbor
+              Choose whether clicking the red close button minimizes Music Studio KH
               to the menu bar so your music keeps playing, or closes the window
               and stops playback. You can change this anytime in Settings.
             </p>

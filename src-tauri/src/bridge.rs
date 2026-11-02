@@ -55,7 +55,7 @@ impl Bridge {
             command.creation_flags(0x08000000);
         }
         let mut child = command.spawn().map_err(|_| {
-            "TuneHarbor’s server could not start. Reinstall the app or check its permissions."
+            "Music Studio KH’s server could not start. Reinstall the app or check its permissions."
                 .to_string()
         })?;
         let input = child

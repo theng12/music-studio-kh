@@ -24,5 +24,5 @@ else:
  package=next(bundle.rglob('*.exe'));install=root/'artifacts/windows-installed';install.mkdir(parents=True,exist_ok=True)
  # NSIS /D must be the last argument; a custom isolated path is reversible.
  process=subprocess.run(f'"{package}" /S /D={install}',shell=True,timeout=180);assert process.returncode==0
- assert (install/'TuneHarbor.exe').exists() or (install/'tuneharbor.exe').exists();assert (install/'tuneharbor-server.exe').exists();ffmpeg=next(install.rglob('ffmpeg.exe'));print(run(str(ffmpeg),'-version').splitlines()[0]);uninstaller=next(install.glob('*ninstall*.exe'));subprocess.run([str(uninstaller),'/S'],check=True,timeout=120)
+ assert (install/'Music Studio KH.exe').exists() or (install/'tuneharbor.exe').exists();assert (install/'tuneharbor-server.exe').exists();ffmpeg=next(install.rglob('ffmpeg.exe'));print(run(str(ffmpeg),'-version').splitlines()[0]);uninstaller=next(install.glob('*ninstall*.exe'));subprocess.run([str(uninstaller),'/S'],check=True,timeout=120)
 print('PASS: native package payload and install/removal smoke; GUI and real devices remain separate gates.')

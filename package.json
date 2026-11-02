@@ -1,9 +1,10 @@
 {
   "name": "tuneharbor",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.2",
   "scripts": {
     "test:browser": "node scripts/browser-smoke.mjs",
+    "test:parser": "node scripts/test-changelog-parser.mjs",
     "dev": "vite --config ui/vite.config.ts",
     "build:web": "tsc -p ui/tsconfig.json && vite build --config ui/vite.config.ts",
     "desktop": "tauri dev",

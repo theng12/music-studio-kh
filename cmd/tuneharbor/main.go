@@ -19,7 +19,7 @@ import (
 
 func main() {
 	if err := run(os.Args[1:], os.Stdin, os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, "TuneHarbor:", err)
+		fmt.Fprintln(os.Stderr, "Music Studio KH:", err)
 		os.Exit(1)
 	}
 }
@@ -36,7 +36,7 @@ func run(args []string, input io.Reader, output io.Writer) error {
 	}
 	args = global.Args()
 	if len(args) == 0 {
-		fmt.Fprintln(output, "TuneHarbor · Your music, at home\nCommands: profile create, profile list, serve\nUse --data PATH before the command to change profile storage.")
+		fmt.Fprintln(output, "Music Studio KH · Your music, at home\nCommands: profile create, profile list, serve\nUse --data PATH before the command to change profile storage.")
 		return nil
 	}
 	switch args[0] {

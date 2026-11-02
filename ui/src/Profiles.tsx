@@ -28,6 +28,15 @@ export default function Profiles({
     [lan, setLAN] = useState(false);
   const refresh = async () => setProfiles(await rpc("profiles"));
   useEffect(() => {
+    const manage = (event: Event) => {
+      const profile = profiles.find(p => p.id === (event as CustomEvent<string>).detail);
+      if (profile) setEditing({ ...profile });
+    };
+    window.addEventListener("manage-profile", manage);
+    return () => window.removeEventListener("manage-profile", manage);
+  }, [profiles]);
+
+  useEffect(() => {
     rpc("doctor").catch((e) => setToolProblem(String(e)));
     refresh().catch((e) => notice(String(e)));
     const timer = setInterval(() => refresh().catch(() => {}), 5000);
@@ -229,7 +238,7 @@ export default function Profiles({
     <main className="profile-manager">
       <div className="manager-topbar">
         <div className="brand">
-          <span className="brand-mark">♪</span>TuneHarbor
+          <span className="brand-mark">♪</span>Music Studio KH
           <span className="version-badge">v{APP_VERSION}</span>
         </div>
         <button
@@ -267,7 +276,7 @@ export default function Profiles({
           <div>
             <h2>Let’s make room for your music.</h2>
             <p>
-              Choose a folder and a simple password. TuneHarbor handles the
+              Choose a folder and a simple password. Music Studio KH handles the
               server for you.
             </p>
             <button

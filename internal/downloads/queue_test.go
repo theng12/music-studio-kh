@@ -7,6 +7,7 @@ import (
 	"github.com/theng12/tuneharbor/internal/library"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -276,4 +277,42 @@ func TestRetryWhileCanceledJobStops(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	waitJob(t, q, job.ID, "completed")
+}
+
+func TestQueueActionableSafeErrorStorage(t *testing.T) {
+	l, _ := library.Open(t.TempDir(), t.TempDir())
+	defer l.Close()
+
+	// 1. Actionable error is stored in job.Error without being swallowed by generic text.
+	actionable := "This video is unavailable. Check that the link opens on YouTube, then retry."
+	q1, e := Open(t.TempDir(), l, runnerFunc(func(ctx context.Context, u, d string, p func(float64)) (Result, error) {
+		return Result{}, errors.New(actionable)
+	}))
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer q1.Close()
+	j1, _ := q1.Submit("https://youtu.be/abcdefghijk")
+	job1 := waitJob(t, q1, j1.ID, "failed")
+	if job1.Error != actionable {
+		t.Fatalf("expected job error %q, got %q", actionable, job1.Error)
+	}
+
+	// 2. Unsafe error with local filesystem paths is sanitized to prevent leaks.
+	q2, e := Open(t.TempDir(), l, runnerFunc(func(ctx context.Context, u, d string, p func(float64)) (Result, error) {
+		return Result{}, errors.New("failed writing to /Users/secret/file.mp3")
+	}))
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer q2.Close()
+	j2, _ := q2.Submit("https://youtu.be/abcdefghijk")
+	job2 := waitJob(t, q2, j2.ID, "failed")
+	if strings.Contains(job2.Error, "/Users") || strings.Contains(job2.Error, "secret") {
+		t.Fatalf("job error leaked sensitive local path: %q", job2.Error)
+	}
+	fallback := "Download could not finish. Check the source, connection, available storage, and music folder, then retry."
+	if job2.Error != fallback {
+		t.Fatalf("expected safe fallback %q, got %q", fallback, job2.Error)
+	}
 }

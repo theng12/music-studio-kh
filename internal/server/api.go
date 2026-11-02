@@ -154,6 +154,10 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	s.serveTrack(w, r, r.PathValue("id"))
 }
 func (s *Server) serveTrack(w http.ResponseWriter, r *http.Request, id string) {
+	if s.activity != nil {
+		end := s.activity.beginStream()
+		defer end()
+	}
 	f, t, e := s.library.OpenTrack(id)
 	if e != nil {
 		fail(w, 404, "track unavailable; rescan your library")

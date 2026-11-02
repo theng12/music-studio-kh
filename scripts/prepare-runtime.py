@@ -17,7 +17,11 @@ def download(url,digest,name):
  if not path.exists() or hashlib.sha256(path.read_bytes()).hexdigest()!=digest:
   temporary=path.with_suffix('.download')
   retrying(lambda:fetch_to(url,temporary))
-  if hashlib.sha256(temporary.read_bytes()).hexdigest()!=digest:temporary.unlink();raise RuntimeError('Checksum mismatch for '+name)
+  if hashlib.sha256(temporary.read_bytes()).hexdigest()!=digest:
+   trash=pathlib.Path.home()/'Developer/_trash/tuneharbor/artifacts/tool-cache'
+   trash.mkdir(parents=True,exist_ok=True)
+   temporary.replace(trash/(temporary.name+'.'+str(int(time.time()))))
+   raise RuntimeError('Checksum mismatch for '+name)
   temporary.replace(path)
  return path
 for key in ([] if args.local else ['ffmpeg','lame']):
@@ -40,7 +44,11 @@ source=manifest['ytDlp']['source'];archive=download(source['url'],source['sha256
 notices=out/'notices';notices.mkdir(exist_ok=True)
 (notices/'DEPENDENCIES.txt').write_text('yt-dlp standalone 2026.08.19: GPL-3.0-or-later; upstream source: https://github.com/yt-dlp/yt-dlp/tree/2026.08.19\nDeno 2.9.7: MIT with third-party notices; source: https://github.com/denoland/deno/tree/v2.9.7\nFFmpeg 9.0.2: LGPL-2.1-or-later, built without GPL/nonfree codecs or networking. Source archives and build configuration accompany this package. LAME 3.100: LGPL.\nReview the full dependency/source obligations before public distribution.\n')
 if args.local:(notices/'DEPENDENCIES.txt').write_text((notices/'DEPENDENCIES.txt').read_text()+'\nPERSONAL BUILD: FFmpeg here is the system copy given with --ffmpeg-dir, not the LGPL build above. Do not redistribute this package.\n')
-retrying(lambda:fetch_to('https://raw.githubusercontent.com/denoland/deno/v2.9.7/LICENSE.md',notices/'Deno-LICENSE-MIT.txt'))
+deno_ver=manifest['deno']['version'];deno_lic_name='Deno-LICENSE-v'+deno_ver+'-MIT.txt';deno_lic_cache=cache/deno_lic_name;deno_lic_dest=notices/'Deno-LICENSE-MIT.txt'
+if deno_lic_cache.exists():shutil.copy2(deno_lic_cache,deno_lic_dest)
+else:
+ retrying(lambda:fetch_to('https://raw.githubusercontent.com/denoland/deno/v'+deno_ver+'/LICENSE.md',deno_lic_dest))
+ shutil.copy2(deno_lic_dest,deno_lic_cache)
 shutil.copy2(root/'scripts/build-ffmpeg.sh',out/'sources/build-ffmpeg.sh')
 shutil.copy2(root/'packaging/THIRD-PARTY-NOTICES.md',notices/'THIRD-PARTY-NOTICES.md')
 (out/'provenance.json').write_text(json.dumps(manifest,indent=2)+'\n')
