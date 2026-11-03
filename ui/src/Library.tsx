@@ -185,10 +185,6 @@ export default function Library(p: Props) {
               {items.length}
             </span>
           </h2>
-          <p className="library-summary">
-            {countLine}, ready to listen
-            {visible.length ? ` · ${libraryTotals} indexed music` : ""}.
-          </p>
         </div>
         <div className="toolbar-controls">
           <div className="add-music-menu" role="group" aria-label="Add music">
@@ -251,6 +247,10 @@ export default function Library(p: Props) {
           </button>
         </div>
       </div>
+      <p className="library-summary" aria-label="Indexed library summary">
+        {countLine}
+        {visible.length ? ` · ${libraryTotals}` : ""}
+      </p>
       <div
         className="action-row quick-actions"
         role="group"
@@ -274,7 +274,6 @@ export default function Library(p: Props) {
           <Icon name="heart" />
           Play favourites
         </button>
-        {!favourites.length && <span className="muted">No favourites yet</span>}
         <button
           className="secondary"
           id="play-most-played"
@@ -284,9 +283,6 @@ export default function Library(p: Props) {
           <Icon name="clock" />
           Play most played
         </button>
-        {!mostPlayed.length && (
-          <span className="muted">No listening history yet</span>
-        )}
         <button
           className="secondary"
           id="shuffle-all"
@@ -297,6 +293,12 @@ export default function Library(p: Props) {
           Shuffle all
         </button>
       </div>
+      {(!favourites.length || !mostPlayed.length) && (
+        <p className="quick-play-hints muted">
+          {!favourites.length && <span>No favourites yet</span>}
+          {!mostPlayed.length && <span>No listening history yet</span>}
+        </p>
+      )}
       <div
         id="drop-zone"
         onDragOver={(e) => {

@@ -105,6 +105,106 @@ try {
   await page.reload();
   await page.locator("#app").waitFor();
   await expect(page.locator("#library-page .new-badge")).toHaveCount(3);
+  const layouts = [];
+  for (const width of [
+    1720, 1360, 1250, 1150, 1000, 768, 681, 680, 480, 375, 320,
+  ]) {
+    await page.setViewportSize({ width, height: 920 });
+    const layout = await page.evaluate(() => {
+      const rect = (element) => {
+        const r = element.getBoundingClientRect();
+        return {
+          x: r.x,
+          y: r.y,
+          right: r.right,
+          bottom: r.bottom,
+          width: r.width,
+          height: r.height,
+        };
+      };
+      const player = document.querySelector(".player");
+      const buttons = [...player.querySelectorAll("button, select, input")]
+        .filter(
+          (element) =>
+            element.getClientRects().length &&
+            getComputedStyle(element).visibility !== "hidden",
+        )
+        .map((element) => ({ id: element.id, ...rect(element) }));
+      const collisions = buttons.flatMap((a, i) =>
+        buttons
+          .slice(i + 1)
+          .filter(
+            (b) =>
+              Math.min(a.right, b.right) - Math.max(a.x, b.x) > 1 &&
+              Math.min(a.bottom, b.bottom) - Math.max(a.y, b.y) > 1,
+          )
+          .map((b) => [a.id, b.id]),
+      );
+      const labelsFit = ["lyrics-btn", "queue-btn"].every((id) => {
+        const button = document.getElementById(id);
+        const label = button.querySelector("span");
+        if (!label || !label.getClientRects().length) return true;
+        const a = rect(button),
+          b = rect(label);
+        return b.x >= a.x && b.right <= a.right;
+      });
+      const hintsInsideActions =
+        document.querySelector(".quick-actions .muted") !== null;
+      const heading = rect(document.querySelector("#library-page h2"));
+      const add = rect(document.querySelector("#choose-music"));
+      return {
+        width: innerWidth,
+        player: rect(player),
+        buttons,
+        collisions,
+        labelsFit,
+        hintsInsideActions,
+        headingAligned:
+          Math.abs(heading.y + heading.height / 2 - add.y - add.height / 2) < 2,
+        overflow: document.documentElement.scrollWidth > innerWidth,
+      };
+    });
+    assert(
+      layout.labelsFit,
+      `player labels escape their buttons at ${width}px`,
+    );
+    assert.deepEqual(
+      layout.collisions,
+      [],
+      `player controls overlap at ${width}px`,
+    );
+    assert(!layout.overflow, `page overflows at ${width}px`);
+    assert(
+      !layout.hintsInsideActions,
+      "empty-state hints disrupt the quick-play button row",
+    );
+    if (width >= 1360)
+      assert(
+        layout.headingAligned,
+        "library heading and toolbar controls do not align",
+      );
+    assert(
+      layout.player.height <= (width > 1250 ? 120 : width > 680 ? 160 : 212),
+      `player is too tall at ${width}px`,
+    );
+    assert(
+      layout.buttons.every(
+        (b) => b.x >= layout.player.x - 1 && b.right <= layout.player.right + 1,
+      ),
+      `player controls escape surface at ${width}px`,
+    );
+    layouts.push(layout);
+    if ([1360, 1000, 375].includes(width))
+      await page.screenshot({
+        path: join(output, `layout-${width}.png`),
+        fullPage: true,
+      });
+  }
+  await writeFile(
+    join(output, "layout-result.json"),
+    JSON.stringify(layouts, null, 2),
+  );
+  await page.setViewportSize({ width: 1360, height: 920 });
   await page
     .getByRole("button", { name: "Add favourite: Proof song 0", exact: true })
     .click();
@@ -150,32 +250,65 @@ try {
   await page.getByRole("button", { name: "Shuffle all", exact: true }).click();
   await page.locator("#play-pause").click();
   await page.locator("#nav-albums").click();
-  await page.getByRole("button", { name: "Play album First album", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Play album First album", exact: true })
+    .click();
   const firstTitle = await page.locator("#playing-title").textContent();
   await page.locator("#queue-btn").click();
   await expect(page.locator(".player-queue .album-song")).toHaveCount(2);
-  assert.deepEqual(new Set(await page.locator(".player-queue .album-song strong").allTextContents()), new Set(["Proof song 0", "Proof song 1"]));
+  assert.deepEqual(
+    new Set(
+      await page.locator(".player-queue .album-song strong").allTextContents(),
+    ),
+    new Set(["Proof song 0", "Proof song 1"]),
+  );
   await page.locator(".player-queue .close-dialog").click();
   await page.locator("#next").click();
   await expect(page.locator("#playing-title")).not.toHaveText(firstTitle);
   await page.locator("#previous").click();
   await expect(page.locator("#playing-title")).toHaveText(firstTitle);
-  await page.waitForFunction(() => document.querySelector("audio")?.currentTime > 0.5);
-  const beforeFavourite = await page.locator("#audio").evaluate(e => e.currentTime);
+  await page.waitForFunction(
+    () => document.querySelector("audio")?.currentTime > 0.5,
+  );
+  const beforeFavourite = await page
+    .locator("#audio")
+    .evaluate((e) => e.currentTime);
   await page.locator("#playing-favourite").click();
-  await expect(page.locator("#playing-favourite")).toHaveAttribute("aria-pressed", "false");
-  assert(await page.locator("#audio").evaluate(e => e.currentTime) >= beforeFavourite, "favourite metadata must not reset audio");
+  await expect(page.locator("#playing-favourite")).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  assert(
+    (await page.locator("#audio").evaluate((e) => e.currentTime)) >=
+      beforeFavourite,
+    "favourite metadata must not reset audio",
+  );
   await page.locator("#playing-favourite").click();
-  await expect(page.locator("#playing-favourite")).toHaveAttribute("aria-pressed", "true");
-  for (const [tab, label, count] of [["nav-albums", "Shuffle album First album", 2], ["nav-artists", "Shuffle artist First artist", 2], ["nav-folders", "Shuffle folder Root library", 3]]) {
+  await expect(page.locator("#playing-favourite")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  for (const [tab, label, count] of [
+    ["nav-albums", "Shuffle album First album", 2],
+    ["nav-artists", "Shuffle artist First artist", 2],
+    ["nav-folders", "Shuffle folder Root library", 3],
+  ]) {
     await page.locator("#" + tab).click();
     await page.getByRole("button", { name: label, exact: true }).click();
     await page.locator("#queue-btn").click();
     const rows = page.locator(".player-queue .album-song");
     await expect(rows).toHaveCount(count);
     const names = await rows.locator("strong").allTextContents();
-    assert.equal(new Set(names).size, count, "scoped shuffle never duplicates songs");
-    if (count === 2) assert.deepEqual(new Set(names), new Set(["Proof song 0", "Proof song 1"]));
+    assert.equal(
+      new Set(names).size,
+      count,
+      "scoped shuffle never duplicates songs",
+    );
+    if (count === 2)
+      assert.deepEqual(
+        new Set(names),
+        new Set(["Proof song 0", "Proof song 1"]),
+      );
     await page.locator(".player-queue .close-dialog").click();
   }
   await page.locator("#play-pause").click();

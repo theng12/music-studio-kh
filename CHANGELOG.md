@@ -2,6 +2,11 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.2.6 — 2026-11-03
+
+- Keep the library heading and toolbar aligned, with simpler totals and neatly grouped quick-play hints.
+- Use a more compact player with clearly spaced speed, lyrics, queue and volume controls at every window width.
+
 ## 0.2.5 — 2026-11-03
 
 - Clear finished download records while keeping your music and active downloads safe.
