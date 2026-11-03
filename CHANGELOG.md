@@ -2,6 +2,13 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.2.7 — 2026-11-03
+
+- Listen with an evenly spaced, single-row player: controls on the left, song and progress in the middle, favourite and other options on the right.
+- Control playback, seeking, volume, shuffle, repeat, lyrics, queue and fullscreen from the keyboard. Shortcuts pause while you type and are listed in Help and button tooltips.
+- Use system media play, next and previous controls through Media Session, with the current song and artwork.
+- Open speed, volume and window options without crowding the player; keep mini player, pinning and hide-to-menu-bar controls.
+
 ## 0.2.6 — 2026-11-03
 
 - Keep the library heading and toolbar aligned, with simpler totals and neatly grouped quick-play hints.

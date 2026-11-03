@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { art, api, sendDesktopCommand, Track } from "./api";
 import Icon from "./Icon";
+import { playerKeyAction, shortcutTitle } from "./playerShortcuts";
 
 const time = (n: number) =>
   Number.isFinite(n)
@@ -108,6 +109,10 @@ export default function Player({
   const [savingLyrics, setSavingLyrics] = useState(false);
   const [miniMode, setMiniMode] = useState(false);
   const [pinned, setPinned] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [openTool, setOpenTool] = useState<
+    "speed" | "volume" | "window" | null
+  >(null);
 
   // Lifted shuffle when App provides the callback; local fallback otherwise.
   const shuffleOn = onShuffleChange ? !!shuffle : localShuffle;
@@ -124,6 +129,14 @@ export default function Player({
   const listenedRef = useRef(0);
   const lastTickRef = useRef(0);
   const countedRef = useRef(false);
+
+  const startPlayback = (audio: HTMLAudioElement) => {
+    audio.play().catch((error: DOMException) => {
+      // Pausing or changing songs cancels an in-flight play request.
+      if (error.name !== "AbortError")
+        notice("Playback unavailable. Check the file and try again.");
+    });
+  };
 
   // Stream track changes. Depends on id only so favourite/lyrics metadata
   // merges rebuild props without restarting audio or transport time.
@@ -157,11 +170,7 @@ export default function Player({
     audio.src = "/api/stream/" + track.id + (convert ? "?format=mp3" : "");
     audio.playbackRate = playbackRate;
     audio.muted = muted;
-    audio
-      .play()
-      .catch(() =>
-        notice("Playback unavailable. Check the file and try again."),
-      );
+    startPlayback(audio);
   }, [track?.id, streamQuality]);
 
   // Audio adjustments
@@ -241,15 +250,14 @@ export default function Player({
     lastTickRef.current = 0;
     listenedRef.current = 0;
     countedRef.current = false;
-    audio.play().catch(() => {});
+    startPlayback(audio);
   };
 
   // Queue selection: same id resumes in place without touching queue/shuffle.
   const choose = (t: Track) => {
     if (t.id === track?.id) {
       const audio = ref.current;
-      if (audio?.paused)
-        audio.play().catch(() => notice("Could not start playback."));
+      if (audio?.paused) startPlayback(audio);
       return;
     }
     select(t);
@@ -267,7 +275,7 @@ export default function Player({
       return;
     }
     if (audio.paused) {
-      audio.play().catch(() => notice("Could not start playback."));
+      startPlayback(audio);
     } else {
       audio.pause();
     }
@@ -338,8 +346,167 @@ export default function Player({
   };
 
   const hideToMenuBar = () => {
+    setOpenTool(null);
     sendDesktopCommand("hide-window");
   };
+
+  const toggleFullscreen = () => {
+    if ((window as any).__TUNEHARBOR_DESKTOP__) {
+      sendDesktopCommand("toggle-fullscreen");
+    } else {
+      const request = document.fullscreenElement
+        ? document.exitFullscreen()
+        : document.documentElement.requestFullscreen();
+      request.catch(() => notice("Fullscreen is unavailable in this window."));
+    }
+  };
+
+  useEffect(() => {
+    const changed = () => setFullscreen(!!document.fullscreenElement);
+    const nativeChanged = (event: Event) =>
+      setFullscreen((event as CustomEvent<boolean>).detail);
+    document.addEventListener("fullscreenchange", changed);
+    window.addEventListener("player-fullscreen", nativeChanged);
+    return () => {
+      document.removeEventListener("fullscreenchange", changed);
+      window.removeEventListener("player-fullscreen", nativeChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenTool(null);
+        return;
+      }
+      const action = playerKeyAction(event);
+      if (!action) return;
+      event.preventDefault();
+      if (
+        event.repeat &&
+        !["back", "forward", "volumeUp", "volumeDown"].includes(action)
+      )
+        return;
+      switch (action) {
+        case "play":
+          toggle();
+          break;
+        case "back":
+          seekRelative(-10);
+          break;
+        case "forward":
+          seekRelative(10);
+          break;
+        case "previous":
+          previous();
+          break;
+        case "next":
+          handleNext();
+          break;
+        case "volumeUp":
+          setVolume((v) => Math.min(1, v + 0.05));
+          setMuted(false);
+          break;
+        case "volumeDown":
+          setVolume((v) => Math.max(0, v - 0.05));
+          setMuted(false);
+          break;
+        case "mute":
+          setMuted((v) => !v);
+          break;
+        case "shuffle":
+          setShuffleOn(!shuffleOn);
+          break;
+        case "repeat":
+          cycleRepeat();
+          break;
+        case "lyrics":
+          setShowLyrics((v) => !v);
+          break;
+        case "queue":
+          setShowQueue((v) => !v);
+          break;
+        case "fullscreen":
+          toggleFullscreen();
+          break;
+      }
+    };
+    window.addEventListener("keydown", keydown);
+    return () => window.removeEventListener("keydown", keydown);
+  });
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    const handlers: Partial<
+      Record<MediaSessionAction, MediaSessionActionHandler>
+    > = {
+      play: () => {
+        if (ref.current?.paused) toggle();
+      },
+      pause: () => ref.current?.pause(),
+      previoustrack: previous,
+      nexttrack: handleNext,
+      seekbackward: (event) => seekRelative(-(event.seekOffset ?? 10)),
+      seekforward: (event) => seekRelative(event.seekOffset ?? 10),
+      seekto: (event) => {
+        if (event.seekTime !== undefined) seekTo(event.seekTime);
+      },
+    };
+    for (const [action, handler] of Object.entries(handlers)) {
+      try {
+        navigator.mediaSession.setActionHandler(
+          action as MediaSessionAction,
+          handler,
+        );
+      } catch {
+        /* Older media sessions may support transport only. */
+      }
+    }
+    return () => {
+      for (const action of Object.keys(handlers)) {
+        try {
+          navigator.mediaSession.setActionHandler(
+            action as MediaSessionAction,
+            null,
+          );
+        } catch {}
+      }
+    };
+  });
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    navigator.mediaSession.metadata = track
+      ? new MediaMetadata({
+          title: track.title,
+          artist: track.artist,
+          album: track.album,
+          artwork: [
+            { src: new URL(art(track.id, version), location.href).href },
+          ],
+        })
+      : null;
+  }, [track, version]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    navigator.mediaSession.playbackState = track
+      ? paused
+        ? "paused"
+        : "playing"
+      : "none";
+    if (
+      navigator.mediaSession.setPositionState &&
+      Number.isFinite(duration) &&
+      duration > 0
+    ) {
+      navigator.mediaSession.setPositionState({
+        duration,
+        playbackRate,
+        position: Math.min(duration, Math.max(0, position)),
+      });
+    }
+  }, [track?.id, paused, duration, position, playbackRate]);
 
   const saveLyrics = async () => {
     if (!track) return;
@@ -463,6 +630,86 @@ export default function Player({
         ref={surfaceRef}
         className={"player" + (miniMode ? " mini-player" : "")}
       >
+        <div
+          className="playback-actions"
+          role="group"
+          aria-label="Playback controls"
+        >
+          <button
+            className={"icon-button " + (shuffleOn ? "active" : "")}
+            id="shuffle-btn"
+            aria-label={`Shuffle: ${shuffleOn ? "On" : "Off"}`}
+            aria-pressed={shuffleOn}
+            title={shortcutTitle(
+              "shuffle",
+              `Shuffle: ${shuffleOn ? "On" : "Off"}`,
+            )}
+            onClick={() => setShuffleOn(!shuffleOn)}
+          >
+            <Icon name="shuffle" />
+          </button>
+          <button
+            className="icon-button"
+            id="previous"
+            aria-label="Previous song"
+            title={shortcutTitle("previous", "Previous song")}
+            onClick={handlePrevious}
+          >
+            <Icon name="previous" />
+          </button>
+          <button
+            className="icon-button seek-step-btn"
+            id="seek-back"
+            aria-label="Rewind 10 seconds"
+            title={shortcutTitle("back", "Rewind 10 seconds")}
+            onClick={() => seekRelative(-10)}
+          >
+            <Icon name="rewind10" />
+          </button>
+          <button
+            className="play-button"
+            id="play-pause"
+            aria-label={paused ? "Play" : "Pause"}
+            title={shortcutTitle("play", paused ? "Play" : "Pause")}
+            onClick={toggle}
+          >
+            <Icon name={paused ? "play" : "pause"} />
+          </button>
+          <button
+            className="icon-button seek-step-btn"
+            id="seek-forward"
+            aria-label="Forward 10 seconds"
+            title={shortcutTitle("forward", "Forward 10 seconds")}
+            onClick={() => seekRelative(10)}
+          >
+            <Icon name="forward10" />
+          </button>
+          <button
+            className="icon-button"
+            id="next"
+            aria-label="Next song"
+            title={shortcutTitle("next", "Next song")}
+            onClick={handleNext}
+          >
+            <Icon name="next" />
+          </button>
+          <button
+            className={
+              "icon-button repeat-btn " +
+              (currentRepeat !== "off" ? "active" : "") +
+              (currentRepeat === "one" ? " repeat-one" : "")
+            }
+            id="repeat-btn"
+            aria-label={`Repeat mode: ${currentRepeat}`}
+            title={shortcutTitle(
+              "repeat",
+              `Repeat: ${currentRepeat === "all" ? "Loop queue" : currentRepeat === "one" ? "Repeat current song" : "Off"}`,
+            )}
+            onClick={cycleRepeat}
+          >
+            <Icon name="repeat" />
+          </button>
+        </div>
         <div className="playing-info">
           <div className="playing-cover" id="playing-cover">
             {track ? (
@@ -471,218 +718,132 @@ export default function Player({
               <Icon name="music" />
             )}
           </div>
-          <div className="playing-text">
-            <strong id="playing-title">
-              {track?.title || "Find your rhythm"}
-            </strong>
-            <span id="playing-artist">
-              {track?.artist || "Choose a song to start listening"}
-            </span>
-          </div>
-          {track && (
-            <button
-              className="favourite-button"
-              id="playing-favourite"
-              aria-pressed={!!track.favourite}
-              aria-label={
-                (track.favourite ? "Remove" : "Add") +
-                " favourite: " +
-                track.title
-              }
-              title={
-                track.favourite ? "Remove from favourites" : "Add to favourites"
-              }
-              onClick={() => onFavourite(track, !track.favourite)}
-            >
-              <Icon name="heart" />
-            </button>
-          )}
-        </div>
-
-        <div className="playback">
-          <div className="playback-actions">
-            <button
-              className={"icon-button " + (shuffleOn ? "active" : "")}
-              id="shuffle-btn"
-              aria-label={`Shuffle: ${shuffleOn ? "On" : "Off"}`}
-              title={`Shuffle: ${shuffleOn ? "On" : "Off"}`}
-              onClick={() => setShuffleOn(!shuffleOn)}
-            >
-              <Icon name="shuffle" />
-            </button>
-            <button
-              className="icon-button"
-              id="previous"
-              aria-label="Previous song"
-              title="Previous song"
-              onClick={handlePrevious}
-            >
-              <Icon name="previous" />
-            </button>
-            <button
-              className="icon-button seek-step-btn"
-              id="seek-back"
-              aria-label="Rewind 10 seconds"
-              title="Rewind 10s"
-              onClick={() => seekRelative(-10)}
-            >
-              -10s
-            </button>
-            <button
-              className="play-button"
-              id="play-pause"
-              aria-label={paused ? "Play" : "Pause"}
-              title={paused ? "Play" : "Pause"}
-              onClick={toggle}
-            >
-              <Icon name={paused ? "play" : "pause"} />
-            </button>
-            <button
-              className="icon-button seek-step-btn"
-              id="seek-forward"
-              aria-label="Forward 10 seconds"
-              title="Forward 10s"
-              onClick={() => seekRelative(10)}
-            >
-              +10s
-            </button>
-            <button
-              className="icon-button"
-              id="next"
-              aria-label="Next song"
-              title="Next song"
-              onClick={handleNext}
-            >
-              <Icon name="next" />
-            </button>
-            <button
-              className={
-                "icon-button repeat-btn " +
-                (currentRepeat !== "off" ? "active" : "") +
-                (currentRepeat === "one" ? " repeat-one" : "")
-              }
-              id="repeat-btn"
-              aria-label={`Repeat mode: ${currentRepeat}`}
-              title={`Repeat: ${currentRepeat === "all" ? "Loop queue" : currentRepeat === "one" ? "Repeat current song" : "Off"}`}
-              onClick={cycleRepeat}
-            >
-              <Icon name="repeat" />
-            </button>
-          </div>
-          <div className="timeline">
-            <span id="elapsed">{time(position)}</span>
-            <input
-              id="seek"
-              aria-label="Seek"
-              type="range"
-              min="0"
-              max="100"
-              value={duration > 0 ? (position / duration) * 100 : 0}
-              onChange={(e) => {
-                if (duration > 0)
-                  seekTo((Number(e.target.value) / 100) * duration);
-              }}
-            />
-            <span id="duration">{time(duration)}</span>
-          </div>
-        </div>
-
-        <div className="player-extras">
-          <div className="player-tools">
-            <select
-              id="playback-speed"
-              className="playback-speed"
-              aria-label="Playback speed"
-              title="Playback speed"
-              value={playbackRate}
-              onChange={(e) => setPlaybackRate(Number(e.target.value))}
-            >
-              <option value="0.75">0.75×</option>
-              <option value="1">1×</option>
-              <option value="1.25">1.25×</option>
-              <option value="1.5">1.5×</option>
-              <option value="2">2×</option>
-            </select>
-
-            <button
-              className={"icon-button " + (showLyrics ? "active" : "")}
-              id="lyrics-btn"
-              aria-label="Lyrics"
-              title="Toggle lyrics drawer"
-              onClick={() => setShowLyrics(!showLyrics)}
-            >
-              <Icon name="lyrics" />
-              <span>Lyrics</span>
-            </button>
-
-            <button
-              className={"icon-button " + (showQueue ? "active" : "")}
-              id="queue-btn"
-              aria-label="Show play queue"
-              title="Up next queue"
-              onClick={() => setShowQueue(!showQueue)}
-            >
-              <Icon name="queue" />
-              <span>Queue</span>
-            </button>
-          </div>
-
-          <div className="player-secondary">
-            <div className="volume">
-              <button
-                className="icon-button"
-                id="mute-btn"
-                aria-label={muted ? "Unmute" : "Mute"}
-                title={muted ? "Unmute" : "Mute"}
-                onClick={() => setMuted(!muted)}
-              >
-                <Icon name={muted || volume === 0 ? "mute" : "volume"} />
-              </button>
+          <div className="now-playing">
+            <div className="playing-text">
+              <strong id="playing-title" title={track?.title}>
+                {track?.title || "Find your rhythm"}
+              </strong>
+              <span id="playing-artist" title={track?.artist}>
+                {track?.artist || "Choose a song to start listening"}
+              </span>
+            </div>
+            <div className="timeline">
               <input
-                id="volume"
-                aria-label="Volume"
+                id="seek"
+                aria-label="Seek"
+                title="Seek (← / →: 10 seconds)"
                 type="range"
                 min="0"
-                max="1"
-                step=".01"
-                value={muted ? 0 : volume}
+                max="100"
+                value={duration > 0 ? (position / duration) * 100 : 0}
                 onChange={(e) => {
-                  setVolume(Number(e.target.value));
-                  if (muted) setMuted(false);
+                  if (duration > 0)
+                    seekTo((Number(e.target.value) / 100) * duration);
                 }}
               />
-            </div>
-
-            <div className="window-controls">
-              <button
-                className={"icon-button " + (miniMode ? "active" : "")}
-                id="mini-player-btn"
-                aria-label={miniMode ? "Exit mini player" : "Mini player mode"}
-                title={miniMode ? "Exit mini player mode" : "Mini player mode"}
-                onClick={toggleMini}
-              >
-                <Icon name="expand" />
-              </button>
-              <button
-                className={"icon-button " + (pinned ? "active pinned" : "")}
-                id="pin-window-btn"
-                aria-label={pinned ? "Unpin window" : "Pin window on top"}
-                title={pinned ? "Unpin window" : "Pin window on top"}
-                onClick={togglePin}
-              >
-                <Icon name="pin" />
-              </button>
-              <button
-                className="icon-button"
-                id="hide-window-btn"
-                aria-label="Hide to menu bar"
-                title="Hide to menu bar"
-                onClick={hideToMenuBar}
-              >
-                <Icon name="chevron" className="chevron-down" />
-              </button>
+              <div className="timeline-times">
+                <span id="elapsed">{time(position)}</span>
+                <span id="duration">{time(duration)}</span>
+              </div>
             </div>
           </div>
+        </div>
+        <div className="player-extras" role="group" aria-label="Player options">
+          <button
+            className="icon-button favourite-button"
+            id="playing-favourite"
+            disabled={!track}
+            aria-pressed={!!track?.favourite}
+            aria-label={
+              track
+                ? (track.favourite ? "Remove" : "Add") +
+                  " favourite: " +
+                  track.title
+                : "Add to favourites"
+            }
+            title={
+              track?.favourite ? "Remove from favourites" : "Add to favourites"
+            }
+            onClick={() => track && onFavourite(track, !track.favourite)}
+          >
+            <Icon name="heart" />
+          </button>
+          <button
+            className="icon-button"
+            id="playback-speed-btn"
+            aria-label="Playback speed"
+            title={`Playback speed: ${playbackRate}×`}
+            aria-expanded={openTool === "speed"}
+            aria-controls="player-tool-panel"
+            onClick={() => setOpenTool(openTool === "speed" ? null : "speed")}
+          >
+            <Icon name="speed" />
+          </button>
+          <button
+            className={"icon-button " + (showLyrics ? "active" : "")}
+            id="lyrics-btn"
+            aria-label="Lyrics"
+            aria-pressed={showLyrics}
+            title={shortcutTitle("lyrics", "Show / hide lyrics")}
+            onClick={() => setShowLyrics(!showLyrics)}
+          >
+            <Icon name="lyrics" />
+          </button>
+          <button
+            className={"icon-button " + (showQueue ? "active" : "")}
+            id="queue-btn"
+            aria-label="Show play queue"
+            aria-pressed={showQueue}
+            title={shortcutTitle("queue", "Show / hide queue")}
+            onClick={() => setShowQueue(!showQueue)}
+          >
+            <Icon name="queue" />
+          </button>
+          <button
+            className="icon-button"
+            id="volume-btn"
+            aria-label="Volume controls"
+            title="Volume (⌘↑ / ⌘↓; Ctrl+↑ / Ctrl+↓; M: mute)"
+            aria-expanded={openTool === "volume"}
+            aria-controls="player-tool-panel"
+            onClick={() => setOpenTool(openTool === "volume" ? null : "volume")}
+          >
+            <Icon name={muted || volume === 0 ? "mute" : "volume"} />
+          </button>
+          <button
+            className={"icon-button " + (fullscreen ? "active" : "")}
+            id="fullscreen-btn"
+            aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            aria-pressed={fullscreen}
+            title={shortcutTitle(
+              "fullscreen",
+              fullscreen ? "Exit fullscreen" : "Enter fullscreen",
+            )}
+            onClick={toggleFullscreen}
+          >
+            <Icon name="expand" />
+          </button>
+          <button
+            className={"icon-button " + (pinned ? "active pinned" : "")}
+            id="pin-window-btn"
+            aria-label={pinned ? "Unpin window" : "Pin window on top"}
+            aria-pressed={pinned}
+            title={pinned ? "Unpin window" : "Pin window on top"}
+            onClick={togglePin}
+          >
+            <Icon name="pin" />
+          </button>
+          <button
+            className={"icon-button " + (miniMode ? "active" : "")}
+            id="player-window-btn"
+            aria-label="Collapse player"
+            title="Collapse player / window options"
+            aria-expanded={openTool === "window"}
+            aria-controls="player-tool-panel"
+            onClick={() => setOpenTool(openTool === "window" ? null : "window")}
+          >
+            <Icon name="chevron" className="chevron-down" />
+          </button>
         </div>
 
         <audio
@@ -732,6 +893,94 @@ export default function Player({
         />
       </footer>
 
+      {openTool && (
+        <section
+          id="player-tool-panel"
+          className="player-tool-panel settings-card"
+          role="region"
+          aria-label={
+            openTool === "speed"
+              ? "Playback speed"
+              : openTool === "volume"
+                ? "Volume controls"
+                : "Player window options"
+          }
+        >
+          <button
+            className="close-dialog"
+            aria-label="Close player options"
+            onClick={() => setOpenTool(null)}
+          >
+            <Icon name="close" />
+          </button>
+          {openTool === "speed" && (
+            <label>
+              Playback speed
+              <select
+                id="playback-speed"
+                aria-label="Playback speed"
+                value={playbackRate}
+                onChange={(e) => setPlaybackRate(Number(e.target.value))}
+              >
+                {[0.75, 1, 1.25, 1.5, 2].map((rate) => (
+                  <option key={rate} value={rate}>
+                    {rate}×
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {openTool === "volume" && (
+            <div className="volume-controls">
+              <label htmlFor="volume">Volume</label>
+              <input
+                id="volume"
+                aria-label="Volume"
+                title="Volume (⌘↑ / ⌘↓; Ctrl+↑ / Ctrl+↓)"
+                type="range"
+                min="0"
+                max="1"
+                step=".01"
+                value={muted ? 0 : volume}
+                onChange={(e) => {
+                  setVolume(Number(e.target.value));
+                  setMuted(false);
+                }}
+              />
+              <button
+                className="secondary"
+                id="mute-btn"
+                title={shortcutTitle("mute", muted ? "Unmute" : "Mute")}
+                onClick={() => setMuted(!muted)}
+              >
+                <Icon name={muted ? "mute" : "volume"} />
+                {muted ? "Unmute" : "Mute"}
+              </button>
+            </div>
+          )}
+          {openTool === "window" && (
+            <div className="player-window-options">
+              <button
+                className="secondary"
+                id="mini-player-btn"
+                onClick={() => {
+                  setOpenTool(null);
+                  toggleMini();
+                }}
+              >
+                {miniMode ? "Exit mini player" : "Mini player"}
+              </button>
+              <button
+                className="secondary"
+                id="hide-window-btn"
+                onClick={hideToMenuBar}
+              >
+                Hide to menu bar
+              </button>
+            </div>
+          )}
+        </section>
+      )}
       {showQueue && (
         <section
           className="player-queue settings-card"

@@ -13,6 +13,7 @@ import Icon from "./Icon";
 import Downloads from "./Downloads";
 import Library from "./Library";
 import Player from "./Player";
+import Help from "./Help";
 import Artwork from "./Artwork";
 import Settings from "./Settings";
 import Profiles from "./Profiles";
@@ -580,6 +581,14 @@ export default function App() {
           >
             <Icon name="settings" /> <span>Settings</span>
           </button>
+          <button
+            className={"nav-item " + (page === "help" ? "active" : "")}
+            id="help-nav"
+            aria-label="Help"
+            onClick={() => setPage("help")}
+          >
+            <Icon name="info" /> <span>Help</span>
+          </button>
           <div className="sidebar-bottom">
             <button
               type="button"
@@ -623,7 +632,9 @@ export default function App() {
                   ? "Downloads"
                   : page === "settings"
                     ? "Settings & preferences"
-                    : "Music library"}
+                    : page === "help"
+                      ? "Help"
+                      : "Music library"}
                 <span className="accent">.</span>
               </h1>
             </div>
@@ -665,6 +676,7 @@ export default function App() {
               }
             />
           )}
+          {page === "help" && <Help />}
           {page === "downloads" && (
             <Downloads
               jobs={jobs}
