@@ -118,6 +118,24 @@ const paths: Record<string, React.ReactNode> = {
   back: <path d="m11 4-8 8 8 8M3 12h18" />,
   expand: <path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5" />,
   pin: <path d="m9 3 12 12-4 1-2 5-5-7-4-1 1-4ZM3 21l6-6" />,
+  speed: (
+    <>
+      <path d="M4 19a9 9 0 1 1 16 0M12 12l5-5M5 12H3m18 0h-2M12 5V3" />
+      <circle cx="12" cy="12" r="1.5" />
+    </>
+  ),
+  rewind10: (
+    <>
+      <path d="M4 8a9 9 0 1 1-1 8M4 3v5h5M9 11v6" />
+      <rect x="12" y="11" width="4" height="6" rx="2" />
+    </>
+  ),
+  forward10: (
+    <>
+      <path d="M20 8a9 9 0 1 0 1 8M20 3v5h-5M9 11v6" />
+      <rect x="12" y="11" width="4" height="6" rx="2" />
+    </>
+  ),
 };
 
 export default function Icon({

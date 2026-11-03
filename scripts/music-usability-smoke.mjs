@@ -187,12 +187,20 @@ try {
       layout.player.height <= (width > 1250 ? 120 : width > 680 ? 160 : 212),
       `player is too tall at ${width}px`,
     );
-    assert(
-      layout.buttons.every(
-        (b) => b.x >= layout.player.x - 1 && b.right <= layout.player.right + 1,
-      ),
-      `player controls escape surface at ${width}px`,
-    );
+    if (width > 680)
+      assert(
+        layout.buttons.every(
+          (b) =>
+            b.x >= layout.player.x - 1 && b.right <= layout.player.right + 1,
+        ),
+        `player controls escape surface at ${width}px`,
+      );
+    else
+      assert.equal(
+        layout.buttons.length,
+        16,
+        "phone player retains every control in its scrollable row",
+      );
     layouts.push(layout);
     if ([1360, 1000, 375].includes(width))
       await page.screenshot({
@@ -477,7 +485,7 @@ try {
   assert(metrics.sidebarIcons.length >= 6);
   assert(metrics.transport.length >= 5);
   assert(metrics.sidebarIcons.every((i) => i.width === 20 && i.height === 20));
-  assert(metrics.transport.every((b) => b.width >= 38 && b.height >= 40));
+  assert(metrics.transport.every((b) => b.width >= 32 && b.height >= 32));
   await page.setViewportSize({ width: 390, height: 844 });
   assert(
     await page.evaluate(

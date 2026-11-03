@@ -188,6 +188,15 @@ fn open_profile(
         .on_document_title_changed(|window, title| {
             if let Some(cmd) = title.strip_prefix("__TH_CMD__:") {
                 match cmd {
+                    "toggle-fullscreen" => {
+                        let fullscreen = !window.is_fullscreen().unwrap_or(false);
+                        if window.set_fullscreen(fullscreen).is_ok() {
+                            let _ = window.eval(&format!(
+                                "window.dispatchEvent(new CustomEvent('player-fullscreen', {{detail: {}}}));",
+                                fullscreen
+                            ));
+                        }
+                    }
                     "toggle-pin" => {
                         let pinned = !window.is_always_on_top().unwrap_or(false);
                         let _ = window.set_always_on_top(pinned);
@@ -493,6 +502,15 @@ fn main() {
         })
         .on_menu_event(|app, event| handle_menu_action(app, event.id.as_ref()))
         .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Resized(_) = event {
+                if let Some(win) = window.app_handle().get_webview_window(window.label()) {
+                    let fullscreen = win.is_fullscreen().unwrap_or(false);
+                    let _ = win.eval(&format!(
+                        "window.dispatchEvent(new CustomEvent('player-fullscreen', {{detail: {}}}));",
+                        fullscreen
+                    ));
+                }
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label().starts_with("profile-") {
                     api.prevent_close();
