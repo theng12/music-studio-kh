@@ -10,7 +10,7 @@ Leave `windows_only` false for this pilot. The existing `windows_only=true` mode
 
 The workflow builds checksum-verified runtime tools, the Go sidecar, the existing React UI and the Tauri shell. Windows produces a per-user NSIS installer; Linux produces Debian and AppImage packages. Download the `Music Studio KH-unsigned-dev-windows-x64` and `Music Studio KH-unsigned-dev-linux-x64` artifacts from the workflow run. Artifacts expire after 14 days, so retain the pilot copies with the delivery report.
 
-Windows installer smoke runs the NSIS install/uninstall and packaged FFmpeg on a standard Windows runner. That alone is **build-only for the Music GUI**; it does not prove the app window, WebView2, tray, keychain or playback.
+Windows installer smoke runs the NSIS install/uninstall and packaged FFmpeg on a standard Windows runner. That alone is **build-only, not runtime-tested for the Music GUI**; it does not prove the app window, WebView2, tray, keychain or playback.
 
 Linux installer smoke checks the payload and dependency installation. The subsequent desktop end-to-end lane launches the installed app under Xvfb/Openbox with WebKitGTK and an isolated keyring/profile. Report **runtime-tested on that virtual Ubuntu runner** only if this lane actually runs and passes. AppImage generation alone does not prove AppImage startup or compatibility with every Linux distribution.
 
