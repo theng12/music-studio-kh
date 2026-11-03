@@ -11,7 +11,7 @@ on:
         type: boolean
         default: false
       windows_linux_only:
-        description: Build only the Windows and Linux x86-64 pilot
+        description: Build Windows and Linux x86-64 (ignored if Windows only is ticked)
         type: boolean
         default: false
 permissions:
