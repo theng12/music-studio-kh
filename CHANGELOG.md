@@ -2,6 +2,13 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.2.8 — 2026-11-03
+
+- Connect the Android client to a Mac library and use the existing sign-in, library and player on phones and tablets.
+- Navigate Android controls with TV remote arrows and OK; use Back to close panels or return to the connection screen.
+- See the Android app version and What’s new. Music, downloads and conversion stay on your Mac; offline and background playback are not yet qualified.
+- Try the unsigned Windows and Linux desktop pilots. Windows is build-only, not runtime-tested: the Music app window has not been opened there yet.
+
 ## 0.2.7 — 2026-11-03
 
 - Listen with an evenly spaced, single-row player: controls on the left, song and progress in the middle, favourite and other options on the right.

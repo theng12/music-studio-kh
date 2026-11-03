@@ -1,0 +1,19 @@
+{
+  "identifier": "app.tuneharbor.android",
+  "build": {
+    "beforeBuildCommand": "npm run build:android:web",
+    "frontendDist": "../dist/android"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "capabilities": [],
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src 'none'"
+    }
+  },
+  "bundle": {
+    "externalBin": [],
+    "resources": null,
+    "android": { "minSdkVersion": 24 }
+  }
+}

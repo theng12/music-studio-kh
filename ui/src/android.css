@@ -1,0 +1,31 @@
+.android-connect {
+  max-width: 640px;
+  margin: auto;
+  padding: max(32px, env(safe-area-inset-top))
+    max(24px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom))
+    max(24px, env(safe-area-inset-left));
+  display: grid;
+  gap: 22px;
+}
+.android-connect h1 {
+  font-size: clamp(28px, 5vw, 40px);
+  letter-spacing: -0.025em;
+}
+.android-connect form {
+  display: grid;
+  gap: 12px;
+}
+.android-connect button,
+.android-connect input {
+  min-height: 48px;
+}
+.android-connect .action-row {
+  flex-wrap: wrap;
+}
+.android-connect :focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+.android-error {
+  color: #ffb8ab;
+}
