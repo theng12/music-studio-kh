@@ -20,8 +20,28 @@ retire() {
   fi
 }
 
+START_DIR="$PWD"
 BUILD_DIR="$(mktemp -d /tmp/tuneharbor-ffmpeg-build.XXXXXX)"
-trap 'retire "$BUILD_DIR"' EXIT
+cleanup() {
+  local exit_code=$?
+  trap - EXIT
+  if [ "$exit_code" -ne 0 ]; then
+    for log in "$BUILD_DIR"/*.log "$BUILD_DIR/ffmpeg/ffbuild/config.log"; do
+      if [ -f "$log" ]; then
+        printf '\nBuild diagnostic: %s\n' "$log" >&2
+        tail -n 40 "$log" >&2
+      fi
+    done
+  fi
+  # Windows cannot move a directory that contains the current working directory.
+  cd "$START_DIR" || exit 1
+  if ! retire "$BUILD_DIR"; then
+    printf 'Could not retire build files; retained at %s\n' "$BUILD_DIR" >&2
+    if [ "$exit_code" -eq 0 ]; then exit_code=1; fi
+  fi
+  exit "$exit_code"
+}
+trap cleanup EXIT
 
 mkdir -p "$BUILD_DIR/lame" "$BUILD_DIR/ffmpeg" "$OUTPUT_DIR"
 tar -xzf "$LAME_ARCHIVE" --strip-components=1 -C "$BUILD_DIR/lame"
@@ -43,7 +63,7 @@ else
   ./configure --prefix="$PREFIX_DIR" --disable-shared --enable-static --disable-frontend > "$BUILD_DIR/lame-config.log" 2>&1
 fi
 make -j2 > "$BUILD_DIR/lame-build.log" 2>&1
-make install > /dev/null 2>&1
+make install > "$BUILD_DIR/lame-install.log" 2>&1
 
 cd "$BUILD_DIR/ffmpeg"
 STATIC_FLAGS=""
