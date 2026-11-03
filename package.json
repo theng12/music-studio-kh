@@ -10,6 +10,7 @@
     "build:android:web": "tsc -p ui/tsconfig.json && vite build --config ui/vite.android.config.ts",
     "build:android": "node scripts/build-android.mjs",
     "test:android-navigation": "node scripts/android-navigation-smoke.mjs",
+    "tauri": "tauri",
     "desktop": "tauri dev",
     "build:desktop": "tauri build",
     "test": "npm run build:web && npm run test:browser"

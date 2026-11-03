@@ -28,6 +28,8 @@ Enter the full Mac profile address shown by Music Studio KH, including its port.
 
 The Mac library keeps its existing responsive layout. Android-only initialization adds 48px player targets, visible focus, a connection bar with the APK version, and spatial arrow navigation. Left/Right retain cursor movement in text fields and adjustment in sliders; Up/Down can leave single-line inputs. OK activates focused controls. Android Back closes the visible dialog/panel, returns to Songs from another page, then returns to the connection screen. Back from the connection screen exits.
 
+On narrow phones the player stacks track information, playback buttons and tools so 48px controls fit without horizontal scrolling. The native WebView stays inside system bars, cutouts and the on-screen keyboard. The lockfile includes Wry 0.57.1's upstream fix for duplicate Android initialization scripts ([upstream change](https://github.com/tauri-apps/wry/pull/1895)); retain the emulator's zero-page-errors and connection-reload checks when updating Wry.
+
 The connection screen contains the app version and CHANGELOG-backed What's new. The remote library may show its own different Mac version; the Android connection bar identifies the APK version separately.
 
 ## Checks and limits

@@ -1,4 +1,6 @@
 (() => {
+  if (window.__MUSIC_ANDROID_NAV_READY__) return;
+  window.__MUSIC_ANDROID_NAV_READY__ = true;
   const local = location.hostname === "tauri.localhost";
   const home = "http://tauri.localhost/android.html";
   const focusable =
@@ -121,6 +123,12 @@
       html[data-music-android-library] .sidebar { top:52px; }
       html[data-music-android-library] .login-screen { min-height:calc(100dvh - 52px); }
       @media(pointer:coarse) { button, .nav-item { min-height:48px; min-width:48px; } }
+      @media(max-width:680px) {
+        .player { grid-template-columns:minmax(0,1fr); gap:8px; }
+        .player .playing-info { grid-row:1; }
+        .player .playback-actions { grid-row:2; flex-wrap:wrap; min-width:0; }
+        .player .player-extras { grid-row:3; flex-wrap:wrap; min-width:0; }
+      }
     `);
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, style];
     if (!local && location.protocol !== "about:") {
