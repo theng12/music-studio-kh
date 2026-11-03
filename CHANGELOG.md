@@ -4,6 +4,8 @@ All notable changes to Music Studio KH are documented in this file.
 
 ## 0.2.8 — 2026-11-03
 
+- Windows x86-64 pilot: build-only, not runtime-tested. The unsigned installer and bundled media-tool checks passed; the Music app window and playback still need Windows testing.
+- Linux x86-64 pilot: runtime-tested using the installed Debian package on a virtual Ubuntu 24.04 desktop. AppImage startup and physical hardware remain untested.
 - Connect the Android client to a Mac library and use the existing sign-in, library and player on phones and tablets.
 - Navigate Android controls with TV remote arrows and OK; use Back to close panels or return to the connection screen.
 - See the Android app version and What’s new. Music, downloads and conversion stay on your Mac; offline and background playback are not yet qualified.
