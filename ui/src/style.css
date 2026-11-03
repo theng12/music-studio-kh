@@ -2315,7 +2315,7 @@ input { caret-color: var(--accent); }
 .brand-mark { display: inline-flex; align-items: center; justify-content: center; }
 .app { padding-bottom: var(--player-clearance, 144px); }
 .lyrics-panel, .player-queue { position: fixed; bottom: var(--player-clearance, 144px); z-index: 25; max-height: max(100px, calc(100dvh - var(--player-clearance, 144px) - 24px)); }
-.player { --control-size: 32px; --control-gap: 4px; left: 242px; right: 16px; bottom: 16px; height: auto; min-height: 88px; padding: 10px 12px; border: 0; border-radius: 16px; background: var(--glass); box-shadow: 0 10px 32px #0003, inset 0 1px var(--glass-highlight); display: grid; grid-template-columns: max-content minmax(120px, 1fr) max-content; gap: 16px; align-items: center; overflow-x: auto; }
+.player { --control-size: 32px; --control-gap: 4px; z-index: 7; left: 242px; right: 16px; bottom: 16px; height: auto; min-height: 88px; padding: 10px 12px; border: 0; border-radius: 16px; background: var(--glass); box-shadow: 0 10px 32px #0003, inset 0 1px var(--glass-highlight); display: grid; grid-template-columns: max-content minmax(120px, 1fr) max-content; gap: 16px; align-items: center; overflow-x: auto; }
 .player .playback-actions, .player .player-extras { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: var(--control-gap); margin: 0; width: auto; min-width: max-content; }
 .player .icon-button, .player .play-button { display: inline-flex; width: var(--control-size); height: var(--control-size); min-width: var(--control-size); min-height: var(--control-size); padding: 0; border-radius: 8px; flex: 0 0 var(--control-size); transition: background-color .15s, color .15s, filter .15s; }
 .player .play-button { box-shadow: none; }
