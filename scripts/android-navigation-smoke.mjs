@@ -60,7 +60,9 @@ try {
     });
   });
   await secured.addInitScript(script);
+  await secured.addInitScript(script);
   await secured.goto("https://music.test/");
+  await expect(secured.locator("#music-android-bar")).toHaveCount(1);
   await expect(secured.locator("#target")).toHaveCSS("width", "48px");
   await expect(secured.locator("#music-android-bar")).toHaveCSS(
     "height",
