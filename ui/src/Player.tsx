@@ -588,96 +588,100 @@ export default function Player({
         </div>
 
         <div className="player-extras">
-          <select
-            id="playback-speed"
-            className="playback-speed"
-            aria-label="Playback speed"
-            title="Playback speed"
-            value={playbackRate}
-            onChange={(e) => setPlaybackRate(Number(e.target.value))}
-          >
-            <option value="0.75">0.75×</option>
-            <option value="1">1×</option>
-            <option value="1.25">1.25×</option>
-            <option value="1.5">1.5×</option>
-            <option value="2">2×</option>
-          </select>
-
-          <button
-            className={"icon-button " + (showLyrics ? "active" : "")}
-            id="lyrics-btn"
-            aria-label="Lyrics"
-            title="Toggle lyrics drawer"
-            onClick={() => setShowLyrics(!showLyrics)}
-          >
-            <Icon name="lyrics" />
-            <span>Lyrics</span>
-          </button>
-
-          <button
-            className={"icon-button " + (showQueue ? "active" : "")}
-            id="queue-btn"
-            aria-label="Show play queue"
-            title="Up next queue"
-            onClick={() => setShowQueue(!showQueue)}
-          >
-            <Icon name="queue" />
-            <span>Queue</span>
-          </button>
-
-          <div className="volume">
-            <button
-              className="icon-button"
-              id="mute-btn"
-              aria-label={muted ? "Unmute" : "Mute"}
-              title={muted ? "Unmute" : "Mute"}
-              onClick={() => setMuted(!muted)}
+          <div className="player-tools">
+            <select
+              id="playback-speed"
+              className="playback-speed"
+              aria-label="Playback speed"
+              title="Playback speed"
+              value={playbackRate}
+              onChange={(e) => setPlaybackRate(Number(e.target.value))}
             >
-              <Icon name={muted || volume === 0 ? "mute" : "volume"} />
+              <option value="0.75">0.75×</option>
+              <option value="1">1×</option>
+              <option value="1.25">1.25×</option>
+              <option value="1.5">1.5×</option>
+              <option value="2">2×</option>
+            </select>
+
+            <button
+              className={"icon-button " + (showLyrics ? "active" : "")}
+              id="lyrics-btn"
+              aria-label="Lyrics"
+              title="Toggle lyrics drawer"
+              onClick={() => setShowLyrics(!showLyrics)}
+            >
+              <Icon name="lyrics" />
+              <span>Lyrics</span>
             </button>
-            <input
-              id="volume"
-              aria-label="Volume"
-              type="range"
-              min="0"
-              max="1"
-              step=".01"
-              value={muted ? 0 : volume}
-              onChange={(e) => {
-                setVolume(Number(e.target.value));
-                if (muted) setMuted(false);
-              }}
-            />
+
+            <button
+              className={"icon-button " + (showQueue ? "active" : "")}
+              id="queue-btn"
+              aria-label="Show play queue"
+              title="Up next queue"
+              onClick={() => setShowQueue(!showQueue)}
+            >
+              <Icon name="queue" />
+              <span>Queue</span>
+            </button>
           </div>
 
-          <div className="window-controls">
-            <button
-              className={"icon-button " + (miniMode ? "active" : "")}
-              id="mini-player-btn"
-              aria-label={miniMode ? "Exit mini player" : "Mini player mode"}
-              title={miniMode ? "Exit mini player mode" : "Mini player mode"}
-              onClick={toggleMini}
-            >
-              <Icon name="expand" />
-            </button>
-            <button
-              className={"icon-button " + (pinned ? "active pinned" : "")}
-              id="pin-window-btn"
-              aria-label={pinned ? "Unpin window" : "Pin window on top"}
-              title={pinned ? "Unpin window" : "Pin window on top"}
-              onClick={togglePin}
-            >
-              <Icon name="pin" />
-            </button>
-            <button
-              className="icon-button"
-              id="hide-window-btn"
-              aria-label="Hide to menu bar"
-              title="Hide to menu bar"
-              onClick={hideToMenuBar}
-            >
-              <Icon name="chevron" className="chevron-down" />
-            </button>
+          <div className="player-secondary">
+            <div className="volume">
+              <button
+                className="icon-button"
+                id="mute-btn"
+                aria-label={muted ? "Unmute" : "Mute"}
+                title={muted ? "Unmute" : "Mute"}
+                onClick={() => setMuted(!muted)}
+              >
+                <Icon name={muted || volume === 0 ? "mute" : "volume"} />
+              </button>
+              <input
+                id="volume"
+                aria-label="Volume"
+                type="range"
+                min="0"
+                max="1"
+                step=".01"
+                value={muted ? 0 : volume}
+                onChange={(e) => {
+                  setVolume(Number(e.target.value));
+                  if (muted) setMuted(false);
+                }}
+              />
+            </div>
+
+            <div className="window-controls">
+              <button
+                className={"icon-button " + (miniMode ? "active" : "")}
+                id="mini-player-btn"
+                aria-label={miniMode ? "Exit mini player" : "Mini player mode"}
+                title={miniMode ? "Exit mini player mode" : "Mini player mode"}
+                onClick={toggleMini}
+              >
+                <Icon name="expand" />
+              </button>
+              <button
+                className={"icon-button " + (pinned ? "active pinned" : "")}
+                id="pin-window-btn"
+                aria-label={pinned ? "Unpin window" : "Pin window on top"}
+                title={pinned ? "Unpin window" : "Pin window on top"}
+                onClick={togglePin}
+              >
+                <Icon name="pin" />
+              </button>
+              <button
+                className="icon-button"
+                id="hide-window-btn"
+                aria-label="Hide to menu bar"
+                title="Hide to menu bar"
+                onClick={hideToMenuBar}
+              >
+                <Icon name="chevron" className="chevron-down" />
+              </button>
+            </div>
           </div>
         </div>
 
