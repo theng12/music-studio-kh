@@ -398,6 +398,20 @@ try {
       await page.locator("#player-window-btn").scrollIntoViewIfNeeded();
       assert(await page.locator("#player-window-btn").isVisible());
     }
+    if (width > 680)
+      assert(
+        await page.evaluate(() =>
+          [...document.querySelectorAll(".player button")].every((button) => {
+            const r = button.getBoundingClientRect();
+            return (
+              document
+                .elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+                ?.closest("button") === button
+            );
+          }),
+        ),
+        `another surface covers player controls at ${width}px`,
+      );
     layouts.push(layout);
     if ([1360, 760].includes(width))
       await page.screenshot({
