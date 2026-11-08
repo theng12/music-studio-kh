@@ -55,13 +55,18 @@ def launch(app, version, evidence):
     executable = app / "Contents/MacOS/tuneharbor-server"
     run(str(executable), "--data", str(data), "profile", "create", "--library", str(music),
         "--port", str(port), "--username", "signing-check", "--password-file", str(password_file))
+    profile = next(path.name for path in data.iterdir() if path.is_dir())
+    fifo = work / "desktop-input.fifo"
+    os.mkfifo(fifo, 0o600)
+    input_fd = os.open(fifo, os.O_RDWR | os.O_NONBLOCK)
     label = "app.tuneharbor.signing-test." + secrets.token_hex(8)
     domain = f"gui/{os.getuid()}"
     service = domain + "/" + label
     job = work / "job.plist"
     job.write_bytes(plistlib.dumps({
         "Label": label,
-        "ProgramArguments": [str(executable), "--data", str(data), "serve", "--tools", str(executable.parent)],
+        "ProgramArguments": [str(executable), "--data", str(data), "desktop", "--tools", str(executable.parent)],
+        "StandardInPath": str(fifo),
         "RunAtLoad": True,
         "StandardOutPath": str(work / "stdout.log"),
         "StandardErrorPath": str(work / "stderr.log"),
@@ -71,6 +76,7 @@ def launch(app, version, evidence):
     try:
         run("launchctl", "bootstrap", domain, str(job))
         loaded = True
+        os.write(input_fd, (json.dumps({"id": 1, "method": "start", "params": {"id": profile}}) + "\n").encode())
         query = urllib.parse.urlencode({"u": "signing-check", "p": password, "v": "1.16.1", "c": "signing-test", "f": "json"})
         url = f"http://127.0.0.1:{port}/rest/ping.view?{query}"
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -116,6 +122,7 @@ def launch(app, version, evidence):
             assert result.returncode != 0, "Owned test job still loaded after process exit"
         # Retain all fixture evidence; blank the generated test password.
         password_file.write_text("")
+        os.close(input_fd)
 
 
 def capture(app, evidence):
@@ -135,8 +142,15 @@ def capture(app, evidence):
         if path.is_file():
             with path.open("rb") as source:
                 hashes[name] = hashlib.file_digest(source, "sha256").hexdigest()
+    startup_seconds = {}
+    for name in TOOLS[1:]:
+        started = time.monotonic()
+        argument = "-version" if name in ("ffmpeg", "ffprobe") else "--version"
+        subprocess.run([str(paths[name]), argument], check=True, capture_output=True, timeout=60)
+        startup_seconds[name] = round(time.monotonic() - started, 3)
     version = metadata["CFBundleShortVersionString"]
-    return {"version": version, "requirements": requirements, "hashes": hashes, "launchd": launch(app, version, evidence)}
+    return {"version": version, "requirements": requirements, "hashes": hashes,
+            "runtimeStartupSeconds": startup_seconds, "launchd": launch(app, version, evidence)}
 
 
 def self_test():
