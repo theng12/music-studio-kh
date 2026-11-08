@@ -15,10 +15,10 @@
     "macOS": {
       "signingIdentity": "KH Studio Local Signing",
       "hardenedRuntime": false,
-      "frameworks": ["runtime-tools/yt-dlp-framework/Python.framework"],
+      "frameworks": ["runtime-tools-macos-bundle/Python.framework"],
       "files": {
-        "Resources/yt-dlp-internal": "runtime-tools/_internal-for-bundle",
-        "Frameworks": "runtime-tools/framework-links"
+        "Resources/yt-dlp-internal": "runtime-tools-macos-bundle/runtime",
+        "Frameworks": "runtime-tools-macos-bundle/links"
       }
     }
   }

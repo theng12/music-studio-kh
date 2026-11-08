@@ -41,16 +41,17 @@ for tool,key in [('yt-dlp','ytDlp'),('deno','deno')]:
   original=out/'_internal/Python.framework'
   versions=[item for item in (original/'Versions').iterdir() if item.is_dir() and item.name!='Current']
   if len(versions)!=1:raise RuntimeError('Expected one bundled Python framework version')
-  framework=out/'yt-dlp-framework/Python.framework'
+  bundle=out.with_name(out.name+'-macos-bundle')
+  framework=bundle/'Python.framework'
   shutil.copytree(versions[0],framework/'Versions'/versions[0].name,dirs_exist_ok=True)
   for link,target in [(framework/'Versions/Current',versions[0].name),(framework/'Python','Versions/Current/Python'),(framework/'Resources','Versions/Current/Resources')]:
    if not link.is_symlink():link.symlink_to(target)
    if os.readlink(link)!=target:raise RuntimeError('Prepare changed Python versions into a fresh output directory')
   # Tauri signs the canonical framework; keep its runtime lookup relative to the installed bundle.
-  internal=out/'_internal-for-bundle'
+  internal=bundle/'runtime'
   shutil.copytree(out/'_internal',internal,ignore=shutil.ignore_patterns('Python.framework','Python'),dirs_exist_ok=True)
   # PyInstaller detects Contents/MacOS and loads from Frameworks instead of _internal.
-  links=out/'framework-links';links.mkdir(exist_ok=True)
+  links=bundle/'links';links.mkdir(exist_ok=True)
   targets={item.name:'../Resources/yt-dlp-internal/'+item.name for item in (out/'_internal').iterdir() if item.name not in ('Python.framework','Python')}
   targets['Python']='Python.framework/Python'
   for name,target in targets.items():
