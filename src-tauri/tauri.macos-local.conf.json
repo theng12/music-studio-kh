@@ -14,7 +14,12 @@
     ],
     "macOS": {
       "signingIdentity": "KH Studio Local Signing",
-      "hardenedRuntime": false
+      "hardenedRuntime": false,
+      "frameworks": ["runtime-tools/yt-dlp-framework/Python.framework"],
+      "files": {
+        "Resources/yt-dlp-internal": "runtime-tools/_internal-for-bundle",
+        "Frameworks": "runtime-tools/framework-links"
+      }
     }
   }
 }
