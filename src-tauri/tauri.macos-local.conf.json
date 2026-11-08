@@ -1,0 +1,20 @@
+{
+  "bundle": {
+    "externalBin": [
+      "binaries/tuneharbor-server",
+      "binaries/ffmpeg",
+      "binaries/ffprobe",
+      "binaries/yt-dlp",
+      "binaries/deno"
+    ],
+    "resources": [
+      "runtime-tools/notices/",
+      "runtime-tools/sources/",
+      "runtime-tools/provenance.json"
+    ],
+    "macOS": {
+      "signingIdentity": "KH Studio Local Signing",
+      "hardenedRuntime": false
+    }
+  }
+}

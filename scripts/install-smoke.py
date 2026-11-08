@@ -16,8 +16,10 @@ elif platform.system()=='Darwin':
  package=next(bundle.rglob('*.dmg'));mount=root/'artifacts/dmg-mount';mount.mkdir(parents=True,exist_ok=True)
  run('hdiutil','attach','-nobrowse','-mountpoint',str(mount),str(package))
  try:
-  app=next(mount.glob('*.app'));assert (app/'Contents/MacOS/tuneharbor-server').exists();ffmpeg=next(app.rglob('runtime-tools/ffmpeg'));print(run(str(ffmpeg),'-version').splitlines()[0])
-  # Development builds are ad-hoc signed; this checks the bundle seal, not a Developer ID or notarization.
+  app=next(mount.glob('*.app'));assert (app/'Contents/MacOS/tuneharbor-server').exists();ffmpeg=app/'Contents/MacOS/ffmpeg'
+  if not ffmpeg.is_file():ffmpeg=next(app.rglob('runtime-tools/ffmpeg'))
+  print(run(str(ffmpeg),'-version').splitlines()[0])
+  # Check the bundle seal for both ad-hoc CI and locally signed builds, not notarization.
   print(run('codesign','--verify','--deep','--strict','--verbose=2',str(app)))
  finally:run('hdiutil','detach',str(mount))
 else:

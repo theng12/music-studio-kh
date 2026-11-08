@@ -377,7 +377,17 @@ fn main() {
         .setup(|app| {
             let data = app.path().config_dir()?.join("TuneHarbor").join("profiles");
             let resources = app.path().resource_dir()?.join("runtime-tools");
-            let tools = if resources.is_dir() {
+            // Signed Mac releases package runtime executables as Tauri sidecars.
+            let mac_tools = std::env::current_exe()?.parent().map(PathBuf::from);
+            let tools = if cfg!(target_os = "macos")
+                && mac_tools.as_ref().is_some_and(|dir| {
+                    ["ffmpeg", "ffprobe", "yt-dlp", "deno"]
+                        .iter()
+                        .all(|tool| dir.join(tool).is_file())
+                })
+            {
+                mac_tools.ok_or("Mac runtime directory missing")?
+            } else if resources.is_dir() {
                 resources
             } else {
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("runtime-tools")
