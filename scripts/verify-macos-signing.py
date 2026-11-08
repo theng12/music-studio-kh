@@ -76,7 +76,9 @@ def launch(app, version, evidence):
     try:
         run("launchctl", "bootstrap", domain, str(job))
         loaded = True
-        os.write(input_fd, (json.dumps({"id": 1, "method": "start", "params": {"id": profile}}) + "\n").encode())
+        requests = [{"id": 1, "method": "doctor", "params": {}},
+                    {"id": 2, "method": "start", "params": {"id": profile}}]
+        os.write(input_fd, ("\n".join(json.dumps(request) for request in requests) + "\n").encode())
         query = urllib.parse.urlencode({"u": "signing-check", "p": password, "v": "1.16.1", "c": "signing-test", "f": "json"})
         url = f"http://127.0.0.1:{port}/rest/ping.view?{query}"
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -91,6 +93,9 @@ def launch(app, version, evidence):
                 if time.monotonic() >= deadline:
                     raise RuntimeError("Packaged launch did not become healthy within 20 seconds") from None
                 time.sleep(0.2)
+        with (work / "stdout.log").open() as output:
+            doctor = json.loads(output.readline())
+        assert doctor.get("id") == 1 and doctor.get("result", {}).get("ok") is True and not doctor.get("error"), "Packaged Doctor failed"
         state = run("launchctl", "print", service)
         match = re.search(r"^\s*pid = (\d+)$", state, re.M)
         assert match, "Launch job has no surviving PID"
@@ -101,7 +106,7 @@ def launch(app, version, evidence):
         # A second authenticated request checks that the job survives its first response.
         with opener.open(url, timeout=2) as response:
             assert json.load(response)["subsonic-response"]["serverVersion"] == version
-        return {"passed": True, "label": label, "pid": pid, "port": port, "work": str(work)}
+        return {"passed": True, "doctorPassed": True, "label": label, "pid": pid, "port": port, "work": str(work)}
     finally:
         if loaded:
             # bootout can return before the process exits; wait on its kernel event.
@@ -132,6 +137,8 @@ def capture(app, evidence):
     run("codesign", "--verify", "--deep", "--strict", str(app))
     paths = {"bundle": app, "app": app / "Contents/MacOS" / metadata["CFBundleExecutable"]}
     paths.update({name: app / "Contents/MacOS" / name for name in TOOLS})
+    paths["python-framework"] = app / "Contents/Frameworks/Python.framework"
+    paths["python-runtime"] = paths["python-framework"] / "Python"
     requirements, hashes = {}, {}
     for name, path in paths.items():
         run("codesign", "--verify", "--strict", str(path))

@@ -235,6 +235,7 @@ for tool in tuneharbor-server ffmpeg ffprobe yt-dlp deno; do
   codesign --verify --strict --verbose=2 "$app/Contents/MacOS/$tool"
 done
 codesign --verify --deep --strict --verbose=2 "$app"
+python3 -I scripts/test-ytdlp-startup.py "$app/Contents/MacOS/yt-dlp" --budget-seconds 15 --receipt "artifacts/yt-dlp-startup-${version}.json"
 python3 -I scripts/verify-macos-signing.py --app "$app" --receipt "artifacts/signing-${version}.json"
 
 step "Retaining packager-created DMG"
