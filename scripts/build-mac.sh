@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build portable ad-hoc-signed Music Studio KH .app and DMG under artifacts/.
+# Build portable locally signed Music Studio KH .app and DMG under artifacts/.
 #
 # Usage:
 #   bash scripts/build-mac.sh          # Full build
@@ -63,6 +63,11 @@ require_tool hdiutil "hdiutil is a built-in macOS tool."
 require_tool codesign "codesign is part of macOS command line tools."
 require_tool otool "otool is part of macOS command line tools."
 require_tool vtool "vtool is part of Xcode command line tools."
+
+step "Checking the existing local Keychain identity (no imports or trust changes)"
+[ -z "${APPLE_CERTIFICATE:-}" ] && [ -z "${APPLE_CERTIFICATE_PASSWORD:-}" ] || fail "use the existing Keychain identity, not certificate imports"
+[ -z "${APPLE_SIGNING_IDENTITY:-}" ] || [ "$APPLE_SIGNING_IDENTITY" = "KH Studio Local Signing" ] || fail "preserve the explicitly selected identity; review the local signing configuration first"
+security find-identity -p codesigning | grep -F '"KH Studio Local Signing"' >/dev/null || fail "KH Studio Local Signing certificate/private-key pair is missing; do not create a replacement"
 
 step "Reading project configuration and verifying version consistency"
 [ -f src-tauri/tauri.conf.json ] || fail "src-tauri/tauri.conf.json not found."
@@ -170,9 +175,11 @@ else
 fi
 
 step "Preparing verified runtime tools (yt-dlp, Deno, LGPL FFmpeg)"
-if [ -d "src-tauri/runtime-tools" ]; then
-  retire "src-tauri/runtime-tools"
-fi
+for directory in src-tauri/runtime-tools src-tauri/runtime-tools-macos-bundle; do
+  if [ -d "$directory" ]; then
+    retire "$directory"
+  fi
+done
 python3 scripts/prepare-runtime.py --target "$runtime" --ffmpeg-dir "artifacts/native-ffmpeg"
 for tool in ffmpeg ffprobe yt-dlp deno; do
   [ -x "src-tauri/runtime-tools/$tool" ] || fail "runtime tool missing or not executable: src-tauri/runtime-tools/$tool"
@@ -193,11 +200,16 @@ fi
 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X github.com/theng12/tuneharbor/internal/server.appVersion=$version" -o "$sidecar_bin" ./cmd/tuneharbor
 chmod 0755 "$sidecar_bin"
 
+# externalBin makes Tauri sign each runtime before sealing the outer bundle.
+for tool in ffmpeg ffprobe yt-dlp deno; do
+  cp "src-tauri/runtime-tools/$tool" "src-tauri/binaries/$tool-$triple"
+done
+
 step "Collecting dependency notices"
 python3 scripts/collect-notices.py
 
 step "Building .app bundle via Tauri"
-npm run build:desktop -- --bundles app
+npm run build:desktop -- --config src-tauri/tauri.macos-local.conf.json --bundles app,dmg
 
 app="src-tauri/target/release/bundle/macos/${product_name}.app"
 if [ ! -d "$app" ]; then
@@ -215,44 +227,30 @@ validate_plist() {
 
 validate_plist "$app/Contents/Info.plist"
 
-step "Ad-hoc code-signing nested binaries and application bundle"
+step "Verifying packager signatures (no post-build signing)"
 exe_name="$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$app/Contents/Info.plist")"
 [ -n "$exe_name" ] || fail "could not read CFBundleExecutable from $app/Contents/Info.plist"
 [ -x "$app/Contents/MacOS/$exe_name" ] || fail "executable $app/Contents/MacOS/$exe_name not found or not executable"
 [ -x "$app/Contents/MacOS/tuneharbor-server" ] || fail "sidecar binary $app/Contents/MacOS/tuneharbor-server not found or not executable"
 
-# Four runtime tools (explicit signing, no error suppression)
-codesign --force --sign - "$app/Contents/Resources/runtime-tools/ffmpeg"
-codesign --force --sign - "$app/Contents/Resources/runtime-tools/ffprobe"
-codesign --force --sign - "$app/Contents/Resources/runtime-tools/yt-dlp"
-codesign --force --sign - "$app/Contents/Resources/runtime-tools/deno"
-
-# MacOS binaries (explicit signing of CFBundleExecutable and sidecar, no error suppression)
-codesign --force --sign - "$app/Contents/MacOS/tuneharbor-server"
-codesign --force --sign - "$app/Contents/MacOS/$exe_name"
-
-# Deep sign the app bundle
-codesign --force --deep --sign - "$app"
-# Strict verification
+for tool in tuneharbor-server ffmpeg ffprobe yt-dlp deno; do
+  codesign --verify --strict --verbose=2 "$app/Contents/MacOS/$tool"
+done
 codesign --verify --deep --strict --verbose=2 "$app"
+python3 -I scripts/test-ytdlp-startup.py "$app/Contents/MacOS/yt-dlp" --budget-seconds 15 --receipt "artifacts/yt-dlp-startup-${version}.json"
+python3 -I scripts/verify-macos-signing.py --app "$app" --receipt "artifacts/signing-${version}.json"
 
-step "Creating and signing deterministic DMG"
+step "Retaining packager-created DMG"
 mkdir -p artifacts
-dmg_name="${product_name}-${version}.dmg"
-dmg_path="artifacts/${dmg_name}"
-if [ -e "$dmg_path" ]; then
-  retire "$dmg_path"
-fi
-
-dmg_staging="$(mktemp -d /tmp/dmg-staging.XXXXXX)"
-cp -R "$app" "$dmg_staging/"
-ln -s /Applications "$dmg_staging/Applications"
-
-hdiutil create -volname "$product_name" -srcfolder "$dmg_staging" -ov -format UDZO "$dmg_path"
-retire "$dmg_staging"
-
-codesign --force --sign - "$dmg_path"
-codesign --verify --verbose=2 "$dmg_path"
+dmg_path="artifacts/${product_name}-${version}.dmg"
+[ ! -e "$dmg_path" ] || fail "artifact already exists; preserve it and choose a fresh release version: $dmg_path"
+bundle_dir="$(dirname "$(dirname "$app")")"
+packaged_dmgs=("$bundle_dir/dmg/${product_name}_${version}_"*.dmg)
+[ "${#packaged_dmgs[@]}" -eq 1 ] || fail "expected exactly one packaged DMG for $version"
+packaged_dmg="${packaged_dmgs[0]}"
+[ -f "$packaged_dmg" ] || fail "packager DMG missing: $packaged_dmg"
+codesign --verify --verbose=2 "$packaged_dmg"
+cp "$packaged_dmg" "$dmg_path"
 
 step "Verifying DMG payload"
 verify_mount="$(mktemp -d /tmp/dmg-verify.XXXXXX)"
