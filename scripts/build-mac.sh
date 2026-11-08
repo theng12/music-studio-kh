@@ -175,9 +175,11 @@ else
 fi
 
 step "Preparing verified runtime tools (yt-dlp, Deno, LGPL FFmpeg)"
-if [ -d "src-tauri/runtime-tools" ]; then
-  retire "src-tauri/runtime-tools"
-fi
+for directory in src-tauri/runtime-tools src-tauri/runtime-tools-macos-bundle; do
+  if [ -d "$directory" ]; then
+    retire "$directory"
+  fi
+done
 python3 scripts/prepare-runtime.py --target "$runtime" --ffmpeg-dir "artifacts/native-ffmpeg"
 for tool in ffmpeg ffprobe yt-dlp deno; do
   [ -x "src-tauri/runtime-tools/$tool" ] || fail "runtime tool missing or not executable: src-tauri/runtime-tools/$tool"

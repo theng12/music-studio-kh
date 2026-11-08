@@ -11,6 +11,7 @@ artifacts/
 .superpowers/
 src-tauri/binaries/
 src-tauri/runtime-tools/
+src-tauri/runtime-tools-macos-bundle/
 src-tauri/gen/
 
 __pycache__/
