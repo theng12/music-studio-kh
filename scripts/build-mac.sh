@@ -4,11 +4,19 @@
 # Usage:
 #   bash scripts/build-mac.sh          # Full build
 #   bash scripts/build-mac.sh --check  # Quick preflight / portability validation
+#   bash scripts/build-mac.sh --retain-accepted /absolute/accepted-pins.json
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 step() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 fail() { printf '\n\033[31mStopped: %s\033[0m\n' "$1" >&2; exit 1; }
+
+# Only the post-install acceptance caller supplies these trusted pins; builds never promote themselves.
+if [ "${1:-}" = "--retain-accepted" ]; then
+  [ "$#" -eq 2 ] || fail "usage: build-mac.sh --retain-accepted /absolute/accepted-pins.json"
+  helper="${RELEASE_DIST_HELPER:-${HOME}/Developer/Shared Tools/portfolio/tools/release-dist.py}"
+  exec python3 -I -B "$helper" "$2"
+fi
 
 # Protecting work: never rm. Move to trash preserving directory structure.
 retire() {

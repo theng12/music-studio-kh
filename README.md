@@ -25,13 +25,31 @@ No code was copied from Navidrome or MeTube.
 
 ## Build the app on your Mac
 
-`scripts/build-mac.sh` produces an ad-hoc signed Music Studio KH DMG under `artifacts/`, without installing or opening the app. It builds for this Mac's processor and needs Apple's command line tools, Go, Node.js, Rust, Python, make and pkg-config. Missing tools are reported before building. The app requires macOS 13 or later; this release was tested on Apple Silicon, and Intel remains unverified. From the project folder:
+`scripts/build-mac.sh` produces a Music Studio KH DMG signed with the existing `KH Studio Local Signing` identity under `artifacts/`, without installing or opening the app. It builds for this Mac's processor and needs Apple's command line tools, Go, Node.js, Rust, Python, make and pkg-config. Missing tools are reported before building. The app requires macOS 13 or later; this release was tested on Apple Silicon, and Intel remains unverified. From the project folder:
 
 ```sh
 bash scripts/build-mac.sh
 ```
 
 The first build includes compiling LGPL FFmpeg from checksum-verified sources; later builds reuse compatible audio tools. The DMG bundles yt-dlp, Deno, FFmpeg, ffprobe and their notices, so the installed app needs no Homebrew tools. The script prints the DMG path, SHA-256, bundle identifier and version for Update Studio KH's `app-dmg` recipe. It does not publish to the update feed. Cross-platform installers are also available through the manually started **Desktop installers** workflow or a `v*` tag.
+
+### Retain accepted macOS installers
+
+After installing, launching and verifying a release, the release operator records the latest two accepted versions in a trusted JSON pin document and runs this post-acceptance mode:
+
+```sh
+bash scripts/build-mac.sh --retain-accepted /absolute/accepted-pins.json
+```
+
+This delegates to the shared `~/Developer/Shared Tools/portfolio/tools/release-dist.py` ([contract](../../Shared%20Tools/portfolio/README.md#release-dist-retention)); `RELEASE_DIST_HELPER` can select another installed helper path. The pin document has `schema: 1` and an `apps` list containing `app`, the absolute canonical `project` folder (not a temporary build checkout), and `releases`. Each release names `version`, absolute DMG `source`, exact `sha256`, `bytes`, and retained installed/native acceptance `evidence`. Use one release only when no previous accepted version exists. Never select an arbitrary newest file or promote a build awaiting intended-machine proof.
+
+The helper copies the pinned DMGs to canonical `dist/Music Studio KH-<version>.dmg`, verifies their hashes and sizes, and records them in `dist/.release-dist.json`. Sources and acceptance receipts stay in place. After all desired copies succeed, only obsolete files managed by this helper retire recoverably to the canonical project's `_trash/dist/`; unrelated files such as `dist/android/` stay untouched. The caller checks active-job/dependency and quiet-point constraints before rotation. A rejected candidate does not retire the previous working pair; earlier successful copies in the same invocation may remain recorded. Ordinary builds do not call this mode, and it neither builds nor decides acceptance.
+
+Run the focused normal-flow, idempotence and failed-candidate checks with mock DMGs and the installed shared helper:
+
+```sh
+python3 -I -B scripts/test-release-dist.py
+```
 
 ## Run the development build
 
