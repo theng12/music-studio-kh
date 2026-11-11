@@ -1,29 +1,212 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export PATH="/opt/homebrew/opt/rustup/bin:/opt/homebrew/bin:$PATH"
+export PATH="$PATH:/opt/homebrew/opt/rustup/bin:/opt/homebrew/bin"
 cd "$(git rev-parse --show-toplevel)"
+exec python3 -I - <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import shutil
+import stat
+import subprocess
+import sys
 
-echo "==> [pre-push] Checking git object & ref integrity..."
-git fsck --full
 
-echo "==> [pre-push] Checking Go vet & race tests..."
-go vet ./...
-go test -race ./...
+def output(*args):
+    return subprocess.check_output(args).decode().strip()
 
-echo "==> [pre-push] Checking UI build & embedded web assets sync..."
-npm run build:web
-if ! git diff --exit-code -- internal/server/web || [ -n "$(git status --porcelain -- internal/server/web)" ]; then
-  echo "FAIL: internal/server/web is out of sync with ui/. Commit the built assets." >&2
-  exit 1
-fi
 
-echo "==> [pre-push] Checking Rust / Tauri unit tests..."
-triple="$(rustc -vV | sed -n 's/^host: //p')"
-mkdir -p src-tauri/binaries src-tauri/runtime-tools
-if [ ! -f "src-tauri/binaries/music-studio-kh-server-$triple" ]; then
-  CGO_ENABLED=0 go build -o "src-tauri/binaries/music-studio-kh-server-$triple" ./cmd/music-studio-kh
-fi
-cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
+def run(*args):
+    subprocess.run(args, check=True)
 
-echo "==> [pre-push] All checks passed."
+
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def file_hash(path):
+    value = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            value.update(chunk)
+    return value.hexdigest()
+
+
+def files_hash(paths):
+    entries = []
+
+    def visit(path):
+        if path.is_symlink() and path.is_dir():
+            raise ValueError("directory symlink is not a bounded input")
+        if path.is_dir():
+            for child in sorted(path.iterdir()):
+                # Tauri generates schemas here; neither directory is a unit-test source input.
+                if child not in (Path("src-tauri/target"), Path("src-tauri/gen")):
+                    visit(child)
+        elif path.exists():
+            entries.append([str(path), stat.S_IMODE(path.stat().st_mode),
+                            os.readlink(path) if path.is_symlink() else None,
+                            file_hash(path)])
+        else:
+            entries.append([str(path), None])
+
+    for path in paths:
+        visit(Path(path))
+    return digest(json.dumps(entries, sort_keys=True).encode())
+
+
+def dirty_inputs(paths):
+    covered = [str(Path(path).absolute().relative_to(Path.cwd())) for path in paths
+               if Path(path).absolute().is_relative_to(Path.cwd())]
+    return bool(output("git", "status", "--porcelain", "--untracked-files=all", "--", *covered))
+
+
+def inputs(paths, tools, dependencies):
+    try:
+        # Receipts cover installed dependency bytes as well as the lockfiles.
+        if any(not Path(path).is_dir() for path in dependencies):
+            return None
+        identities = []
+        for tool, args in tools:
+            executable = shutil.which(tool)
+            if not executable:
+                return None
+            version = output(executable, *args)
+            if not version:
+                return None
+            identities.append([str(Path(executable).resolve()),
+                               file_hash(executable), digest(version.encode())])
+            # rustup/go launchers can stay unchanged while their selected compiler changes.
+            if tool == "rustc":
+                sysroot = output(executable, "--print", "sysroot")
+                if not sysroot:
+                    return None
+                compiler = Path(sysroot) / "bin" / ("rustc.exe" if os.name == "nt" else "rustc")
+                if not compiler.is_file():
+                    return None
+                dependencies = dependencies + [str(compiler)]
+            if tool == "go" and args == ["version"]:
+                tool_directory = output(executable, "env", "GOTOOLDIR")
+                if not tool_directory:
+                    return None
+                compiler_tools = Path(tool_directory)
+                if not compiler_tools.is_dir():
+                    return None
+                dependencies = dependencies + [str(compiler_tools)]
+        if any(tool == "cargo" for tool, _ in tools):
+            metadata = json.loads(output("cargo", "metadata", "--offline", "--locked",
+                                         "--format-version=1", "--manifest-path", "src-tauri/Cargo.toml"))
+            dependencies = dependencies + [str(Path(package["manifest_path"]).parent)
+                                           for package in metadata["packages"]
+                                           if Path(package["manifest_path"]).parent.resolve() != Path("src-tauri").resolve()]
+        if any(tool == "go" for tool, _ in tools):
+            settings = json.loads(output("go", "env", "-json"))
+            # shortcut: local Go workspaces/replacements need their external sources inventoried before reuse.
+            if settings.get("GOWORK") not in (None, "", "off") or "replace" in Path("go.mod").read_text():
+                return None
+            if not settings.get("GOENV"):
+                return None
+            paths = paths + [settings["GOENV"]]
+        if any(tool == "npm" for tool, _ in tools):
+            paths = paths + [output("npm", "config", "get", name) for name in ("userconfig", "globalconfig")]
+            if any(not path for path in paths):
+                return None
+        source = files_hash(paths + dependencies)
+        # Only a digest is saved: the environment may contain private values.
+        environment = {k: v for k, v in os.environ.items()
+                       if k not in ("_", "SHLVL", "PWD", "OLDPWD")}
+        return {"source": source, "tools": identities, "dirty": dirty_inputs(paths),
+                "python": [sys.version, file_hash(sys.executable)], "host": list(platform.uname()),
+                "environment": digest(json.dumps(environment, sort_keys=True).encode())}
+    except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError):
+        return None
+
+
+def lane(name, paths, tools, dependencies, commands):
+    paths = [".githooks/pre-push"] + paths
+    receipt = cache / (name + ".json")
+    log = cache / (name + ".log")
+    before = inputs(paths, tools, dependencies)
+    dirty = dirty_inputs(paths) or (before is not None and before["dirty"])
+    try:
+        saved = json.loads(receipt.read_text())
+        if not isinstance(saved, dict):
+            saved = {}
+    except (OSError, ValueError):
+        saved = {}
+    if (before is not None and not dirty and saved.get("schema") == 1
+            and saved.get("inputs") == before and saved.get("commands") == commands
+            and saved.get("exit") == 0 and log.is_file()
+            and saved.get("logSha256") == digest(log.read_bytes())):
+        print(f"==> [pre-push] Reused {name}: {receipt} (source {saved.get('commit')})", flush=True)
+        return
+    # Invalidate before execution so a failing or interrupted retry cannot expose an old pass.
+    receipt.write_text(json.dumps({"schema": 1, "exit": None}) + "\n")
+    print(f"==> [pre-push] Checking {name} (missing, dirty or changed evidence)", flush=True)
+    with log.open("wb") as stream:
+        for command in commands:
+            stream.write(("$ " + " ".join(command) + "\n").encode())
+            stream.flush()
+            result = subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT)
+            if result.returncode:
+                print(log.read_text(errors="replace"), flush=True)
+                raise SystemExit(result.returncode)
+    print(log.read_text(errors="replace"), flush=True)
+    after = inputs(paths, tools, dependencies)
+    if before is not None and after != before:
+        raise SystemExit(f"FAIL: {name} inputs changed during verification; run again on stable inputs.")
+    if before is not None and before == after and not dirty:
+        saved = {"schema": 1, "commit": output("git", "rev-parse", "HEAD"),
+                 "inputs": after, "commands": commands, "exit": 0,
+                 "logSha256": digest(log.read_bytes())}
+        temporary = receipt.with_suffix(".tmp")
+        temporary.write_text(json.dumps(saved, indent=2) + "\n")
+        temporary.replace(receipt)
+
+
+try:
+    print("==> [pre-push] Checking git object & ref integrity...", flush=True)
+    run("git", "fsck", "--full")
+    cache = Path(output("git", "rev-parse", "--git-path", "music-pre-push"))
+    cache.mkdir(exist_ok=True)
+    # Refuse concurrent hooks rather than interleave their receipts and logs.
+    lock = cache / "running"
+    descriptor = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    try:
+        common = ["go.mod", "go.sum", "cmd", "internal", "tests"]
+        go_config = ["go.work", "go.work.sum"]
+        lane("go", common + go_config,
+             [("go", ["version"]), ("go", ["env", "-json"]),
+              ("go", ["mod", "verify"]), ("cc", ["--version"])], [],
+             [["go", "vet", "./..."], ["go", "test", "-race", "./..."]])
+        lane("web", ["ui", "internal/server/web", "package.json", "package-lock.json", ".npmrc"],
+             [("node", ["--version"]), ("npm", ["--version"])], ["node_modules"],
+             [["npm", "run", "build:web"]])
+        # Always check current assets, including untracked output, even when the build was reused.
+        run("git", "diff", "--exit-code", "--", "internal/server/web")
+        if output("git", "status", "--porcelain", "--", "internal/server/web"):
+            raise SystemExit("FAIL: internal/server/web is out of sync with ui/. Commit the built assets.")
+        triple = output("rustc", "-vV").split("host: ")[1].splitlines()[0]
+        Path("src-tauri/binaries").mkdir(exist_ok=True)
+        Path("src-tauri/runtime-tools").mkdir(exist_ok=True)
+        sidecar = Path("src-tauri/binaries/music-studio-kh-server-" + triple)
+        if not sidecar.is_file():
+            subprocess.run(["go", "build", "-o", str(sidecar), "./cmd/music-studio-kh"],
+                           env=dict(os.environ, CGO_ENABLED="0"), check=True)
+        cargo_home = Path(os.environ.get("CARGO_HOME", str(Path.home() / ".cargo")))
+        cargo_configs = [str(parent / ".cargo" / name) for parent in [Path.cwd(), *Path.cwd().parents]
+                         for name in ("config", "config.toml")]
+        lane("rust", common + ["src-tauri", "rust-toolchain", "rust-toolchain.toml",
+                              str(cargo_home / "config"), str(cargo_home / "config.toml")] + cargo_configs,
+             [("rustc", ["-vV"]), ("cargo", ["--version"]), ("cc", ["--version"])], [],
+             [["cargo", "test", "--locked", "--manifest-path", "src-tauri/Cargo.toml", "--lib"]])
+    finally:
+        os.close(descriptor)
+        lock.unlink()
+    print("==> [pre-push] All checks passed (executed or matched saved evidence).", flush=True)
+except (OSError, ValueError, IndexError, subprocess.CalledProcessError) as error:
+    sys.exit(f"FAIL: pre-push evidence/check error: {error}")
+PY
