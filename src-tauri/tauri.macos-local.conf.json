@@ -1,7 +1,6 @@
 {
   "bundle": {
     "externalBin": [
-      "binaries/music-studio-kh-server",
       "binaries/ffmpeg",
       "binaries/ffprobe",
       "binaries/yt-dlp",
@@ -17,6 +16,7 @@
       "hardenedRuntime": false,
       "frameworks": ["runtime-tools-macos-bundle/Python.framework"],
       "files": {
+        "Helpers/Music Studio KH Helper.app": "helper-app/Music Studio KH Helper.app",
         "Resources/yt-dlp-internal": "runtime-tools-macos-bundle/runtime",
         "Frameworks": "runtime-tools-macos-bundle/links"
       }

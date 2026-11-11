@@ -2,6 +2,11 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.2.9 — 2026-11-11
+
+- The music server that runs in the background now appears as Music Studio KH Helper, with the app’s own name and icon, instead of a bare tool name.
+- Everything else works exactly as before: your profiles, music, downloads and settings are untouched.
+
 ## 0.2.8 — 2026-11-03
 
 - Connect the Android client to a Mac library and use the existing sign-in, library and player on phones and tablets.

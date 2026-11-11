@@ -213,6 +213,36 @@ for tool in ffmpeg ffprobe yt-dlp deno; do
   cp "src-tauri/runtime-tools/$tool" "src-tauri/binaries/$tool-$triple"
 done
 
+step "Staging the music server as Music Studio KH Helper.app"
+# The server runs as a proper helper app so Activity Monitor shows the app's own name,
+# never a bare binary. macOS only: Windows and Linux keep the sidecar layout.
+helper_stage="src-tauri/helper-app/Music Studio KH Helper.app"
+retire "src-tauri/helper-app"
+mkdir -p "$helper_stage/Contents/MacOS" "$helper_stage/Contents/Resources"
+cp "$sidecar_bin" "$helper_stage/Contents/MacOS/Music Studio KH Helper"
+chmod 0755 "$helper_stage/Contents/MacOS/Music Studio KH Helper"
+cp src-tauri/icons/icon.icns "$helper_stage/Contents/Resources/icon.icns"
+python3 - "$helper_stage/Contents/Info.plist" "$version" <<'PY'
+import plistlib, sys
+plist = {
+    "CFBundleName": "Music Studio KH Helper",
+    "CFBundleDisplayName": "Music Studio KH Helper",
+    "CFBundleIdentifier": "app.tuneharbor.desktop.helper",
+    "CFBundleExecutable": "Music Studio KH Helper",
+    "CFBundlePackageType": "APPL",
+    "CFBundleShortVersionString": sys.argv[2],
+    "CFBundleVersion": sys.argv[2],
+    "CFBundleIconFile": "icon.icns",
+    "LSUIElement": True,
+    "NSHighResolutionCapable": True,
+}
+with open(sys.argv[1], "wb") as stream:
+    plistlib.dump(plist, stream)
+PY
+codesign --force --sign "KH Studio Local Signing" "$helper_stage/Contents/MacOS/Music Studio KH Helper"
+codesign --force --sign "KH Studio Local Signing" "$helper_stage"
+codesign --verify --strict --verbose=2 "$helper_stage"
+
 step "Collecting dependency notices"
 python3 scripts/collect-notices.py
 
@@ -235,15 +265,22 @@ validate_plist() {
 
 validate_plist "$app/Contents/Info.plist"
 
-step "Verifying packager signatures (no post-build signing)"
+step "Verifying packaged signatures (helper app + packager binaries)"
 exe_name="$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$app/Contents/Info.plist")"
 [ -n "$exe_name" ] || fail "could not read CFBundleExecutable from $app/Contents/Info.plist"
 [ -x "$app/Contents/MacOS/$exe_name" ] || fail "executable $app/Contents/MacOS/$exe_name not found or not executable"
-[ -x "$app/Contents/MacOS/music-studio-kh-server" ] || fail "sidecar binary $app/Contents/MacOS/music-studio-kh-server not found or not executable"
+helper_app="$app/Contents/Helpers/Music Studio KH Helper.app"
+helper_exe="$helper_app/Contents/MacOS/Music Studio KH Helper"
+[ -x "$helper_exe" ] || fail "helper executable $helper_exe not found or not executable"
+[ "$(/usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$helper_app/Contents/Info.plist" 2>/dev/null)" = "Music Studio KH Helper" ] || fail "helper CFBundleDisplayName is missing"
+[ "$(/usr/libexec/PlistBuddy -c "Print :LSUIElement" "$helper_app/Contents/Info.plist" 2>/dev/null)" = "true" ] || fail "helper LSUIElement is not true"
 
-for tool in music-studio-kh-server ffmpeg ffprobe yt-dlp deno; do
+for tool in ffmpeg ffprobe yt-dlp deno; do
   codesign --verify --strict --verbose=2 "$app/Contents/MacOS/$tool"
 done
+codesign --verify --strict --verbose=2 "$helper_exe"
+codesign --verify --strict --verbose=2 "$helper_app"
+[ ! -e "$app/Contents/MacOS/music-studio-kh-server" ] || fail "bare music-studio-kh-server must not ship beside the helper app"
 codesign --verify --deep --strict --verbose=2 "$app"
 python3 -I scripts/test-ytdlp-startup.py "$app/Contents/MacOS/yt-dlp" --budget-seconds 15 --receipt "artifacts/yt-dlp-startup-${version}.json"
 python3 -I scripts/verify-macos-signing.py --app "$app" --receipt "artifacts/signing-${version}.json"

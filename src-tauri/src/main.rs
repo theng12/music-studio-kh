@@ -276,12 +276,21 @@ fn open_profile(
 }
 
 fn executable(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let own = std::env::current_exe().map_err(|_| "App location unavailable")?;
+    // Signed Mac releases ship the server as a helper app so it shows under the app's own name.
+    #[cfg(target_os = "macos")]
+    if let Some(helper) = own.parent().and_then(|macos| macos.parent()).map(|contents| {
+        contents.join("Helpers/Music Studio KH Helper.app/Contents/MacOS/Music Studio KH Helper")
+    }) {
+        if helper.is_file() {
+            return Ok(helper);
+        }
+    }
     let name = if cfg!(windows) {
         "music-studio-kh-server.exe"
     } else {
         "music-studio-kh-server"
     };
-    let own = std::env::current_exe().map_err(|_| "App location unavailable")?;
     let near = own.parent().ok_or("App location unavailable")?.join(name);
     if near.is_file() {
         return Ok(near);

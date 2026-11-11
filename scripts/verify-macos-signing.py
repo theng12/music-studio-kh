@@ -20,7 +20,9 @@ import urllib.parse
 import urllib.request
 
 
-TOOLS = ("music-studio-kh-server", "ffmpeg", "ffprobe", "yt-dlp", "deno")
+TOOLS = ("ffmpeg", "ffprobe", "yt-dlp", "deno")
+HELPER = "Contents/Helpers/Music Studio KH Helper.app"
+HELPER_EXECUTABLE = HELPER + "/Contents/MacOS/Music Studio KH Helper"
 CERTIFICATE = "b8f43e85b80ec15c1bad26c6da03461e0bb317a2"
 
 
@@ -33,7 +35,7 @@ def compare(before, after):
     assert before["requirements"] == after["requirements"], "Designated requirements changed"
     for requirement in after["requirements"].values():
         assert "cdhash" not in requirement and CERTIFICATE in requirement.lower(), "Certificate-based requirement required"
-    for name in ("app", "music-studio-kh-server"):
+    for name in ("app", "helper"):
         assert before["hashes"][name] != after["hashes"][name], f"{name} executable did not change"
     assert before["launchd"]["passed"] and after["launchd"]["passed"], "Both builds must pass isolated launch"
 
@@ -52,7 +54,8 @@ def launch(app, version, evidence):
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         port = listener.getsockname()[1]
-    executable = app / "Contents/MacOS/music-studio-kh-server"
+    executable = app / HELPER_EXECUTABLE
+    tools = app / "Contents/MacOS"
     run(str(executable), "--data", str(data), "profile", "create", "--library", str(music),
         "--port", str(port), "--username", "signing-check", "--password-file", str(password_file))
     profile = next(path.name for path in data.iterdir() if path.is_dir())
@@ -65,7 +68,7 @@ def launch(app, version, evidence):
     job = work / "job.plist"
     job.write_bytes(plistlib.dumps({
         "Label": label,
-        "ProgramArguments": [str(executable), "--data", str(data), "desktop", "--tools", str(executable.parent)],
+        "ProgramArguments": [str(executable), "--data", str(data), "desktop", "--tools", str(tools)],
         "StandardInPath": str(fifo),
         "RunAtLoad": True,
         "StandardOutPath": str(work / "stdout.log"),
@@ -136,6 +139,8 @@ def capture(app, evidence):
     assert metadata["CFBundleIdentifier"] == "app.tuneharbor.desktop"
     run("codesign", "--verify", "--deep", "--strict", str(app))
     paths = {"bundle": app, "app": app / "Contents/MacOS" / metadata["CFBundleExecutable"]}
+    paths["helper-bundle"] = app / HELPER
+    paths["helper"] = app / HELPER_EXECUTABLE
     paths.update({name: app / "Contents/MacOS" / name for name in TOOLS})
     paths["python-framework"] = app / "Contents/Frameworks/Python.framework"
     paths["python-runtime"] = paths["python-framework"] / "Python"
@@ -162,8 +167,8 @@ def capture(app, evidence):
 
 def self_test():
     before = {"version": "0.2.8", "requirements": {"app": 'designated => certificate leaf = H"' + CERTIFICATE + '"'},
-              "hashes": {"app": "a", "music-studio-kh-server": "b"}, "launchd": {"passed": True}}
-    after = {**before, "version": "0.2.9", "hashes": {"app": "c", "music-studio-kh-server": "d"}}
+              "hashes": {"app": "a", "helper": "b"}, "launchd": {"passed": True}}
+    after = {**before, "version": "0.2.9", "hashes": {"app": "c", "helper": "d"}}
     compare(before, after)
     for invalid in [before, {**after, "requirements": {"app": "designated => cdhash H\"abc\""}},
                     {**after, "hashes": before["hashes"]}, {**after, "launchd": {"passed": False}}]:
