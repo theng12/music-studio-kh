@@ -5,6 +5,10 @@
 #   bash scripts/build-mac.sh          # Full build
 #   bash scripts/build-mac.sh --check  # Quick preflight / portability validation
 #   bash scripts/build-mac.sh --retain-accepted /absolute/accepted-pins.json
+#
+# Launching helpers such as run-detached.sh may ignore the shebang and start this with
+# zsh; re-exec under bash so its arrays and bash-only syntax keep working.
+[ -n "${BASH_VERSION:-}" ] || exec bash "$0" "$@"
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
