@@ -72,8 +72,35 @@ fn prefer_tabs(window: &WebviewWindow) {
     });
 }
 
+#[cfg(target_os = "macos")]
+fn merge_into_tabs(app: &tauri::AppHandle, profile: &WebviewWindow) {
+    let Some(main) = app.get_webview_window("main") else {
+        return;
+    };
+    let handle = app.clone();
+    let profile = profile.clone();
+    let main = main.clone();
+    let _ = handle.run_on_main_thread(move || {
+        use objc2_app_kit::{NSWindow, NSWindowOrderingMode, NSWindowTabbingMode};
+        let (Ok(profile_ptr), Ok(main_ptr)) = (profile.ns_window(), main.ns_window()) else {
+            return;
+        };
+        let profile_window = unsafe { &*(profile_ptr as *const NSWindow) };
+        let main_window = unsafe { &*(main_ptr as *const NSWindow) };
+        // Automatic tabbing only merges at creation time, so group them explicitly.
+        if profile_window.tabbingIdentifier().to_string() == main_window.tabbingIdentifier().to_string() {
+            profile_window.setTabbingMode(NSWindowTabbingMode::Preferred);
+            main_window.setTabbingMode(NSWindowTabbingMode::Preferred);
+            main_window.addTabbedWindow_ordered(profile_window, NSWindowOrderingMode::Above);
+        }
+    });
+}
+
 #[cfg(not(target_os = "macos"))]
 fn prefer_tabs(_: &WebviewWindow) {}
+
+#[cfg(not(target_os = "macos"))]
+fn merge_into_tabs(_: &tauri::AppHandle, _: &WebviewWindow) {}
 
 #[tauri::command]
 fn open_support_page() -> Result<(), String> {
@@ -323,6 +350,7 @@ fn open_profile(
         .build()
         .map_err(|e| e.to_string())?;
     prefer_tabs(&profile_window);
+    merge_into_tabs(&app, &profile_window);
     Ok(())
 }
 
