@@ -56,6 +56,7 @@ type Opened struct {
 	URL       string `json:"url"`
 	Bootstrap string `json:"bootstrap"`
 	ID        string `json:"id"`
+	Name      string `json:"name"`
 }
 type instance struct {
 	http    *http.Server
@@ -166,7 +167,7 @@ func (m *Manager) Start(id string) (Opened, error) {
 	}
 	if i, ok := m.running[id]; ok {
 		token, e := i.server.DesktopToken()
-		return Opened{URL: fmt.Sprintf("http://127.0.0.1:%d", p.Port), Bootstrap: token, ID: id}, e
+		return Opened{URL: fmt.Sprintf("http://127.0.0.1:%d", p.Port), Bootstrap: token, ID: id, Name: p.Name}, e
 	}
 	host := "127.0.0.1"
 	if p.LAN {
@@ -270,7 +271,7 @@ func (m *Manager) Start(id string) (Opened, error) {
 		}
 	}()
 	token, e := instance.server.DesktopToken()
-	return Opened{URL: fmt.Sprintf("http://127.0.0.1:%d", p.Port), Bootstrap: token, ID: id}, e
+	return Opened{URL: fmt.Sprintf("http://127.0.0.1:%d", p.Port), Bootstrap: token, ID: id, Name: p.Name}, e
 }
 func (m *Manager) Stop(id string) error {
 	m.mu.Lock()

@@ -57,7 +57,17 @@ func Create(root string, i Input) (Profile, error) {
 			return Profile{}, errors.New("port already assigned to another profile")
 		}
 	}
-	path, err := validLibrary(root, i.Library)
+	choice := strings.TrimSpace(i.Library)
+	if choice == "" {
+		choice, err = DefaultLibrary()
+		if err != nil {
+			return Profile{}, err
+		}
+		if err = os.MkdirAll(choice, 0755); err != nil {
+			return Profile{}, errors.New("could not create the default music folder: " + err.Error())
+		}
+	}
+	path, err := validLibrary(root, choice)
 	if err != nil {
 		return Profile{}, err
 	}
@@ -144,6 +154,15 @@ func List(root string) ([]Profile, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
+}
+
+// DefaultLibrary is where a new profile's music lives unless another folder is chosen.
+func DefaultLibrary() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", errors.New("could not find your home folder")
+	}
+	return filepath.Join(home, "Music", "Music Studio KH"), nil
 }
 
 // validLibrary resolves a chosen music folder and checks that it exists, is

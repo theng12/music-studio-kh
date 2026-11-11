@@ -50,6 +50,50 @@ struct Opened {
     id: String,
     url: String,
     bootstrap: String,
+    #[serde(default)]
+    name: String,
+}
+
+// Profile windows join the manager window as macOS tabs instead of adding windows.
+const TAB_GROUP: &str = "music-studio-kh";
+
+#[cfg(target_os = "macos")]
+fn prefer_tabs(window: &WebviewWindow) {
+    let handle = window.clone();
+    let window = window.clone();
+    // AppKit window state is main-thread only; command handlers need not be.
+    let _ = handle.run_on_main_thread(move || {
+        use objc2_app_kit::{NSWindow, NSWindowTabbingMode};
+        if let Ok(pointer) = window.ns_window() {
+            // The system tab preference alone leaves windows unmerged, so ask for tabs explicitly.
+            let ns_window = unsafe { &*(pointer as *const NSWindow) };
+            ns_window.setTabbingMode(NSWindowTabbingMode::Preferred);
+        }
+    });
+}
+
+#[cfg(not(target_os = "macos"))]
+fn prefer_tabs(_: &WebviewWindow) {}
+
+#[tauri::command]
+fn open_support_page() -> Result<(), String> {
+    // One allow-listed destination: the shared donation page. Nothing else opens externally.
+    const SUPPORT_URL: &str = "https://nowpayments.io/donation/studiokh";
+    #[cfg(target_os = "macos")]
+    let mut command = std::process::Command::new("open");
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut command = std::process::Command::new("cmd");
+        command.args(["/C", "start", ""]);
+        command
+    };
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = std::process::Command::new("xdg-open");
+    command
+        .arg(SUPPORT_URL)
+        .spawn()
+        .map(|_| ())
+        .map_err(|_| "Could not open the support page".to_string())
 }
 
 fn dispatch_player_cmd(app: &tauri::AppHandle, cmd: &str) {
@@ -178,8 +222,14 @@ fn open_profile(
         serde_json::to_string(&opened.bootstrap).map_err(|_| "Invalid bootstrap")?
     );
     let port = url.port();
-    WebviewWindowBuilder::new(&app, label, WebviewUrl::External(url))
-        .title("Music Studio KH · Music library")
+    let title = if opened.name.is_empty() {
+        "Music".to_string()
+    } else {
+        opened.name
+    };
+    let profile_window = WebviewWindowBuilder::new(&app, label, WebviewUrl::External(url))
+        .title(title)
+        .tabbing_identifier(TAB_GROUP)
         .inner_size(1160.0, 850.0)
         .min_inner_size(340.0, 140.0)
         .disable_drag_drop_handler()
@@ -272,6 +322,7 @@ fn open_profile(
         })
         .build()
         .map_err(|e| e.to_string())?;
+    prefer_tabs(&profile_window);
     Ok(())
 }
 
@@ -382,7 +433,11 @@ fn main() {
                 .build(),
         )
         .manage(Closing(AtomicBool::new(false)))
-        .invoke_handler(tauri::generate_handler![request, open_profile])
+        .invoke_handler(tauri::generate_handler![
+            request,
+            open_profile,
+            open_support_page
+        ])
         .setup(|app| {
             let data = app.path().config_dir()?.join("MusicStudioKH").join("profiles");
             let resources = app.path().resource_dir()?.join("runtime-tools");
@@ -403,21 +458,19 @@ fn main() {
             };
             let bridge = executable(app.handle()).and_then(|exe| Bridge::spawn(exe, tools, data));
             app.manage(Backend(Mutex::new(bridge)));
+            if let Some(window) = app.get_webview_window("main") {
+                prefer_tabs(&window);
+            }
 
+            // The tray is a quick menu only; the app window carries everything else.
             let tray_menu = Menu::with_items(
                 app,
                 &[
-                    &MenuItem::with_id(app, "play_pause", "Play / Pause", true, None::<&str>)?,
-                    &MenuItem::with_id(app, "next_track", "Next Song", true, None::<&str>)?,
-                    &MenuItem::with_id(app, "prev_track", "Previous Song", true, None::<&str>)?,
-                    &MenuItem::with_id(app, "toggle_shuffle", "Toggle Shuffle", true, None::<&str>)?,
-                    &MenuItem::with_id(app, "cycle_repeat", "Cycle Repeat Mode", true, None::<&str>)?,
-                    &MenuItem::with_id(app, "toggle_lyrics", "Show / Hide Lyrics", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "show", "Open Music Studio KH", true, None::<&str>)?,
                     &PredefinedMenuItem::separator(app)?,
-                    &MenuItem::with_id(app, "toggle_pin", "Pin Window on Top", true, None::<&str>)?,
-                    &MenuItem::with_id(app, "toggle_mini", "Toggle Mini Player", true, None::<&str>)?,
-                    &MenuItem::with_id(app, "toggle_hide", "Hide / Show Music Studio KH", true, None::<&str>)?,
-                    &MenuItem::with_id(app, "show", "Open Music Studio KH Manager", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "play_pause", "Play / Pause", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "next_track", "Next", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "prev_track", "Previous", true, None::<&str>)?,
                     &PredefinedMenuItem::separator(app)?,
                     &MenuItem::with_id(app, "quit", "Quit and stop servers", true, None::<&str>)?,
                 ],

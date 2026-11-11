@@ -252,7 +252,7 @@ func TestAlbumArtworkAndProfileSettings(t *testing.T) {
 	if e != nil || len(art) == 0 {
 		t.Fatal("album cover not applied")
 	}
-	settings := Appearance{Theme: "light", Accent: "violet", Density: "compact", Layout: "list", CloseBehavior: "ask", RecentDays: days(7)}
+	settings := Appearance{Theme: "light", Accent: "violet", Density: "compact", Layout: "list", CloseBehavior: "ask", RecentDays: days(7), ThemeChosen: true}
 	if e = l.SaveSettings(settings); e != nil {
 		t.Fatal(e)
 	}

@@ -14,6 +14,7 @@ import Downloads from "./Downloads";
 import Library from "./Library";
 import Player from "./Player";
 import Help from "./Help";
+import Support from "./Support";
 import Artwork from "./Artwork";
 import Settings from "./Settings";
 import Profiles from "./Profiles";
@@ -22,8 +23,13 @@ import ImportDialog from "./ImportDialog";
 import { isImportableFile } from "./drop";
 import { APP_VERSION } from "./version";
 import { shuffledQueue } from "./playback";
+type UpdateState = {
+  state: "idle" | "checking" | "current" | "available" | "opening" | "error" | "unavailable";
+  version?: string;
+  message?: string;
+};
 const defaults: Appearance = {
-  theme: "dark",
+  theme: "system",
   accent: "mint",
   density: "comfortable",
   layout: "grid",
@@ -69,7 +75,8 @@ export default function App() {
       "songs" | "albums" | "artists" | "folders"
     >("songs"),
     [closePromptOpen, setClosePromptOpen] = useState(false),
-    [rememberCloseChoice, setRememberCloseChoice] = useState(true);
+    [rememberCloseChoice, setRememberCloseChoice] = useState(true),
+    [update, setUpdate] = useState<UpdateState>({ state: "idle" });
   const files = useRef<HTMLInputElement>(null),
     folders = useRef<HTMLInputElement>(null),
     messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -154,6 +161,7 @@ export default function App() {
   useEffect(() => {
     const apply = () => {
       let theme = appearance.theme;
+      if (theme === "default") theme = "dark";
       if (theme === "system")
         theme = matchMedia("(prefers-color-scheme:dark)").matches
           ? "dark"
@@ -170,6 +178,14 @@ export default function App() {
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
   }, [appearance]);
+  // One updater per Mac: Update Studio decides versions and installs. Until it
+  // publishes this app, say so plainly instead of pretending to check.
+  const checkUpdates = () =>
+    setUpdate({
+      state: "unavailable",
+      message:
+        "Updates install through Studio Launcher KH. This app is not in its feed yet.",
+    });
   const saveAppearance = async (value: Appearance) => {
     setAppearance(value);
     try {
@@ -592,36 +608,51 @@ export default function App() {
           <div className="sidebar-bottom">
             <button
               type="button"
-              className="sidebar-profile-btn"
-              id="sidebar-profile-btn"
-              onClick={() => {
-                setSettingsSection("profile");
-                setPage("settings");
-              }}
-              aria-label="Open profile and account settings"
+              className="nav-item footer-entry"
+              id="support-nav"
+              aria-label="Support this app"
+              onClick={() => setPage("support")}
             >
-              <div className="profile-avatar">
-                {profile.name.slice(0, 2).toUpperCase()}
-              </div>
-              <div className="sidebar-profile-text">
-                <strong id="profile-name">{profile.name}</strong>
-                <span className="status">
-                  <i />
-                  Profile & settings ›
-                </span>
-              </div>
+              <Icon name="heart" /> <span>Support this app</span>
             </button>
-            <div className="sidebar-meta">
-              <span className="version-badge">v{APP_VERSION}</span>
+            <div className="sidebar-footer-group">
               <button
                 type="button"
-                className="subtle"
-                id="sidebar-whats-new"
+                className="version-pill"
+                id="version-pill"
+                title="What’s new in this version"
                 onClick={() => setWhatsNew(true)}
               >
-                What’s new
+                <i className="dot" /> Music Studio KH {APP_VERSION}
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                id="check-updates"
+                aria-label="Check for Updates"
+                title="Check for Updates"
+                disabled={update.state === "checking"}
+                onClick={() => checkUpdates()}
+              >
+                <Icon name="refresh" size={15} />
               </button>
             </div>
+            {update.state !== "idle" && (
+              <p
+                className={
+                  "sidebar-status" + (update.state === "error" ? " error" : "")
+                }
+                role="status"
+              >
+                {update.state === "checking" && "Checking for updates..."}
+                {update.state === "current" && "You’re on the latest version."}
+                {update.state === "available" &&
+                  "Update available: " + update.version}
+                {update.state === "opening" && "Opening the update..."}
+                {update.state === "unavailable" && update.message}
+                {update.state === "error" && update.message}
+              </p>
+            )}
           </div>
         </aside>
         <main>
@@ -634,7 +665,9 @@ export default function App() {
                     ? "Settings & preferences"
                     : page === "help"
                       ? "Help"
-                      : "Music library"}
+                      : page === "support"
+                        ? "Support"
+                        : "Music library"}
                 <span className="accent">.</span>
               </h1>
             </div>
@@ -677,6 +710,7 @@ export default function App() {
             />
           )}
           {page === "help" && <Help />}
+          {page === "support" && <Support notice={notify} />}
           {page === "downloads" && (
             <Downloads
               jobs={jobs}

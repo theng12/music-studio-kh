@@ -24,9 +24,15 @@ export default function Profiles({
     [toolProblem, setToolProblem] = useState("");
   const [name, setName] = useState("Personal"),
     [library, setLibrary] = useState(""),
+    [defaultLibrary, setDefaultLibrary] = useState(""),
+    [useDefaultFolder, setUseDefaultFolder] = useState(true),
     [username, setUsername] = useState("owner"),
     [password, setPassword] = useState(""),
     [lan, setLAN] = useState(false);
+  // Paths read plainly: the home folder is shown as ~, everything else in full.
+  const home = defaultLibrary.replace(/\/Music\/Music Studio KH$/, "");
+  const shownPath = (path: string) =>
+    home && path.startsWith(home + "/") ? "~" + path.slice(home.length) : path;
   const refresh = async () => setProfiles(await rpc("profiles"));
   useEffect(() => {
     const manage = (event: Event) => {
@@ -41,6 +47,9 @@ export default function Profiles({
 
   useEffect(() => {
     rpc("doctor").catch((e) => setToolProblem(String(e)));
+    rpc<{ path: string }>("default_library")
+      .then((r) => setDefaultLibrary(r.path))
+      .catch((e) => notice(String(e)));
     refresh().catch((e) => notice(String(e)));
     const timer = setInterval(() => refresh().catch(() => {}), 5000);
     return () => clearInterval(timer);
@@ -110,7 +119,10 @@ export default function Profiles({
         multiple: false,
         title: "Choose your music folder",
       });
-      if (typeof path === "string") setLibrary(path);
+      if (typeof path === "string") {
+        setLibrary(path);
+        setUseDefaultFolder(false);
+      }
     } catch (e) {
       notice(String(e));
     }
@@ -122,7 +134,7 @@ export default function Profiles({
     try {
       const p: Profile = await rpc("create", {
         name,
-        library,
+        library: useDefaultFolder ? "" : library,
         username,
         password,
         lan,
@@ -245,15 +257,15 @@ export default function Profiles({
             <Icon name="music" size={22} />
           </span>
           Music Studio KH
-          <span className="version-badge">v{APP_VERSION}</span>
         </div>
         <button
           type="button"
-          className="secondary compact-button"
+          className="version-pill"
           id="manager-whats-new"
           onClick={openWhatsNew}
+          title="What’s new in this version"
         >
-          What’s new
+          Music Studio KH {APP_VERSION}
         </button>
       </div>
       <header className="manager-heading">
@@ -266,6 +278,7 @@ export default function Profiles({
           className="primary"
           onClick={() => {
             setFormError("");
+            setUseDefaultFolder(true);
             setCreating(true);
           }}
         >
@@ -289,6 +302,7 @@ export default function Profiles({
               className="primary"
               onClick={() => {
                 setFormError("");
+                setUseDefaultFolder(true);
                 setCreating(true);
               }}
             >
@@ -321,7 +335,10 @@ export default function Profiles({
               </span>
             </div>
             <h2>{p.name}</h2>
-            <p className="profile-folder">{p.library}</p>
+            <p className="profile-folder">{shownPath(p.library)}</p>
+            {defaultLibrary && p.library === defaultLibrary && (
+              <span className="chip">Default location</span>
+            )}
             <dl>
               <dt>Username</dt>
               <dd>{p.username}</dd>
@@ -398,33 +415,61 @@ export default function Profiles({
                 maxLength={80}
               />
             </label>
-            <label>
-              Music folder
-              <div className="folder-input">
+            <fieldset className="folder-choice">
+              <legend>Music folder</legend>
+              <label className="radio-row">
                 <input
-                  value={library}
-                  readOnly
-                  placeholder="Choose a folder"
-                  required
+                  type="radio"
+                  name="folder"
+                  checked={useDefaultFolder}
+                  onChange={() => setUseDefaultFolder(true)}
                 />
-                <button className="secondary" type="button" onClick={choose}>
-                  Browse…
-                </button>
-              </div>
-            </label>
-            {profiles.length > 0 && (
-              <label>
-                Or share an existing library
-                <select value="" onChange={(e) => setLibrary(e.target.value)}>
-                  <option value="">Choose a profile’s music folder…</option>
-                  {profiles.map((p) => (
-                    <option key={p.id} value={p.library}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <span>
+                  Use the default location
+                  <code>
+                    {defaultLibrary ? shownPath(defaultLibrary) : "Loading..."}
+                  </code>
+                </span>
               </label>
-            )}
+              <label className="radio-row">
+                <input
+                  type="radio"
+                  name="folder"
+                  checked={!useDefaultFolder}
+                  onChange={() => setUseDefaultFolder(false)}
+                />
+                <span>
+                  Choose a folder
+                  <button className="secondary" type="button" onClick={choose}>
+                    Choose...
+                  </button>
+                  <code>{library ? shownPath(library) : "No folder chosen yet"}</code>
+                </span>
+              </label>
+              {profiles.length > 0 && (
+                <label>
+                  Or share an existing library
+                  <select
+                    value={useDefaultFolder ? "" : library}
+                    onChange={(e) => {
+                      setLibrary(e.target.value);
+                      setUseDefaultFolder(false);
+                    }}
+                  >
+                    <option value="">Choose a profile’s music folder...</option>
+                    {profiles.map((p) => (
+                      <option key={p.id} value={p.library}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <small>
+                The folder is remembered for this profile and shown in Users.
+                Existing profiles keep their own folder; nothing is moved.
+              </small>
+            </fieldset>
             <div className="form-columns">
               <label>
                 Username
@@ -473,7 +518,7 @@ export default function Profiles({
             <button
               className="primary"
               type="submit"
-              disabled={busy || !library}
+              disabled={busy || (!useDefaultFolder && !library)}
             >
               {busy ? "Creating…" : "Create & listen ↗"}
             </button>

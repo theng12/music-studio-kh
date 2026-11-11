@@ -122,4 +122,5 @@ export interface Appearance {
   closeBehavior?: "ask" | "background" | "quit";
   recentDays?: number;
   reduceTransparency?: boolean;
+  themeChosen?: boolean;
 }

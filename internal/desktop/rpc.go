@@ -52,6 +52,9 @@ func (m *Manager) Call(method string, raw json.RawMessage) (any, error) {
 		return map[string]bool{"ok": true}, m.Doctor()
 	case "profiles":
 		return m.List()
+	case "default_library":
+		path, e := profiles.DefaultLibrary()
+		return map[string]string{"path": path}, e
 	case "create":
 		var input struct {
 			Name, Library, Username, Password string

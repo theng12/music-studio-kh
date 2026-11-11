@@ -47,6 +47,15 @@ export default function Settings({
   const [loggingOut, setLoggingOut] = useState(false);
   const [storage, setStorage] = useState<StorageSummary | null>(null);
   const [storageError, setStorageError] = useState("");
+  const [systemDark, setSystemDark] = useState(
+    () => matchMedia("(prefers-color-scheme:dark)").matches,
+  );
+  useEffect(() => {
+    const media = matchMedia("(prefers-color-scheme:dark)");
+    const update = () => setSystemDark(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
   useEffect(() => {
     if (section !== "library" || rescanning) return;
     let active = true;
@@ -383,17 +392,55 @@ export default function Settings({
       {show("appearance") && (
         <div className="settings-card" id="appearance-settings-card">
           <h2>Appearance & display</h2>
+          {(() => {
+            const theme = settings.theme || "system";
+            const effective =
+              theme === "system"
+                ? systemDark
+                  ? "Dark — your Mac is set to Dark"
+                  : "Light — your Mac is set to Light"
+                : theme === "light"
+                  ? "Light"
+                  : theme === "default"
+                    ? "Dark — the app’s designed look"
+                    : "Dark";
+            return (
+              <div className="theme-setting">
+                <span className="settings-row-label">
+                  Theme
+                  <small>
+                    Follow System keeps the app in step with your Mac. Default
+                    means the app’s designed look.
+                  </small>
+                </span>
+                <div className="theme-choice" role="group" aria-label="Theme">
+                  {(
+                    [
+                      ["system", "Follow System"],
+                      ["light", "Light"],
+                      ["dark", "Dark"],
+                      ["default", "Default"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={theme === value}
+                      className={theme === value ? "selected" : ""}
+                      onClick={() => save({ ...settings, theme: value })}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <small className="theme-effective" role="status">
+                  Effective: {effective}
+                </small>
+              </div>
+            );
+          })()}
           {(
             [
-              [
-                "theme",
-                "Theme",
-                [
-                  ["dark", "Midnight (Dark)"],
-                  ["light", "Daylight (Light)"],
-                  ["system", "Follow system"],
-                ],
-              ],
               [
                 "accent",
                 "Accent color",

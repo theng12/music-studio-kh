@@ -19,13 +19,16 @@ type Appearance struct {
 	// an explicit 0 turns the recent window off.
 	RecentDays         *int `json:"recentDays,omitempty"`
 	ReduceTransparency bool `json:"reduceTransparency,omitempty"`
+	// ThemeChosen marks a real theme choice; absent means a pre-0.3.0 row.
+	ThemeChosen bool `json:"themeChosen,omitempty"`
 }
 
 func days(n int) *int { return &n }
 
 func defaultAppearance() Appearance {
 	return Appearance{
-		Theme:         "dark",
+		Theme:         "system",
+		ThemeChosen:   true,
 		Accent:        "mint",
 		Density:       "comfortable",
 		Layout:        "grid",
@@ -51,7 +54,22 @@ func (l *Library) Settings() (Appearance, error) {
 	if a.RecentDays == nil {
 		a.RecentDays = days(7)
 	}
-	return a, e
+	if e != nil {
+		return a, e
+	}
+	if !a.ThemeChosen {
+		// 0.3.0: Follow System becomes the default. Dark was the shipped default
+		// before, so an unmigrated dark row was never an explicit choice.
+		// Write back as stored: old rows can hold values today's rules reject.
+		if a.Theme == "dark" {
+			a.Theme = "system"
+		}
+		a.ThemeChosen = true
+		if value, err := json.Marshal(a); err == nil {
+			_, _ = l.db.Exec("INSERT INTO settings(key,value) VALUES('appearance',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", string(value))
+		}
+	}
+	return a, nil
 }
 func (l *Library) SaveSettings(a Appearance) error {
 	valid := func(v string, choices ...string) bool {
@@ -62,7 +80,7 @@ func (l *Library) SaveSettings(a Appearance) error {
 		}
 		return false
 	}
-	if !valid(a.Theme, "light", "dark", "system") || !valid(a.Accent, "mint", "violet", "amber") || !valid(a.Density, "comfortable", "compact") || !valid(a.Layout, "grid", "list") {
+	if !valid(a.Theme, "light", "dark", "system", "default") || !valid(a.Accent, "mint", "violet", "amber") || !valid(a.Density, "comfortable", "compact") || !valid(a.Layout, "grid", "list") {
 		return errors.New("choose a supported appearance setting")
 	}
 	if !valid(a.StreamQuality, "", "original", "mp3") || !valid(a.RepeatMode, "", "all", "one", "off") || !valid(a.DefaultTab, "", "songs", "albums", "artists", "folders") || !valid(a.CloseBehavior, "", "ask", "background", "quit") {
@@ -71,6 +89,7 @@ func (l *Library) SaveSettings(a Appearance) error {
 	if a.RecentDays != nil && *a.RecentDays < 0 {
 		return errors.New("recent window must be 0 days or more; 0 turns it off")
 	}
+	a.ThemeChosen = true
 	value, e := json.Marshal(a)
 	if e != nil {
 		return e

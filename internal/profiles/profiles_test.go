@@ -64,3 +64,29 @@ func TestPasswordMinimumCountsCharacters(t *testing.T) {
 		t.Fatal("three characters accepted as six")
 	}
 }
+
+func TestDefaultLibraryUsesTheAppName(t *testing.T) {
+	path, err := DefaultLibrary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(path, filepath.Join("Music", "Music Studio KH")) {
+		t.Fatalf("default library %q is not under the app's own folder name", path)
+	}
+}
+
+func TestCreateUsesDefaultLibraryWhenNoneChosen(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	p, err := Create(t.TempDir(), Input{Name: "Family", Username: "family", Password: "long-password", Port: 4749})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := filepath.EvalSymlinks(filepath.Join(home, "Music", "Music Studio KH"))
+	if err != nil {
+		t.Fatalf("default folder was not created: %v", err)
+	}
+	if p.Library != want {
+		t.Fatalf("library = %q, want %q", p.Library, want)
+	}
+}
