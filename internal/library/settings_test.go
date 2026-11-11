@@ -2,7 +2,7 @@ package library
 
 import "testing"
 
-// Follow System is the 0.3.0 default; a pre-0.3.0 dark row migrates once, and a
+// System is the 0.3.0 default; a pre-0.3.0 dark row migrates once, and a
 // theme the owner then picks is kept.
 func TestThemeFollowsSystemOnceAndKeepsChoices(t *testing.T) {
 	l, _ := openTest(t)

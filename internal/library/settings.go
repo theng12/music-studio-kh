@@ -58,7 +58,7 @@ func (l *Library) Settings() (Appearance, error) {
 		return a, e
 	}
 	if !a.ThemeChosen {
-		// 0.3.0: Follow System becomes the default. Dark was the shipped default
+		// 0.3.0: System becomes the default. Dark was the shipped default
 		// before, so an unmigrated dark row was never an explicit choice.
 		// Write back as stored: old rows can hold values today's rules reject.
 		if a.Theme == "dark" {

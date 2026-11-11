@@ -9,7 +9,7 @@ All notable changes to Music Studio KH are documented in this file.
 - Create a profile with the default music folder (`~/Music/Music Studio KH`) or choose your own; your choice is remembered and shown on the profile card. Existing profiles keep their folder, and nothing is moved.
 - New sidebar footer: Support this app, the Music Studio KH version pill (opens What’s New) and Check for Updates, with an icon on every sidebar entry. Check for Updates reports that this app is not published to the shared updater’s feed yet; it will switch on when it is.
 - Support page: the app is free with every feature unlocked. A one-time donation opens the shared donation page in your browser; it is optional and nothing depends on it.
-- Theme now follows your Mac by default, with Follow System, Light, Dark and Default in Settings → Appearance. An old dark default moves to Follow System once; a theme you pick is kept.
+- Theme now follows your Mac by default, with System, Light, Dark and Default in Settings → Appearance. An old dark default moves to System once; a theme you pick is kept.
 - The app itself is named Music Studio KH everywhere macOS lists it, including Activity Monitor and notifications.
 
 ## 0.2.9 — 2026-11-11

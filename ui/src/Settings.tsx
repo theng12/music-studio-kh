@@ -409,14 +409,14 @@ export default function Settings({
                 <span className="settings-row-label">
                   Theme
                   <small>
-                    Follow System keeps the app in step with your Mac. Default
-                    means the app’s designed look.
+                    System keeps the app in step with your Mac. Default means
+                    the app’s designed look.
                   </small>
                 </span>
                 <div className="theme-choice" role="group" aria-label="Theme">
                   {(
                     [
-                      ["system", "Follow System"],
+                      ["system", "System"],
                       ["light", "Light"],
                       ["dark", "Dark"],
                       ["default", "Default"],
