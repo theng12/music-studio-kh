@@ -249,6 +249,18 @@ class HookTest(unittest.TestCase):
         self.run_hook()
         self.assertEqual(self.checks(), [])
 
+    def test_generated_macos_bundle_directory_symlinks_do_not_prevent_a_rust_receipt(self):
+        bundle = self.root / 'src-tauri/runtime-tools-macos-bundle'
+        (bundle / 'Resources/yt-dlp-internal/websockets').mkdir(parents=True)
+        (bundle / 'Resources/yt-dlp-internal/websockets/x.py').write_text('')
+        (bundle / 'links').mkdir()
+        (bundle / 'links/websockets').symlink_to('../Resources/yt-dlp-internal/websockets')
+        self.write('.gitignore', (self.root / '.gitignore').read_bytes()
+                   + b'src-tauri/runtime-tools-macos-bundle/\n')
+        self.baseline()
+        self.run_hook()
+        self.assertEqual(self.checks(), [])
+
     def test_missing_config_identity_executes_original_lane_without_reuse(self):
         self.baseline()
         self.set_control(fail=['npm', 'config'])

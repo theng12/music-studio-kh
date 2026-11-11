@@ -43,8 +43,8 @@ def files_hash(paths):
             raise ValueError("directory symlink is not a bounded input")
         if path.is_dir():
             for child in sorted(path.iterdir()):
-                # Tauri generates schemas here; neither directory is a unit-test source input.
-                if child not in (Path("src-tauri/target"), Path("src-tauri/gen")):
+                # Generated build output (Tauri schemas, bundled runtime tools); not unit-test input.
+                if child.name not in ("target", "gen") and not child.name.startswith("runtime-tools"):
                     visit(child)
         elif path.exists():
             entries.append([str(path), stat.S_IMODE(path.stat().st_mode),
