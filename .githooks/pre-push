@@ -179,8 +179,8 @@ try:
         common = ["go.mod", "go.sum", "cmd", "internal", "tests"]
         go_config = ["go.work", "go.work.sum"]
         lane("go", common + go_config,
-             [("go", ["version"]), ("go", ["env", "-json"]),
-              ("go", ["mod", "verify"]), ("cc", ["--version"])], [],
+             # `go env` is not an identity: GOGCCFLAGS carries a per-run temp dir.
+             [("go", ["version"]), ("go", ["mod", "verify"]), ("cc", ["--version"])], [],
              [["go", "vet", "./..."], ["go", "test", "-race", "./..."]])
         lane("web", ["ui", "internal/server/web", "package.json", "package-lock.json", ".npmrc"],
              [("node", ["--version"]), ("npm", ["--version"])], ["node_modules"],
