@@ -92,14 +92,8 @@ export default function Artwork({
       aria-labelledby="artwork-dialog-title"
       onCancel={close}
       onClick={(e) => {
-        const r = e.currentTarget.getBoundingClientRect();
-        if (
-          e.clientX < r.left ||
-          e.clientX > r.right ||
-          e.clientY < r.top ||
-          e.clientY > r.bottom
-        )
-          close();
+        // Keyboard activation also targets the dialog but must never close it.
+        if (e.target === e.currentTarget && !busy) close();
       }}
     >
       <button className="close-dialog" aria-label="Close" onClick={close}>

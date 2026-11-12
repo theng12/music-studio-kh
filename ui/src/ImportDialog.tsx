@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { ImportItem, MetadataInput } from "./api";
 import { isImportableFile } from "./drop";
 import Icon from "./Icon";
+import { useEscape } from "./useEscape";
 
 export default function ImportDialog({
   open,
@@ -31,15 +32,12 @@ export default function ImportDialog({
   const artworkInput = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
+  useEscape(open && !busy, onClose);
+
   useEffect(() => {
     if (!open) return;
     document.getElementById("pick-import-files")?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) {
-        e.preventDefault();
-        onClose();
-        return;
-      }
       const form = formRef.current;
       if (e.key !== "Tab" || !form) return;
       const focusables = [
