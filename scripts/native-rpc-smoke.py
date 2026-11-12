@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the installed server sidecar and OS keychain in a desktop D-Bus session."""
+"""Exercise the installed server sidecar and its local secrets file in a desktop session."""
 import hashlib,json,os,pathlib,subprocess,tempfile,urllib.request,urllib.parse
 root=pathlib.Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix='music-studio-kh-native-') as folder:
@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='music-studio-kh-native-') as folder:
   request=urllib.request.Request(opened['url']+'/api/desktop-bootstrap',data=json.dumps({'token':opened['bootstrap']}).encode(),headers={'Content-Type':'application/json'},method='POST')
   with urllib.request.urlopen(request) as response:assert response.status==200;assert response.headers.get('Set-Cookie')
   call('stop',{'id':profile['id']});call('remove',{'id':profile['id'],'confirmed':True});assert music.exists();call('quit');backend.wait(timeout=15)
-  print('PASS: native RPC, OS-keychain encrypted credentials, mixed-case Amperfy token login, bootstrap and shutdown')
+  print('PASS: native RPC, locally stored encrypted credentials, mixed-case Amperfy token login, bootstrap and shutdown')
  finally:
   backend.stdin.close()
   if backend.poll() is None:backend.wait(timeout=15)
