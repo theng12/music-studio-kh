@@ -88,13 +88,25 @@ export default function Artwork({
       id="artwork-dialog"
       className="metadata-dialog"
       ref={dialog}
+      aria-modal={selected ? "true" : undefined}
+      aria-labelledby="artwork-dialog-title"
       onCancel={close}
+      onClick={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        if (
+          e.clientX < r.left ||
+          e.clientX > r.right ||
+          e.clientY < r.top ||
+          e.clientY > r.bottom
+        )
+          close();
+      }}
     >
       <button className="close-dialog" aria-label="Close" onClick={close}>
         ×
       </button>
       <span className="eyebrow">A PERSONAL TOUCH</span>
-      <h2>
+      <h2 id="artwork-dialog-title">
         {selected?.album ? "Album details & artwork" : "Song details & artwork"}
       </h2>
       <p id="artwork-title">

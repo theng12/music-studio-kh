@@ -107,7 +107,7 @@ export function playerKeyAction(event: KeyboardEvent) {
         target.closest(
           'input:not([type="range"]), textarea, select, [role="textbox"], [role="combobox"]',
         ))) ||
-    document.querySelector('[aria-modal="true"]')
+    document.querySelector('[aria-modal="true"], dialog[open]')
   )
     return null;
   const shortcut = playerShortcuts.find(
