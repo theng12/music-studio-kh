@@ -393,7 +393,10 @@ export default function Settings({
         <div className="settings-card" id="appearance-settings-card">
           <h2>Appearance & display</h2>
           {(() => {
-            const theme = settings.theme || "system";
+            const theme =
+              !settings.theme || settings.theme === "default"
+                ? "system"
+                : settings.theme;
             const effective =
               theme === "system"
                 ? systemDark
@@ -401,17 +404,12 @@ export default function Settings({
                   : "Light — your Mac is set to Light"
                 : theme === "light"
                   ? "Light"
-                  : theme === "default"
-                    ? "Dark — the app’s designed look"
-                    : "Dark";
+                  : "Dark";
             return (
               <div className="theme-setting">
                 <span className="settings-row-label">
                   Theme
-                  <small>
-                    System keeps the app in step with your Mac. Default means
-                    the app’s designed look.
-                  </small>
+                  <small>System keeps the app in step with your Mac.</small>
                 </span>
                 <div className="theme-choice" role="group" aria-label="Theme">
                   {(
@@ -419,7 +417,6 @@ export default function Settings({
                       ["system", "System"],
                       ["light", "Light"],
                       ["dark", "Dark"],
-                      ["default", "Default"],
                     ] as const
                   ).map(([value, label]) => (
                     <button

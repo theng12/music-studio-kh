@@ -69,6 +69,14 @@ func (l *Library) Settings() (Appearance, error) {
 			_, _ = l.db.Exec("INSERT INTO settings(key,value) VALUES('appearance',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", string(value))
 		}
 	}
+	if a.Theme == "default" {
+		// 0.3.1 drops the Default option, so a stored one reads as System.
+		a.Theme = "system"
+		a.ThemeChosen = true
+		if value, err := json.Marshal(a); err == nil {
+			_, _ = l.db.Exec("INSERT INTO settings(key,value) VALUES('appearance',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", string(value))
+		}
+	}
 	return a, nil
 }
 func (l *Library) SaveSettings(a Appearance) error {
@@ -80,7 +88,7 @@ func (l *Library) SaveSettings(a Appearance) error {
 		}
 		return false
 	}
-	if !valid(a.Theme, "light", "dark", "system", "default") || !valid(a.Accent, "mint", "violet", "amber") || !valid(a.Density, "comfortable", "compact") || !valid(a.Layout, "grid", "list") {
+	if !valid(a.Theme, "light", "dark", "system") || !valid(a.Accent, "mint", "violet", "amber") || !valid(a.Density, "comfortable", "compact") || !valid(a.Layout, "grid", "list") {
 		return errors.New("choose a supported appearance setting")
 	}
 	if !valid(a.StreamQuality, "", "original", "mp3") || !valid(a.RepeatMode, "", "all", "one", "off") || !valid(a.DefaultTab, "", "songs", "albums", "artists", "folders") || !valid(a.CloseBehavior, "", "ask", "background", "quit") {

@@ -161,7 +161,7 @@ export default function App() {
   useEffect(() => {
     const apply = () => {
       let theme = appearance.theme;
-      if (theme === "default") theme = "dark";
+      if (theme === "default") theme = "system";
       if (theme === "system")
         theme = matchMedia("(prefers-color-scheme:dark)").matches
           ? "dark"

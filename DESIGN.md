@@ -224,11 +224,12 @@ player floats at the bottom, and the sidebar is its own plane. Depth is a hierar
 device, never decoration. Nothing moves unless the person moves it.
 
 **Key Characteristics:**
+- Three theme choices only: System, Light, Dark.
 - One accent (harbor mint) for primary action, selection and live state only.
 - Layered planes: page, panel, raised control, floating player.
 - Inter at a small, tight scale; labels in uppercase micro-caps for grouping.
 - Rounded, quiet controls (7–14px) with pill shapes reserved for chips and status.
-- Legible in dark, light and the app's own Default look.
+- Legible in dark and light, following the Mac by default.
 
 ## Colors
 
