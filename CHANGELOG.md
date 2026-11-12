@@ -2,6 +2,10 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.6 — 2026-11-13
+
+- Removing a profile and changing its music folder now ask in the app's own dialog with a clear Keep button, instead of the system's browser-style prompt that some windows never showed.
+
 ## 0.3.5 — 2026-11-13
 
 - Phone-app sign-in keys now live in one `secrets.json` file inside the app's own data folder (mode 0600, written atomically) instead of the macOS Keychain — no Keychain reads, writes or prompts. Existing profiles keep working: their key is imported once on first launch.

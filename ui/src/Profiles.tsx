@@ -20,6 +20,14 @@ export default function Profiles({
     [editing, setEditing] = useState<Profile | null>(null);
   useEscape(creating, () => setCreating(false));
   useEscape(editing !== null, () => setEditing(null));
+  const [confirmAsk, setConfirmAsk] = useState<{
+    title: string;
+    body: string;
+    confirmLabel: string;
+    destructive?: boolean;
+    run: () => Promise<void>;
+  } | null>(null);
+  useEscape(confirmAsk !== null, () => setConfirmAsk(null));
   const [mobilePassword, setMobilePassword] = useState("");
   // Problems shown where the owner is looking: in the open dialog, or a
   // lasting banner when bundled download tools cannot run.
@@ -162,23 +170,23 @@ export default function Profiles({
     }
   };
   const remove = async (p: Profile) => {
-    if (
-      !confirm(
-        "Remove " +
-          p.name +
-          " and its private settings? Your music files will remain.",
-      )
-    )
-      return;
-    try {
-      await rpc("remove", { id: p.id, confirmed: true });
-      const rows: Profile[] = await rpc("profiles");
-      setProfiles(rows);
-      // Launch at sign-in only while some remaining profile asks for it.
-      if (!rows.some((r) => r.autoStart)) await disable().catch(() => {});
-    } catch (e) {
-      notice(String(e));
-    }
+    setConfirmAsk({
+      title: "Remove " + p.name + "?",
+      body: "Its private settings are removed. Your music files remain where they are.",
+      confirmLabel: "Remove",
+      destructive: true,
+      run: async () => {
+        try {
+          await rpc("remove", { id: p.id, confirmed: true });
+          const rows: Profile[] = await rpc("profiles");
+          setProfiles(rows);
+          // Launch at sign-in only while some remaining profile asks for it.
+          if (!rows.some((r) => r.autoStart)) await disable().catch(() => {});
+        } catch (e) {
+          notice(String(e));
+        }
+      },
+    });
   };
   const relocate = async (p: Profile) => {
     try {
@@ -188,25 +196,28 @@ export default function Profiles({
         title: "Choose a replacement music folder",
       });
       if (typeof path !== "string" || path === p.library) return;
-      if (
-        !confirm(
-          "Use " +
-            path +
-            " for " +
-            p.name +
-            "? The profile restarts and indexes the new folder. Files in the old folder stay where they are.",
-        )
-      )
-        return;
-      setBusy(true);
-      await rpc("relocate", { id: p.id, library: path });
-      setEditing(null);
-      await refresh();
-      notice("Music folder changed. Press Listen to open the library.");
+      setConfirmAsk({
+        title: "Use this folder for " + p.name + "?",
+        body:
+          path +
+          " — the profile restarts and indexes the new folder. Files in the old folder stay where they are.",
+        confirmLabel: "Use folder",
+        run: async () => {
+          setBusy(true);
+          try {
+            await rpc("relocate", { id: p.id, library: path });
+            setEditing(null);
+            await refresh();
+            notice("Music folder changed. Press Listen to open the library.");
+          } catch (e) {
+            notice(String(e));
+          } finally {
+            setBusy(false);
+          }
+        },
+      });
     } catch (e) {
       notice(String(e));
-    } finally {
-      setBusy(false);
     }
   };
   const save = async (e: React.FormEvent) => {
@@ -627,6 +638,46 @@ export default function Profiles({
         Drop music files or folders onto a profile to import them. Closing the
         window keeps your servers running in the tray. Use Quit to stop them.
       </p>
+      {confirmAsk && (
+        <div
+          className="modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setConfirmAsk(null);
+          }}
+        >
+          <section
+            className="settings-card whats-new-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="profile-confirm-title"
+          >
+            <button
+              type="button"
+              className="close-dialog"
+              aria-label="Cancel"
+              onClick={() => setConfirmAsk(null)}
+            >
+              ×
+            </button>
+            <h2 id="profile-confirm-title">{confirmAsk.title}</h2>
+            <p className="muted">{confirmAsk.body}</p>
+            <button
+              className={confirmAsk.destructive ? "danger" : "primary"}
+              disabled={busy}
+              onClick={async () => {
+                const run = confirmAsk.run;
+                setConfirmAsk(null);
+                await run();
+              }}
+            >
+              {confirmAsk.confirmLabel}
+            </button>
+            <button className="secondary" onClick={() => setConfirmAsk(null)}>
+              Keep
+            </button>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
