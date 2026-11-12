@@ -2,6 +2,11 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.1 — 2026-11-12
+
+- **Quit Music Studio KH** is now a visible item in the application menu with ⌘Q, and the menu-bar menu uses the same name, so the app and its background service stop without Activity Monitor. Closing the window still keeps music available in the tray.
+- The Users screen and the sign-in screen lost their small uppercase kickers, keyboard focus is visible on form fields, and the sign-in headline keeps its words apart in a narrow window.
+
 ## 0.3.0 — 2026-11-12
 
 - Profiles now open as tabs in one window, with a Users tab for the profile list, switching profiles, adding one and removing one. No separate player windows.

@@ -456,8 +456,8 @@ fn explain_tray_once(app: &tauri::AppHandle) {
     app.dialog()
         .message(
             "Music Studio KH is still running in the tray so your music stays available to your \
-             browser and phone. To stop all servers, choose “Quit and stop servers” from the \
-             tray icon.",
+             browser and phone. To stop all servers, choose “Quit Music Studio KH” from the \
+             tray icon or press ⌘Q.",
         )
         .title("Music Studio KH keeps playing in the background")
         .kind(MessageDialogKind::Info)
@@ -513,7 +513,7 @@ fn main() {
                     &MenuItem::with_id(app, "next_track", "Next", true, None::<&str>)?,
                     &MenuItem::with_id(app, "prev_track", "Previous", true, None::<&str>)?,
                     &PredefinedMenuItem::separator(app)?,
-                    &MenuItem::with_id(app, "quit", "Quit and stop servers", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "quit", "Quit Music Studio KH", true, None::<&str>)?,
                 ],
             )?;
 
@@ -541,7 +541,7 @@ fn main() {
                     &PredefinedMenuItem::hide_others(app, None)?,
                     &PredefinedMenuItem::show_all(app, None)?,
                     &PredefinedMenuItem::separator(app)?,
-                    &MenuItem::with_id(app, "quit", "Quit and stop servers", true, None::<&str>)?,
+                    &MenuItem::with_id(app, "quit", "Quit Music Studio KH", true, Some("CmdOrCtrl+Q"))?,
                 ],
             )?;
 
