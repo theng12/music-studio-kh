@@ -21,7 +21,6 @@ export default function Support({
   };
   return (
     <section className="support-page" id="support-page">
-      <span className="eyebrow">FREE, WITH EVERYTHING UNLOCKED</span>
       <h2>Support this app</h2>
       <p className="support-intro">
         Music Studio KH is free. Every feature is unlocked — no account, no ads,

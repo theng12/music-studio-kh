@@ -33,7 +33,6 @@ export default function WhatsNew({
         >
           ×
         </button>
-        <span className="eyebrow">RELEASE NOTES · V{APP_VERSION}</span>
         <h2 id="whats-new-title">What’s new in Music Studio KH</h2>
         <div className="whats-new-list">
           {WHATS_NEW.map((entry) => (
