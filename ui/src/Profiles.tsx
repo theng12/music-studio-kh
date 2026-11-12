@@ -457,7 +457,7 @@ export default function Profiles({
                 copy and uses no extra disk space.
               </small>
               <small>
-                The folder is remembered for this profile and shown in Users.
+                The folder is remembered for this profile and shown in Settings.
                 Existing profiles keep their own folder; nothing is moved.
               </small>
             </fieldset>
