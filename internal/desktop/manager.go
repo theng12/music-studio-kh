@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -372,7 +373,10 @@ func (m *Manager) ImportPaths(id string, paths []string) error {
 	}
 	for _, path := range paths {
 		if within(i.music, path) {
-			return errors.New("these files are already in this profile's music folder")
+			return errors.New("these files are already in this profile's music folder, so nothing needs copying")
+		}
+		if sameShare(i.music, path) {
+			return errors.New("this folder is on the same network share as your library; point the profile's music folder at it instead of copying")
 		}
 	}
 	i.status.Lock()
@@ -482,6 +486,20 @@ func (i *instance) importPaths(paths []string) error {
 }
 
 // within reports whether path is the library folder or inside it.
+// sameShare reports whether two paths sit on the same non-root volume, where a
+// copy would duplicate files on a network share rather than use a local disk.
+func sameShare(a, b string) bool {
+	var sa, sb, root syscall.Stat_t
+	if syscall.Stat(a, &sa) != nil || syscall.Stat(b, &sb) != nil || syscall.Stat("/", &root) != nil {
+		return false
+	}
+	return sameDevice(uint64(sa.Dev), uint64(sb.Dev), uint64(root.Dev))
+}
+
+func sameDevice(a, b, root uint64) bool {
+	return a == b && a != root
+}
+
 func within(library, path string) bool {
 	resolve := func(p string) string {
 		if abs, e := filepath.Abs(p); e == nil {

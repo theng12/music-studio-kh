@@ -76,7 +76,7 @@ export default function Profiles({
         const id = card?.dataset.profile;
         if (!id) {
           notice(
-            "Drop music files or folders onto the profile you want to import into.",
+            "Drop music files or folders onto a profile to copy them into its library.",
           );
           return;
         }
@@ -84,7 +84,7 @@ export default function Profiles({
           await rpc("start", { id });
           await rpc("import", { id, paths: e.payload.paths });
           notice(
-            "Importing music. Songs appear in the library as they are copied.",
+            "Copying into the library. Music stays in the library folder afterwards; to play a folder without copying, point the profile at it instead.",
           );
           await refresh();
         } catch (error) {
@@ -358,7 +358,7 @@ export default function Profiles({
                 className={p.importError ? "error" : "profile-import"}
                 role="status"
               >
-                {p.importing ? "Importing… " : "Import finished: "}
+                {p.importing ? "Copying into library… " : "Copied into library: "}
                 {p.imported} {p.imported === 1 ? "song" : "songs"} added
                 {p.importSkipped > 0 &&
                   `, ${p.importSkipped} skipped (unreadable or not audio)`}
@@ -427,6 +427,9 @@ export default function Profiles({
                   <code>
                     {defaultLibrary ? shownPath(defaultLibrary) : "Loading..."}
                   </code>
+                  <small className="radio-note">
+                    Music stays where it is — read and streamed, nothing copied.
+                  </small>
                 </span>
               </label>
               <label className="radio-row">
@@ -463,6 +466,12 @@ export default function Profiles({
                   </select>
                 </label>
               )}
+              <small>
+                Music stays where it is. The app reads and streams from this
+                folder; nothing is copied. “Copy into library” above is only
+                for files you choose to bring in — reading in place needs no
+                copy and uses no extra disk space.
+              </small>
               <small>
                 The folder is remembered for this profile and shown in Users.
                 Existing profiles keep their own folder; nothing is moved.

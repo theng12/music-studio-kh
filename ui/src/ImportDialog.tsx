@@ -111,11 +111,15 @@ export default function ImportDialog({
         >
           ×
         </button>
-        <span className="eyebrow">CUSTOM IMPORT</span>
-        <h2>Import with details & artwork</h2>
+        <h2>Copy into library</h2>
+        <p>
+          Copies the files into this profile’s music folder and uses extra disk
+          space. To play from a folder without copying, point the profile’s
+          Music folder at it instead.
+        </p>
         <p>
           Choose songs or an entire album folder, and set custom titles, album
-          names, versions, or artwork before importing.
+          names, versions, or artwork before copying.
         </p>
 
         <div className="action-row">

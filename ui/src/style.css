@@ -2316,23 +2316,30 @@ input { caret-color: var(--accent); }
 .brand-mark { display: inline-flex; align-items: center; justify-content: center; }
 .app { padding-bottom: var(--player-clearance, 144px); }
 .lyrics-panel, .player-queue { position: fixed; bottom: var(--player-clearance, 144px); z-index: 25; max-height: max(100px, calc(100dvh - var(--player-clearance, 144px) - 24px)); }
-.player { --control-size: 32px; --control-gap: 4px; z-index: 7; left: 242px; right: 16px; bottom: 16px; height: auto; min-height: 88px; padding: 10px 12px; border: 0; border-radius: 16px; background: var(--glass); box-shadow: 0 10px 32px #0003, inset 0 1px var(--glass-highlight); display: grid; grid-template-columns: max-content minmax(120px, 1fr) max-content; gap: 16px; align-items: center; overflow-x: auto; }
+.player { --control-size: 32px; --control-gap: 6px; z-index: 7; left: 242px; right: 16px; bottom: 16px; height: auto; min-height: 96px; padding: 14px 18px; border: 0; border-radius: 16px; background: var(--glass); box-shadow: 0 10px 32px #0003, inset 0 1px var(--glass-highlight); display: grid; grid-template-columns: max-content minmax(180px, 1fr) max-content; column-gap: 22px; align-items: center; overflow-x: auto; }
 .player .playback-actions, .player .player-extras { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: var(--control-gap); margin: 0; width: auto; min-width: max-content; }
 .player .icon-button, .player .play-button { display: inline-flex; width: var(--control-size); height: var(--control-size); min-width: var(--control-size); min-height: var(--control-size); padding: 0; border-radius: 8px; flex: 0 0 var(--control-size); transition: background-color .15s, color .15s, filter .15s; }
 .player .play-button { box-shadow: none; }
 .player .play-button:hover, .player .play-button:active { transform: none; filter: brightness(1.08); }
 .player .icon { width: 18px; height: 18px; }
 .player .seek-step-btn { display: inline-flex; }
-.player .playing-info { width: 100%; min-width: 0; gap: 10px; align-items: center; }
+.player .playing-info { width: 100%; min-width: 0; gap: 12px; align-items: center; }
 .player .playing-cover { width: 44px; height: 44px; border-radius: 8px; }
-.now-playing { flex: 1; min-width: 0; }
-.player .playing-text { gap: 1px; }
-.player .playing-text strong { font-size: 13px; line-height: 18px; }
-.player .playing-text span { font-size: 11px; line-height: 16px; }
-.player .timeline { display: block; width: 100%; max-width: none; margin: 2px 0 0; }
+.now-playing { flex: 1; min-width: 0; display: grid; gap: 6px; }
+.player .playing-text { gap: 1px; min-width: 0; }
+.player .playing-text strong { font-size: 13px; line-height: 18px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player .playing-text span { font-size: 11px; line-height: 16px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player .playback-actions { gap: 8px; padding-right: 8px; border-right: 1px solid var(--border); }
+.player .player-extras { gap: 6px; padding-left: 8px; }
+/* Elapsed sits left of the bar, total right of it: one time per side, never stacked. */
+.player .timeline { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; align-items: center; gap: 10px; width: 100%; max-width: none; margin: 0; }
 .player .timeline input[type="range"] { display: block; width: 100%; min-width: 0; height: 10px; padding: 0; margin: 0; accent-color: var(--accent); }
-.timeline-times { display: flex; justify-content: space-between; gap: 8px; }
-.player .timeline-times span { font-size: 10px; line-height: 12px; min-width: 0; color: var(--muted); opacity: 1; }
+.player .timeline-times { display: contents; }
+/* Place by column so elapsed is always left of the bar and the total right. */
+.player .timeline input[type="range"] { grid-column: 2; grid-row: 1; }
+.player .timeline-times span:first-child { grid-column: 1; grid-row: 1; }
+.player .timeline-times span:last-child { grid-column: 3; grid-row: 1; }
+.player .timeline-times span { font-size: 11px; line-height: 14px; min-width: 0; color: var(--muted); opacity: 1; font-variant-numeric: tabular-nums; text-align: center; }
 .player-tool-panel { position: fixed; z-index: 30; right: 16px; bottom: var(--player-clearance, 116px); width: min(280px, calc(100vw - 32px)); padding: 24px 20px 20px; box-shadow: 0 8px 24px #0003; }
 .player-tool-panel label { display: block; margin-bottom: 8px; }
 .player-tool-panel input[type="range"], .player-tool-panel select { width: 100%; }
@@ -2579,6 +2586,12 @@ html[data-mini="true"] .lyrics-panel, html[data-mini="true"] .player-queue { z-i
   gap: 8px;
   min-width: 0;
   font-size: 13px;
+}
+.folder-choice .radio-note {
+  flex-basis: 100%;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
 }
 .folder-choice code {
   font-size: 11.5px;

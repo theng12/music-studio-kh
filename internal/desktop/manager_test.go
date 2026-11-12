@@ -156,6 +156,19 @@ func TestProfileLogRecordsLifecycleWithoutSecrets(t *testing.T) {
 	}
 }
 
+// Only a second non-root volume counts as a share: local disk copies stay allowed.
+func TestSameShareOnlyBlocksOtherVolumes(t *testing.T) {
+	if sameDevice(10, 10, 10) {
+		t.Fatal("root volume treated as a network share")
+	}
+	if !sameDevice(20, 20, 10) {
+		t.Fatal("same non-root volume not detected")
+	}
+	if sameDevice(20, 21, 10) {
+		t.Fatal("different volumes treated as one share")
+	}
+}
+
 // Quitting must free every listening port and stop every worker, so a relaunch
 // never meets its own leftovers.
 func TestCloseReleasesEveryListeningPort(t *testing.T) {
