@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Record a verified release in dist/ and rotate older versions out of it.
 
-Run only after the DMG was installed and verified. dist/ keeps the newest two
+Run only after the DMG was installed and verified. dist/ keeps the newest three
 versions; anything older moves automatically to the app's own
 `_trash/<date> <what>/`, without a hand step. The shared release-dist helper
 still does the copy itself.
@@ -30,7 +30,7 @@ HELPER = pathlib.Path(
     or pathlib.Path.home() / "Developer/Shared Tools/portfolio/tools/release-dist.py"
 )
 APP = "Music Studio KH"
-KEEP = 2
+KEEP = 3
 
 
 def sha256(path):
@@ -103,6 +103,16 @@ def relocate(retired, version, before):
     return moves
 
 
+def keepers(entries, version, keep=KEEP):
+    """The versions dist keeps: this one plus the newest others, newest first."""
+    others = sorted(
+        (rec for rec in entries.values() if rec["version"] != version),
+        key=lambda rec: rec["version"],
+        reverse=True,
+    )
+    return [version] + [rec["version"] for rec in others[: keep - 1]]
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit("usage: record-dist.py <version> [evidence]")
@@ -114,7 +124,6 @@ def main():
 
     entries = files()
     older = [rec for rec in entries.values() if rec["version"] != version]
-    previous = max(older, key=lambda rec: rec["version"]) if older else None
     releases = [{
         "version": version,
         "source": str(dmg),
@@ -122,15 +131,19 @@ def main():
         "bytes": dmg.stat().st_size,
         "evidence": evidence,
     }]
-    if previous:
+    for wanted in keepers(entries, version)[1:]:
+        record = next(rec for rec in older if rec["version"] == wanted)
+        path = DIST / f"{APP}-{wanted}.dmg"
+        if not path.exists():
+            continue
         releases.append({
-            "version": previous["version"],
-            "source": str(DIST / f"{APP}-{previous['version']}.dmg"),
-            "sha256": previous["sha256"],
-            "bytes": previous["bytes"],
-            "evidence": previous["evidence"],
+            "version": record["version"],
+            "source": str(path),
+            "sha256": record["sha256"],
+            "bytes": record["bytes"],
+            "evidence": record["evidence"],
         })
-    # A protected version is pinned too, so the helper keeps it past the two.
+    # A protected version is pinned too, so the helper keeps it past the three.
     protected = protected_versions()
     held = []
     for record in sorted(older, key=lambda rec: rec["version"], reverse=True):
