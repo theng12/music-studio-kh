@@ -12,6 +12,7 @@ export default function Artwork({
   notice: (m: string) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const pressedOutside = useRef(false);
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
   const [album, setAlbum] = useState("");
@@ -94,16 +95,33 @@ export default function Artwork({
         if (busy) e.preventDefault();
         else close();
       }}
+      onPointerDown={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        pressedOutside.current =
+          e.target === e.currentTarget &&
+          (e.clientX < r.left ||
+            e.clientX > r.right ||
+            e.clientY < r.top ||
+            e.clientY > r.bottom);
+      }}
       onClick={(e) => {
-        // Only a real click on the backdrop, outside the sheet, dismisses it.
+        // Only a press and release on the backdrop dismisses the sheet; a drag
+        // that starts inside (selecting text) and ends outside must not.
         const r = e.currentTarget.getBoundingClientRect();
         const outside =
           e.clientX < r.left ||
           e.clientX > r.right ||
           e.clientY < r.top ||
           e.clientY > r.bottom;
-        if (e.target === e.currentTarget && e.detail > 0 && outside && !busy)
+        if (
+          e.target === e.currentTarget &&
+          pressedOutside.current &&
+          e.detail > 0 &&
+          outside &&
+          !busy
+        )
           close();
+        pressedOutside.current = false;
       }}
     >
       <button
@@ -114,7 +132,6 @@ export default function Artwork({
       >
         ×
       </button>
-      <span className="eyebrow">A PERSONAL TOUCH</span>
       <h2 id="artwork-dialog-title">
         {selected?.album ? "Album details & artwork" : "Song details & artwork"}
       </h2>

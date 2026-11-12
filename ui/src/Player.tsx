@@ -1050,7 +1050,6 @@ export default function Player({
           </button>
           <div className="lyrics-header">
             <div>
-              <span className="eyebrow">SONG LYRICS</span>
               <h3>{track?.title || "Lyrics"}</h3>
               <p className="lyrics-artist">
                 {track?.artist || "No song selected"}
