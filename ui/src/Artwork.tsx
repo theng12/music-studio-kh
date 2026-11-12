@@ -90,13 +90,28 @@ export default function Artwork({
       ref={dialog}
       aria-modal={selected ? "true" : undefined}
       aria-labelledby="artwork-dialog-title"
-      onCancel={close}
+      onCancel={(e) => {
+        if (busy) e.preventDefault();
+        else close();
+      }}
       onClick={(e) => {
-        // Keyboard activation also targets the dialog but must never close it.
-        if (e.target === e.currentTarget && !busy) close();
+        // Only a real click on the backdrop, outside the sheet, dismisses it.
+        const r = e.currentTarget.getBoundingClientRect();
+        const outside =
+          e.clientX < r.left ||
+          e.clientX > r.right ||
+          e.clientY < r.top ||
+          e.clientY > r.bottom;
+        if (e.target === e.currentTarget && e.detail > 0 && outside && !busy)
+          close();
       }}
     >
-      <button className="close-dialog" aria-label="Close" onClick={close}>
+      <button
+        className="close-dialog"
+        aria-label="Close"
+        disabled={busy}
+        onClick={close}
+      >
         ×
       </button>
       <span className="eyebrow">A PERSONAL TOUCH</span>
