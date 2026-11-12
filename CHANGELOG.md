@@ -2,13 +2,10 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
-## 0.3.2 — 2026-11-12
-
-- Appearance is three choices again — System, Light, Dark. Default is gone; anyone who had picked it starts on System.
-
 
 - **Quit Music Studio KH** is now a visible item in the application menu with ⌘Q, and the menu-bar menu uses the same name, so the app and its background service stop without Activity Monitor. Closing the window still keeps music available in the tray.
-- Settings → Appearance offers System, Light and Dark only; the Default option is gone, and anyone who had chosen it starts on System.
+- Settings → Appearance offers System, Light and Dark only. The Default option is gone, and anyone who had chosen it starts on System.
+- Same version, rebuilt with the appearance change: this 0.3.1 supersedes the earlier 0.3.1 build, which offered a fourth “Default” choice.
 - The Users screen and the sign-in screen lost their small uppercase kickers, keyboard focus is visible on form fields, and the sign-in headline keeps its words apart in a narrow window.
 
 ## 0.3.0 — 2026-11-12
