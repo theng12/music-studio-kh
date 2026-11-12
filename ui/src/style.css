@@ -156,6 +156,25 @@ small {
   background: var(--panel2);
   border: 1px solid var(--border);
 }
+.primary:hover {
+  filter: brightness(1.06);
+}
+.primary:active {
+  filter: brightness(0.96);
+}
+.secondary:hover {
+  background: var(--panel);
+}
+.secondary:active {
+  background: var(--panel2);
+  filter: brightness(0.98);
+}
+.primary:disabled,
+.secondary:disabled {
+  opacity: 0.5;
+  cursor: default;
+  filter: none;
+}
 .compact-button {
   padding: 8px 13px;
   font-size: 11px;
@@ -1679,12 +1698,38 @@ dialog small {
   display: flex;
   align-items: center;
   gap: 10px;
+  font-size: 13px;
+  cursor: pointer;
 }
-.checkbox input {
-  width: 16px;
-  height: 16px;
+/* A drawn box, so the checked state is unmistakable in both themes. */
+.profile-form .checkbox input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  box-sizing: border-box;
   margin: 0;
-  accent-color: var(--accent);
+  flex: 0 0 auto;
+  border: 1.5px solid var(--muted);
+  border-radius: 5px;
+  background: var(--panel);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.profile-form .checkbox input[type="checkbox"]:hover {
+  border-color: var(--accent);
+}
+.profile-form .checkbox input[type="checkbox"]:checked {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-size: 12px 12px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+html[data-theme="dark"] .profile-form .checkbox input[type="checkbox"]:checked {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23111b21' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
 }
 @media (max-width: 900px) {
   .download-illustration {
@@ -2472,34 +2517,67 @@ html[data-mini="true"] .lyrics-panel, html[data-mini="true"] .player-queue { z-i
 
 /* New profile: default or picked music folder */
 .folder-choice {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px 14px 4px;
+  border: 0;
+  padding: 0;
   margin: 18px 0 6px;
 }
 .folder-choice legend {
-  padding: 0 6px;
+  padding: 0;
+  margin-bottom: 8px;
   font-size: 12px;
+  font-weight: 600;
   color: var(--muted);
 }
+/* Two real options: each row is the control, and the chosen one is filled. */
 .folder-choice .radio-row {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  margin: 8px 0;
+  padding: 11px 12px;
+  margin: 0 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel);
   font-weight: 500;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
 }
-.folder-choice .radio-row input {
+.folder-choice .radio-row:hover {
+  background: var(--panel2);
+}
+.folder-choice .radio-row:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-dark);
+}
+.profile-form .folder-choice .radio-row input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
   width: 16px;
   height: 16px;
-  margin: 3px 0 0;
+  padding: 0;
+  box-sizing: border-box;
+  margin: 2px 0 0;
   flex: 0 0 auto;
+  border: 2px solid var(--muted);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.profile-form .folder-choice .radio-row input[type="radio"]:hover {
+  border-color: var(--accent);
+}
+.profile-form .folder-choice .radio-row input[type="radio"]:checked {
+  border-color: var(--accent);
+  background: radial-gradient(circle, var(--accent) 0 4px, transparent 5px);
 }
 .folder-choice .radio-row span {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   font-size: 13px;
 }
 .folder-choice code {
@@ -2508,6 +2586,8 @@ html[data-mini="true"] .lyrics-panel, html[data-mini="true"] .player-queue { z-i
   background: var(--panel2);
   padding: 2px 7px;
   border-radius: 6px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 .folder-choice > label {
   margin: 10px 0 6px;
@@ -2520,8 +2600,9 @@ html[data-mini="true"] .lyrics-panel, html[data-mini="true"] .player-queue { z-i
   line-height: 1.5;
 }
 .folder-choice .secondary {
-  padding: 5px 10px;
-  font-size: 11.5px;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 7px;
 }
 .chip {
   display: inline-block;
