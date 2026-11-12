@@ -18,7 +18,7 @@ colors:
   text-light: "#142b31"
   muted-dark: "#8fa4aa"
   muted-light: "#5d7175"
-  error-light: "#f7a7a4"
+  error-light: "#8f2b23"
   error-dark: "#f3b0a4"
   tag-amber: "#dfb87e"
   tag-blue: "#a5bdeb"
@@ -250,8 +250,8 @@ with one mint voice that never covers more than a small part of a screen.
 - **White Panel** (#ffffff) and **Raised Paper** (#e7ede7): light-mode cards and controls.
 - **Ink Text** (#f0f3ed dark / #142b31 light): body copy and headings.
 - **Harbor Muted** (#8fa4aa dark / #5d7175 light): secondary copy, metadata, placeholders.
-- **Status extras** (used only for state): soft coral #f7a7a4 (light) / #f3b0a4 (dark)
-  for errors; amber #dfb87e and blue #a5bdeb for provider/source tags, with #ff9f43 as
+- **Status extras** (used only for state): error ink #8f2b23 (light) / #f3b0a4 (dark);
+  amber #dfb87e and blue #a5bdeb for provider/source tags, with #ff9f43 as
   the download accent. Each has a translucent wash variant (#e6b77818, #879fd51b) and
   never substitutes for Harbor Mint on a primary action.
 - **Hairline Border** (10–12% white on dark, 9% ink on light): the only divider.

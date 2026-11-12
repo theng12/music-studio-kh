@@ -35,6 +35,7 @@ const paths: Record<string, React.ReactNode> = {
       <circle cx="12" cy="12" r="3" />
     </>
   ),
+  "arrow-up-right": <path d="M7 17 17 7M8 7h9v9" />,
   play: <path d="m8 4 12 8-12 8Z" fill="currentColor" stroke="none" />,
   pause: (
     <>

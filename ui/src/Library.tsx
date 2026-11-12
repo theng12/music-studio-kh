@@ -3,6 +3,7 @@ import { art, ImportItem, Track } from "./api";
 import { droppedFiles } from "./drop";
 import Icon from "./Icon";
 import { formatBytes, formatDuration } from "./format";
+import { useEscape } from "./useEscape";
 
 interface Props {
   notice: (s: string) => void;
@@ -91,6 +92,7 @@ export default function Library(p: Props) {
     ),
     [limit, setLimit] = useState(100),
     [album, setAlbum] = useState<Track[] | null>(null);
+  useEscape(album !== null, () => setAlbum(null));
   const view = p.activeTab ?? localView;
   const setView = (v: View) => {
     if (p.onTabChange) p.onTabChange(v);
@@ -224,7 +226,7 @@ export default function Library(p: Props) {
               id="search"
               type="search"
               aria-label="Search your library"
-              placeholder="Search songs, artists, albums, versions, folders"
+              placeholder="Search songs, artists, albums"
               value={p.query}
               onChange={(e) => {
                 setLimit(100);
@@ -368,7 +370,6 @@ export default function Library(p: Props) {
                 (t.format || "").toUpperCase(),
                 formatBytes(t.size),
                 formatDuration(t.duration),
-                t.path || t.folder || "Root library",
               ]
                 .filter((part) => part && part !== "Unknown")
                 .join(" · ");
@@ -426,7 +427,7 @@ export default function Library(p: Props) {
                       {view === "songs" ? (
                         <p className="track-metadata">
                           {metadata}
-                          {dates ? " · " + dates : ""}
+                          {p.layout === "list" && dates ? " · " + dates : ""}
                         </p>
                       ) : (
                         <p className="group-summary">

@@ -104,6 +104,17 @@ export default function Player({
   const [localShuffle, setLocalShuffle] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
+  // The queue and lyrics drawers share one slot; only one can be open.
+  const toggleQueuePanel = () =>
+    setShowQueue((open) => {
+      if (!open) setShowLyrics(false);
+      return !open;
+    });
+  const toggleLyricsPanel = () =>
+    setShowLyrics((open) => {
+      if (!open) setShowQueue(false);
+      return !open;
+    });
   const [editingLyrics, setEditingLyrics] = useState(false);
   const [lyricsDraft, setLyricsDraft] = useState("");
   const [savingLyrics, setSavingLyrics] = useState(false);
@@ -376,7 +387,11 @@ export default function Player({
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setOpenTool(null);
+        // An open modal owns Escape; the drawer underneath must stay open.
+        if (event.defaultPrevented || document.querySelector('[aria-modal="true"]')) return;
+        if (openTool) setOpenTool(null);
+        else if (showQueue) setShowQueue(false);
+        else if (showLyrics) setShowLyrics(false);
         return;
       }
       const action = playerKeyAction(event);
@@ -421,10 +436,10 @@ export default function Player({
           cycleRepeat();
           break;
         case "lyrics":
-          setShowLyrics((v) => !v);
+          toggleLyricsPanel();
           break;
         case "queue":
-          setShowQueue((v) => !v);
+          toggleQueuePanel();
           break;
         case "fullscreen":
           toggleFullscreen();
@@ -593,7 +608,7 @@ export default function Player({
           cycleRepeat();
           break;
         case "toggle_lyrics":
-          setShowLyrics((l) => !l);
+          toggleLyricsPanel();
           break;
         case "toggle_mini":
           toggleMini();
@@ -785,7 +800,7 @@ export default function Player({
             aria-label="Lyrics"
             aria-pressed={showLyrics}
             title={shortcutTitle("lyrics", "Show / hide lyrics")}
-            onClick={() => setShowLyrics(!showLyrics)}
+            onClick={toggleLyricsPanel}
           >
             <Icon name="lyrics" />
           </button>
@@ -795,7 +810,7 @@ export default function Player({
             aria-label="Show play queue"
             aria-pressed={showQueue}
             title={shortcutTitle("queue", "Show / hide queue")}
-            onClick={() => setShowQueue(!showQueue)}
+            onClick={toggleQueuePanel}
           >
             <Icon name="queue" />
           </button>
@@ -1003,6 +1018,7 @@ export default function Player({
                 className={
                   "album-song " + (t.id === track?.id ? "selected" : "")
                 }
+                aria-current={t.id === track?.id ? "true" : undefined}
                 key={t.id}
                 onClick={() => choose(t)}
               >

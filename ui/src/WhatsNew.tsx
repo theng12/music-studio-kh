@@ -1,4 +1,5 @@
 import React from "react";
+import { useEscape } from "./useEscape";
 import { APP_VERSION, WHATS_NEW } from "./version";
 
 export default function WhatsNew({
@@ -8,6 +9,7 @@ export default function WhatsNew({
   open: boolean;
   onClose: () => void;
 }) {
+  useEscape(open, onClose);
   if (!open) return null;
   return (
     <div

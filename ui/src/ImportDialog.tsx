@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ImportItem, MetadataInput } from "./api";
 import { isImportableFile } from "./drop";
 import Icon from "./Icon";
@@ -28,6 +28,39 @@ export default function ImportDialog({
 
   const fileInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
+  const artworkInput = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    document.getElementById("pick-import-files")?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !busy) {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      const form = formRef.current;
+      if (e.key !== "Tab" || !form) return;
+      const focusables = [
+        ...form.querySelectorAll<HTMLElement>(
+          "button, input, select, textarea",
+        ),
+      ].filter((el) => !el.hasAttribute("disabled") && el.getClientRects().length);
+      if (!focusables.length) return;
+      const first = focusables[0],
+        last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, busy, onClose]);
 
   if (!open) return null;
 
@@ -101,6 +134,10 @@ export default function ImportDialog({
       <form
         className="settings-card profile-form"
         id="custom-import-dialog"
+        ref={formRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="import-dialog-heading"
         onSubmit={submit}
       >
         <button
@@ -111,7 +148,7 @@ export default function ImportDialog({
         >
           ×
         </button>
-        <h2>Copy into library</h2>
+        <h2 id="import-dialog-heading">Copy into library</h2>
         <p>
           Copies the files into this profile’s music folder and uses extra disk
           space. To play from a folder without copying, point the profile’s
@@ -218,7 +255,7 @@ export default function ImportDialog({
               id="import-version"
               value={version}
               onChange={(e) => setVersion(e.target.value)}
-              placeholder="e.g. Deluxe, Acoustic, Live, Remastered"
+              placeholder="e.g. Deluxe, Live"
               maxLength={120}
             />
           </label>
@@ -247,16 +284,25 @@ export default function ImportDialog({
           />
         </label>
 
-        <label className="artwork-upload">
-          Cover artwork (optional · JPEG, PNG, or WebP)
+        <div className="artwork-upload">
+          <span>Cover artwork (optional · JPEG, PNG, or WebP)</span>
+          <button
+            type="button"
+            className="secondary file-button"
+            onClick={() => artworkInput.current?.click()}
+          >
+            Choose cover artwork…
+          </button>
           <input
             id="import-artwork"
+            ref={artworkInput}
             type="file"
+            hidden
             accept="image/jpeg,image/png,image/webp"
             onChange={(e) => setArtwork(e.target.files?.[0] || null)}
           />
           {artwork && <small>Selected cover: {artwork.name}</small>}
-        </label>
+        </div>
 
         <button
           className="primary"
@@ -264,9 +310,15 @@ export default function ImportDialog({
           type="submit"
           disabled={busy || audioItems.length === 0}
         >
-          {busy
-            ? "Importing…"
-            : `Import ${audioItems.length || ""} ${audioItems.length === 1 ? "song" : "songs"} ↗`}
+          {busy ? (
+            "Importing…"
+          ) : (
+            <>
+              Import {audioItems.length || ""}{" "}
+              {audioItems.length === 1 ? "song" : "songs"}{" "}
+              <Icon name="arrow-up-right" size={14} />
+            </>
+          )}
         </button>
       </form>
     </div>

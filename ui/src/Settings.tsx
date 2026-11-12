@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Appearance, api, sendDesktopCommand, StorageSummary } from "./api";
+import { useEscape } from "./useEscape";
 import { formatBytes as bytes } from "./format";
 import { APP_VERSION } from "./version";
 import StreamingActivity from "./StreamingActivity";
@@ -45,6 +46,9 @@ export default function Settings({
     null | "single" | "all"
   >(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  useEscape(confirmLogoutMode !== null, () => {
+    if (!loggingOut) setConfirmLogoutMode(null);
+  });
   const [storage, setStorage] = useState<StorageSummary | null>(null);
   const [storageError, setStorageError] = useState("");
   const [systemDark, setSystemDark] = useState(

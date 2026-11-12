@@ -19,6 +19,7 @@ import Artwork from "./Artwork";
 import Settings from "./Settings";
 import Profiles from "./Profiles";
 import WhatsNew from "./WhatsNew";
+import { useEscape } from "./useEscape";
 import ImportDialog from "./ImportDialog";
 import { isImportableFile } from "./drop";
 import { APP_VERSION } from "./version";
@@ -77,6 +78,7 @@ export default function App() {
     [closePromptOpen, setClosePromptOpen] = useState(false),
     [rememberCloseChoice, setRememberCloseChoice] = useState(true),
     [update, setUpdate] = useState<UpdateState>({ state: "idle" });
+  useEscape(closePromptOpen, () => setClosePromptOpen(false));
   const files = useRef<HTMLInputElement>(null),
     folders = useRef<HTMLInputElement>(null),
     messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -457,7 +459,7 @@ export default function App() {
               />
             </label>
             <button className="primary" type="submit" disabled={busy}>
-              Open library <span>↗</span>
+              Open library <Icon name="arrow-up-right" size={14} />
             </button>
             <p id="login-error" className="error" role="alert">
               {error}

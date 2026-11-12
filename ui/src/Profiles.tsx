@@ -305,7 +305,8 @@ export default function Profiles({
                 setCreating(true);
               }}
             >
-              Create your first profile ↗
+              Create your first profile{" "}
+              <Icon name="arrow-up-right" size={14} />
             </button>
           </div>
           <div className="hero-art">
@@ -527,7 +528,14 @@ export default function Profiles({
               type="submit"
               disabled={busy || (!useDefaultFolder && !library)}
             >
-              {busy ? "Creating…" : "Create & listen ↗"}
+              {busy ? (
+                "Creating…"
+              ) : (
+                <>
+                  Create & listen{" "}
+                  <Icon name="arrow-up-right" size={14} />
+                </>
+              )}
             </button>
           </form>
         </div>

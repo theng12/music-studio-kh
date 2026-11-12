@@ -5,6 +5,7 @@
   --panel2: #1e3038;
   --text: #f0f3ed;
   --muted: #8fa4aa;
+  --error: #f3b0a4;
   --accent: #b9dfb9;
   --accent-dark: #253d31;
   --border: #ffffff10;
@@ -25,6 +26,7 @@ html[data-theme="light"] {
   --panel2: #e7ede7;
   --text: #142b31;
   --muted: #5d7175;
+  --error: #8f2b23;
   --accent: #386e49;
   --accent-dark: #dce9df;
   --border: #183a3418;
@@ -58,7 +60,8 @@ body {
 }
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 button,
@@ -84,13 +87,19 @@ button:hover {
   filter: brightness(1.12);
 }
 input,
-select {
+select,
+textarea {
   width: 100%;
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 9px;
   padding: 13px 14px;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
 input:focus,
 select:focus {
@@ -258,7 +267,7 @@ small {
   margin-top: 20px;
 }
 .error {
-  color: #f7a7a4;
+  color: var(--error);
   min-height: 20px;
 }
 .record {
@@ -603,14 +612,14 @@ main {
   background: var(--accent);
   color: var(--bg);
   font-size: 10px;
-  opacity: 0;
-  transform: translateY(5px);
+  opacity: 1;
+  transform: none;
   transition: 0.15s;
 }
 .cover-button:hover .cover-play,
 .cover-button:focus-visible .cover-play {
   opacity: 1;
-  transform: translateY(0);
+  transform: none;
 }
 .track-detail {
   display: flex;
@@ -1050,9 +1059,9 @@ html[data-density="compact"] .track-grid.list {
 #toast {
   position: fixed;
   right: 24px;
-  top: 24px;
+  bottom: calc(var(--player-clearance, 144px) + 8px);
   /* Above dialogs, so messages are never hidden behind an open form. */
-  z-index: 40;
+  z-index: 130;
   background: var(--panel2);
   color: var(--text);
   padding: 15px 22px;
@@ -1094,11 +1103,20 @@ dialog p {
   color: var(--muted);
   font-size: 12px;
 }
-.artwork-upload input {
-  padding: 10px 0;
-  border: 0;
-  background: transparent;
-  font-size: 10px;
+.artwork-upload input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.artwork-upload .file-button {
+  margin-top: 10px;
+  font-size: 13px;
+  padding: 9px 14px;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  color: var(--text);
 }
 dialog small {
   margin: 12px 0 25px;
@@ -1504,7 +1522,7 @@ dialog small {
 .state-pill.failed,
 .state-pill.interrupted {
   background: #e6b77818;
-  color: #dfb87e;
+  color: var(--error);
 }
 .queue-actions {
   display: flex;
@@ -1543,7 +1561,7 @@ dialog small {
 }
 .queue-content .queue-error {
   white-space: normal;
-  color: #dfb87e;
+  color: var(--error);
   font-size: 11px;
   max-width: 600px;
 }
@@ -1649,8 +1667,7 @@ dialog small {
   position: fixed;
   inset: 0;
   background: #0008;
-  backdrop-filter: blur(4px);
-  z-index: 20;
+  z-index: 120; /* above player drawers and fullscreen; the toast stays above this */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1685,6 +1702,12 @@ dialog small {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 15px;
+}
+.profile-form textarea {
+  display: block;
+  margin-top: 9px;
+  min-height: 96px;
+  resize: vertical;
 }
 .profile-form small {
   font-size: 11px;
@@ -1892,7 +1915,10 @@ html[data-theme="dark"] .profile-form .checkbox input[type="checkbox"]:checked {
 .album-song small {
   color: var(--muted);
 }
-.album-song:hover,
+.album-song:hover {
+  background: var(--panel2);
+  border-radius: 8px;
+}
 .album-song.selected {
   color: var(--accent);
   background: var(--panel2);
@@ -2470,7 +2496,7 @@ html[data-mini="true"] .lyrics-panel, html[data-mini="true"] .player-queue { z-i
   color: var(--muted);
 }
 .sidebar-status.error {
-  color: #f3b0a4;
+  color: var(--error);
 }
 
 /* Support page */

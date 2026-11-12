@@ -2,6 +2,13 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.3 — 2026-11-12
+
+- Failed downloads are readable now: the reason and the "Download failed" tag were too faint. Messages appear bottom-right, just above the player, instead of covering the top of the page.
+- A song's cover shows its play button without hovering, the search hint fits its field, and a song's details line ends cleanly instead of with a cut-off folder path.
+- In the up-next queue, the song that is playing is marked and announced, and hovering a different song no longer looks like it is playing.
+- "Copy into library" has a full-width lyrics box, a proper "Choose cover artwork…" button, closes with Escape and keeps keyboard focus inside. Field hints are easier to read.
+
 ## 0.3.2 — 2026-11-12
 
 - The player bar has room now: the title block sits beside the seek bar instead of under it, and each side shows one time value, so nothing overlaps.
