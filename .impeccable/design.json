@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-12T13:20:00+07:00",
+  "title": "Design System: Music Studio KH",
+  "extensions": {
+    "colorMeta": {
+      "harbor-mint-light": { "role": "primary", "displayName": "Harbor Mint", "canonical": "#386e49" },
+      "harbor-mint-dark": { "role": "primary", "displayName": "Harbor Mint (dark)", "canonical": "#b9dfb9" },
+      "mint-wash-light": { "role": "primary", "displayName": "Mint Wash", "canonical": "#dce9df" },
+      "paper-bg": { "role": "neutral", "displayName": "Paper", "canonical": "#f4f5f0" },
+      "ink-dark-bg": { "role": "neutral", "displayName": "Sea Ink", "canonical": "#111b21" },
+      "text-light": { "role": "neutral", "displayName": "Ink Text", "canonical": "#142b31" },
+      "muted-light": { "role": "neutral", "displayName": "Harbor Muted", "canonical": "#5d7175" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "One page title per view." },
+      "title": { "displayName": "Title", "purpose": "Section headings and dialog titles." },
+      "body": { "displayName": "Body", "purpose": "Rows, descriptions, values." },
+      "label": { "displayName": "Label", "purpose": "Sidebar group headers and small field labels." }
+    },
+    "shadows": [
+      { "name": "panel-lift", "value": "0 12px 50px #1933280b", "purpose": "Cards, dialogs and the floating player in light mode." },
+      { "name": "panel-lift-dark", "value": "0 12px 50px #0003", "purpose": "The same lift in dark mode." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "State changes on controls; no page-load choreography." }
+    ],
+    "breakpoints": [
+      { "name": "narrow", "value": "760px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one action a screen exists for.",
+      "html": "<button class=\"ds-btn-primary\">Create &amp; listen</button>",
+      "css": ".ds-btn-primary { background: var(--accent); color: #fff; border: 1px solid transparent; border-radius: 9px; padding: 10px 16px; font: 600 14px Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; cursor: pointer; transition: background 120ms cubic-bezier(0.4, 0, 0.2, 1), border-color 120ms; } .ds-btn-primary:hover { background: var(--accent-dark); } .ds-btn-primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.5; cursor: default; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A supporting action beside the primary one.",
+      "html": "<button class=\"ds-btn-secondary\">Details...</button>",
+      "css": ".ds-btn-secondary { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 9px; padding: 10px 16px; font: 600 14px Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; cursor: pointer; transition: background 120ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-btn-secondary:hover { background: var(--panel); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }"
+    },
+    {
+      "name": "Sidebar Navigation Row",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "Leading icon, label, mint wash when current.",
+      "html": "<a class=\"ds-nav ds-nav--active\" href=\"#\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\"><path d=\"M9 18V6l10-2v12\"/><circle cx=\"6\" cy=\"18\" r=\"3\"/><circle cx=\"16\" cy=\"16\" r=\"3\"/></svg><span>Songs</span></a>",
+      "css": ".ds-nav { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px; color: var(--muted); font: 600 14px Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; text-decoration: none; } .ds-nav:hover { background: var(--panel2); color: var(--text); } .ds-nav--active { background: var(--accent-dark); color: var(--accent); }"
+    },
+    {
+      "name": "Panel Card",
+      "kind": "card",
+      "refersTo": "card-panel",
+      "description": "A group of related rows; hairline border in flow, lift only when floating.",
+      "html": "<section class=\"ds-card\"><h2 class=\"ds-card__title\">Vengtheng</h2><p class=\"ds-card__meta\">~/Documents/MusicStudioKH</p></section>",
+      "css": ".ds-card { background: var(--panel); border: 1px solid var(--border); border-radius: 11px; padding: 22px; } .ds-card__title { margin: 0 0 6px; font: 600 20px Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; color: var(--text); } .ds-card__meta { margin: 0; font: 400 14px Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; color: var(--muted); }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Raised fill, hairline border, mint focus ring.",
+      "html": "<input class=\"ds-input\" placeholder=\"Profile name\" value=\"Personal\" />",
+      "css": ".ds-input { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; font: 400 14px Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; caret-color: var(--accent); } .ds-input::placeholder { color: var(--muted); } .ds-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Listening Room",
+    "overview": "A calm room built for one activity: listening. Surfaces are quiet and slightly warm, the mint accent appears only where an action or a selection lives, and nothing on the screen competes with the music. The room is layered rather than flat: panels sit above the page on soft shadows, the player floats at the bottom, and the sidebar is its own plane.",
+    "keyCharacteristics": [
+      "One accent (harbor mint) for primary action, selection and live state only.",
+      "Layered planes: page, panel, raised control, floating player.",
+      "Inter at a small, tight scale; labels in uppercase micro-caps for grouping.",
+      "Rounded, quiet controls (7-14px) with pill shapes reserved for chips and status.",
+      "Legible in dark, light and the app's own Default look."
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "Harbor Mint is used for the primary action, the current selection and live state. Everything else is neutral; if two things on a screen are mint, one of them is wrong.", "section": "colors" },
+      { "name": "The Quiet Scale Rule", "body": "Type grows in small steps (11 -> 14 -> 20 -> 25px). A new size is a new decision; prefer weight and colour to inventing a size.", "section": "typography" },
+      { "name": "The Floating Player Rule", "body": "Only the player and true overlays float. A list row or a card in the page flow gets a hairline border, never a shadow.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep Harbor Mint to one primary action, the current selection and live state.",
+      "Do use the panel/raised pair for hierarchy instead of new colours.",
+      "Do give every control default, hover, focus, active, disabled and error states.",
+      "Do show a hairline border on in-flow cards and the panel lift on floating ones.",
+      "Do write empty states that invite the next action.",
+      "Do use tabular numerals for durations, counts and byte sizes."
+    ],
+    "donts": [
+      "Don't nest a card inside a card, or stack two shadows.",
+      "Don't put an uppercase kicker above a heading.",
+      "Don't use gradient text, glass, blur, decorative motion or page-load choreography.",
+      "Don't use emoji, Unicode glyphs or monospace as icons.",
+      "Don't introduce a second accent colour, a second type family or a new radius step without deciding it here first."
+    ]
+  }
+}

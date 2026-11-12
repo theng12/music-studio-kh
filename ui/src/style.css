@@ -2255,7 +2255,7 @@ html[data-theme="light"] { --glass: #edf3eef0; --glass-highlight: #ffffffb3; --m
 .icon { display: inline-block; flex: 0 0 auto; vertical-align: middle; }
 button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 button:disabled { cursor: not-allowed; }
-button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 ::selection { background: var(--accent); color: var(--bg); }
 input { caret-color: var(--accent); }
 * { scrollbar-color: var(--muted) var(--panel); scrollbar-width: thin; }

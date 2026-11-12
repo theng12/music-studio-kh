@@ -420,16 +420,12 @@ export default function App() {
               </span>
               Music Studio KH
             </div>
-            <p className="eyebrow">YOUR MUSIC, AT HOME</p>
             <h1>
-              A little harbor.
-              <br />A whole world
-              <br />
+              A little harbor. <br />A whole world <br />
               of music.
             </h1>
             <p className="intro">
-              Your collection, on your computer.
-              <br />
+              Your collection, on your computer. <br />
               Ready whenever you want to listen.
             </p>
             <div className="record">

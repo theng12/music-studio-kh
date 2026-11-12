@@ -270,7 +270,6 @@ export default function Profiles({
       </div>
       <header className="manager-heading">
         <div>
-          <span className="eyebrow">YOUR MUSIC, AT HOME</span>
           <h1>A harbor for every collection.</h1>
           <p>Start a library, share one, or keep a little space of your own.</p>
         </div>
@@ -404,7 +403,6 @@ export default function Profiles({
             >
               ×
             </button>
-            <span className="eyebrow">A LITTLE SPACE OF YOUR OWN</span>
             <h2>Create a music profile</h2>
             <label>
               Profile name
@@ -536,7 +534,6 @@ export default function Profiles({
             >
               ×
             </button>
-            <span className="eyebrow">YOUR PROFILE</span>
             <h2>Profile settings</h2>
             <label>
               Name
