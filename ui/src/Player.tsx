@@ -388,7 +388,11 @@ export default function Player({
     const keydown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         // An open modal owns Escape; the drawer underneath must stay open.
-        if (event.defaultPrevented || document.querySelector('[aria-modal="true"]')) return;
+        if (
+          event.defaultPrevented ||
+          document.querySelector('[aria-modal="true"], dialog[open]')
+        )
+          return;
         if (openTool) setOpenTool(null);
         else if (showQueue) setShowQueue(false);
         else if (showLyrics) setShowLyrics(false);
