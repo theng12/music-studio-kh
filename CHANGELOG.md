@@ -2,6 +2,12 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.4 — 2026-11-13
+
+- Profile creation now lives in Settings: the separate Users screen is gone, the window opens on Settings with your music profiles, and "New profile" opens the creation form right there.
+- Escape now closes every open overlay: the create-profile form, What's New, album tracks, the sign-out confirm, the artwork editor, the queue and lyrics panels — and it clears the library search.
+- Reopening from the menu-bar icon or the application menu always brings the window back; if the window is ever missing it is rebuilt instead of doing nothing.
+
 ## 0.3.3 — 2026-11-12
 
 - Failed downloads are readable now: the reason and the "Download failed" tag were too faint. Messages appear bottom-right, just above the player, instead of covering the top of the page.

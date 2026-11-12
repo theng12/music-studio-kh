@@ -273,8 +273,8 @@ export default function Profiles({
       </div>
       <header className="manager-heading">
         <div>
-          <h1>A harbor for every collection.</h1>
-          <p>Start a library, share one, or keep a little space of your own.</p>
+          <h1>Settings</h1>
+          <p>Music profiles and this Mac.</p>
         </div>
         <button
           className="primary"
@@ -293,33 +293,9 @@ export default function Profiles({
         </p>
       )}
       {!profiles.length && !creating && (
-        <div className="hero manager-welcome">
-          <div>
-            <h2>Let’s make room for your music.</h2>
-            <p>
-              Choose a folder and a simple password. Music Studio KH handles the
-              server for you.
-            </p>
-            <button
-              className="primary"
-              onClick={() => {
-                setFormError("");
-                setUseDefaultFolder(true);
-                setCreating(true);
-              }}
-            >
-              Create your first profile{" "}
-              <Icon name="arrow-up-right" size={14} />
-            </button>
-          </div>
-          <div className="hero-art">
-            <div className="small-record" />
-            <span className="hero-note">
-              <Icon name="music" size={44} />
-            </span>
-          </div>
-        </div>
+        <p className="muted">No music profiles yet. Create one to start listening.</p>
       )}
+      <h2 className="manager-section-title">Music profiles</h2>
       <div className="profile-grid">
         {profiles.map((p) => (
           <article
@@ -397,14 +373,12 @@ export default function Profiles({
         ))}
       </div>
       {creating && (
-        <div className="modal-backdrop">
-          <form
-            className="settings-card profile-form"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="create-profile-title"
-            onSubmit={create}
-          >
+        <form
+          className="settings-card profile-form"
+          id="create-profile-card"
+          aria-labelledby="create-profile-title"
+          onSubmit={create}
+        >
             <button
               type="button"
               className="close-dialog"
@@ -546,8 +520,7 @@ export default function Profiles({
                 </>
               )}
             </button>
-          </form>
-        </div>
+        </form>
       )}
       {editing && (
         <div className="modal-backdrop">

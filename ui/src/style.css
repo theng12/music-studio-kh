@@ -1611,6 +1611,16 @@ dialog small {
 .manager-heading p {
   font-size: 13px;
 }
+.manager-section-title {
+  margin: 26px 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+#create-profile-card {
+  max-width: none;
+  margin: 18px 0 8px;
+  position: relative;
+}
 .profile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
