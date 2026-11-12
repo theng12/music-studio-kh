@@ -2,6 +2,12 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.2 — 2026-11-12
+
+- The player bar has room now: the title block sits beside the seek bar instead of under it, and each side shows one time value, so nothing overlaps.
+- Create a music profile has proper controls: a clear choice between the default location and your own folder, a real checkbox for phone listening, and a styled primary button.
+- "Read in place" and "Copy into library" are named for what they do: pointing a profile at a folder streams from it and copies nothing, and the import action says it copies and refuses a source already inside the library.
+
 ## 0.3.1 — 2026-11-12
 
 - **Quit Music Studio KH** is now a visible item in the application menu with ⌘Q, and the menu-bar menu uses the same name, so the app and its background service stop without Activity Monitor. Closing the window still keeps music available in the tray.
