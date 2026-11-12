@@ -155,3 +155,42 @@ func TestProfileLogRecordsLifecycleWithoutSecrets(t *testing.T) {
 		t.Fatal("log contains a secret")
 	}
 }
+
+// Quitting must free every listening port and stop every worker, so a relaunch
+// never meets its own leftovers.
+func TestCloseReleasesEveryListeningPort(t *testing.T) {
+	root := t.TempDir()
+	m := New(root, Tools{}, secrets.New(root, memoryStore{}))
+	ports := []int{}
+	for _, name := range []string{"One", "Two"} {
+		p, e := m.Create(profiles.Input{Name: name, Library: t.TempDir(), Username: "owner", Password: "123456"})
+		if e != nil {
+			t.Fatal(e)
+		}
+		if _, e = m.Start(p.ID); e != nil {
+			t.Fatal(e)
+		}
+		ports = append(ports, p.Port)
+	}
+	for _, port := range ports {
+		conn, e := net.Dial("tcp", net.JoinHostPort("127.0.0.1", fmt.Sprint(port)))
+		if e != nil {
+			t.Fatalf("port %d not listening after start: %v", port, e)
+		}
+		conn.Close()
+	}
+	if e := m.Close(); e != nil {
+		t.Fatal(e)
+	}
+	for _, port := range ports {
+		if conn, e := net.Dial("tcp", net.JoinHostPort("127.0.0.1", fmt.Sprint(port))); e == nil {
+			conn.Close()
+			t.Fatalf("port %d still listening after quit", port)
+		}
+		listener, e := net.Listen("tcp", net.JoinHostPort("127.0.0.1", fmt.Sprint(port)))
+		if e != nil {
+			t.Fatalf("port %d not rebindable after quit: %v", port, e)
+		}
+		listener.Close()
+	}
+}
