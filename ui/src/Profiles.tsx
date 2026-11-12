@@ -619,8 +619,8 @@ export default function Profiles({
                 />
                 <small>
                   Phone apps such as Amperfy need this profile's password saved,
-                  encrypted, in this app's own data folder. If saving failed
-                  before, enter the password here.
+                  encrypted, in this app's own data folder. After upgrading, or
+                  if saving failed before, enter the password here once.
                 </small>
               </label>
             )}

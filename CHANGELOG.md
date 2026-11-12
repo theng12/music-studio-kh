@@ -2,6 +2,11 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.7 — 2026-11-13
+
+- The app no longer contacts any credential store at all — not even once. Keys live only in the app's own `secrets.json` (0600, atomic). Profiles from earlier releases start without a key: enter the password once in Settings and phone sign-in works again.
+- Removing a profile and changing its folder ask in the app's own dialog with a Keep button (from 0.3.6).
+
 ## 0.3.6 — 2026-11-13
 
 - Removing a profile and changing its music folder now ask in the app's own dialog with a clear Keep button, instead of the system's browser-style prompt that some windows never showed.

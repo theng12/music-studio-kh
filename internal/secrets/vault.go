@@ -44,12 +44,11 @@ func (v *Vault) Save(id, password string) error {
 	}
 	_, existingErr := os.Stat(filepath.Join(v.root, id, "mobile-secret"))
 	if len(key) != 32 {
-		if existingErr == nil {
-			return errors.New("existing mobile key unavailable; check the app data folder and try again")
-		}
-		if !os.IsNotExist(existingErr) {
+		if existingErr != nil && !os.IsNotExist(existingErr) {
 			return existingErr
 		}
+		// No key in this app's data folder: generate a fresh one and replace the
+		// old ciphertext, so entering the password again restores phone access.
 		key = make([]byte, 32)
 		if _, e := rand.Read(key); e != nil {
 			return e

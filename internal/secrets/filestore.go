@@ -18,10 +18,9 @@ type DataStore struct {
 	data map[string]string
 }
 
-// DataStoreFor opens (or creates) <root>/secrets.json. On the first run after
-// upgrading from a release that used the operating system's credential store,
-// it imports those keys once and records the migration so they are never read
-// again.
+// DataStoreFor opens (or creates) <root>/secrets.json. There is no import from
+// any other store: a profile without a key here simply waits for its owner to
+// enter the password again in the app.
 func DataStoreFor(root string) *DataStore {
 	absolute, e := filepath.Abs(root)
 	if e != nil {
@@ -34,31 +33,7 @@ func DataStoreFor(root string) *DataStore {
 	if s.data == nil {
 		s.data = map[string]string{}
 	}
-	s.migrateLegacy()
 	return s
-}
-
-func (s *DataStore) migrateLegacy() {
-	if s.data["_migrated"] == "1" {
-		return
-	}
-	entries, _ := os.ReadDir(s.root)
-	for _, entry := range entries {
-		if !entry.IsDir() || !validID(entry.Name()) {
-			continue
-		}
-		if _, ok := s.data[entry.Name()]; ok {
-			continue
-		}
-		if _, e := os.Stat(filepath.Join(s.root, entry.Name(), "mobile-secret")); e != nil {
-			continue
-		}
-		if key, ok := readLegacyKey(s.root, entry.Name()); ok {
-			s.data[entry.Name()] = key
-		}
-	}
-	s.data["_migrated"] = "1"
-	_ = s.save()
 }
 
 func (s *DataStore) save() error {

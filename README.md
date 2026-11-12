@@ -15,7 +15,7 @@ What works:
 - **Library:** SQLite indexing that keeps going past unreadable folders, recovers after a drive reconnects, and handles 10,000-track libraries. Search, albums and artists.
 - **Artwork and appearance:** embedded, folder and custom song or album artwork, plus light/dark/system themes, accent colors, density and layout.
 - **Player:** browser and desktop player with seeking, a queue and FFmpeg conversion for formats the browser cannot play.
-- **Phone apps:** Subsonic/OpenSubsonic API subset with password and token-and-salt sign-in. The mobile secret is encrypted with a key kept in this app's own data folder (one `0600` secrets file, written atomically).
+- **Phone apps:** Subsonic/OpenSubsonic API subset with password and token-and-salt sign-in. The mobile secret is encrypted with a key kept in this app's own data folder (one `0600` secrets file, written atomically). No other credential store is ever contacted; after upgrading from an older release, enter the password once in Settings to restore phone sign-in.
 - **Security:** expiring browser sessions, separate failed-login throttling for the browser and phone apps, origin checks, and path-contained streaming.
 - **Desktop app:** tray behavior with a first-close explanation, optional start at login, single instance, and a clean quit that stops every server and tool.
 
