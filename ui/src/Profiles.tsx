@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useEscape } from "./useEscape";
 import { open } from "@tauri-apps/plugin-dialog";
 import { enable, disable } from "@tauri-apps/plugin-autostart";
 import { invoke } from "@tauri-apps/api/core";
@@ -17,6 +18,8 @@ export default function Profiles({
     [creating, setCreating] = useState(false),
     [busy, setBusy] = useState(false),
     [editing, setEditing] = useState<Profile | null>(null);
+  useEscape(creating, () => setCreating(false));
+  useEscape(editing !== null, () => setEditing(null));
   const [mobilePassword, setMobilePassword] = useState("");
   // Problems shown where the owner is looking: in the open dialog, or a
   // lasting banner when bundled download tools cannot run.
@@ -395,7 +398,13 @@ export default function Profiles({
       </div>
       {creating && (
         <div className="modal-backdrop">
-          <form className="settings-card profile-form" onSubmit={create}>
+          <form
+            className="settings-card profile-form"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-profile-title"
+            onSubmit={create}
+          >
             <button
               type="button"
               className="close-dialog"
@@ -404,7 +413,7 @@ export default function Profiles({
             >
               ×
             </button>
-            <h2>Create a music profile</h2>
+            <h2 id="create-profile-title">Create a music profile</h2>
             <label>
               Profile name
               <input
@@ -542,7 +551,13 @@ export default function Profiles({
       )}
       {editing && (
         <div className="modal-backdrop">
-          <form className="settings-card profile-form" onSubmit={save}>
+          <form
+            className="settings-card profile-form"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-profile-title"
+            onSubmit={save}
+          >
             <button
               type="button"
               className="close-dialog"
@@ -551,7 +566,7 @@ export default function Profiles({
             >
               ×
             </button>
-            <h2>Profile settings</h2>
+            <h2 id="edit-profile-title">Profile settings</h2>
             <label>
               Name
               <input

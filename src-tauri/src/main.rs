@@ -412,10 +412,23 @@ fn executable(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 }
 
 fn show(app: &tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
+    match app.get_webview_window("main") {
+        Some(window) => {
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+        }
+        None => {
+            // Reopening must never no-op: rebuild the main window if it is gone.
+            if let Some(config) = app.config().app.windows.first() {
+                if let Ok(builder) = tauri::WebviewWindowBuilder::from_config(app, config) {
+                    if let Ok(window) = builder.build() {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+            }
+        }
     }
     for (label, win) in app.webview_windows() {
         if label.starts_with("profile-") {

@@ -232,6 +232,13 @@ export default function Library(p: Props) {
                 setLimit(100);
                 p.onQuery(e.target.value);
               }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && p.query) {
+                  e.preventDefault();
+                  setLimit(100);
+                  p.onQuery("");
+                }
+              }}
             />
           </label>
           <button
