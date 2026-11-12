@@ -57,6 +57,21 @@ struct Opened {
 // Profile windows join the manager window as macOS tabs instead of adding windows.
 const TAB_GROUP: &str = "music-studio-kh";
 
+// Temporary: records why AppKit shows or hides a profile window. Removed once tabs are proven.
+#[cfg(target_os = "macos")]
+fn tabs_log(line: &str) {
+    use std::io::Write;
+    let Some(home) = std::env::var_os("HOME") else {
+        return;
+    };
+    let dir = std::path::PathBuf::from(home).join("Library/Application Support/MusicStudioKH");
+    let _ = std::fs::create_dir_all(&dir);
+    let path = dir.join("tabs.log");
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(file, "{line}");
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn prefer_tabs(window: &WebviewWindow) {
     let handle = window.clone();
@@ -83,15 +98,36 @@ fn merge_into_tabs(app: &tauri::AppHandle, profile: &WebviewWindow) {
     let _ = handle.run_on_main_thread(move || {
         use objc2_app_kit::{NSWindow, NSWindowOrderingMode, NSWindowTabbingMode};
         let (Ok(profile_ptr), Ok(main_ptr)) = (profile.ns_window(), main.ns_window()) else {
+            tabs_log("merge: ns_window missing");
             return;
         };
         let profile_window = unsafe { &*(profile_ptr as *const NSWindow) };
         let main_window = unsafe { &*(main_ptr as *const NSWindow) };
+        let profile_id = profile_window.tabbingIdentifier().to_string();
+        let main_id = main_window.tabbingIdentifier().to_string();
+        tabs_log(&format!(
+            "merge: profile_id={profile_id:?} main_id={main_id:?} profile_visible={} main_visible={}",
+            profile_window.isVisible(),
+            main_window.isVisible()
+        ));
         // Automatic tabbing only merges at creation time, so group them explicitly.
-        if profile_window.tabbingIdentifier().to_string() == main_window.tabbingIdentifier().to_string() {
+        if profile_id == main_id {
             profile_window.setTabbingMode(NSWindowTabbingMode::Preferred);
             main_window.setTabbingMode(NSWindowTabbingMode::Preferred);
             main_window.addTabbedWindow_ordered(profile_window, NSWindowOrderingMode::Above);
+            // Adding a tab does not select it, so the new window would stay hidden.
+            profile_window.makeKeyAndOrderFront(None);
+            if !profile_window.isVisible() {
+                // Tabbing refused: keep the player usable as its own window.
+                profile_window.orderFront(None);
+            }
+            tabs_log(&format!(
+                "merged: tabs={:?} profile_visible={}",
+                main_window.tabbedWindows().map(|tabs| tabs.len()),
+                profile_window.isVisible()
+            ));
+        } else {
+            tabs_log("merge: identifiers differ, left as its own window");
         }
     });
 }
@@ -239,10 +275,16 @@ fn open_profile(
     let url = validate_profile_url(&opened.url)?;
     let label = format!("profile-{}", opened.id);
     if let Some(existing) = app.get_webview_window(&label) {
+        #[cfg(target_os = "macos")]
+        tabs_log(&format!("existing label={:?} visible={:?}", existing.label(), existing.is_visible()));
         let _ = existing.show();
         let _ = existing.unminimize();
         let _ = existing.set_focus();
-        return Ok(());
+        if existing.is_visible().unwrap_or(false) {
+            return Ok(());
+        }
+        // A window left hidden by an earlier attempt cannot be shown again; replace it.
+        let _ = existing.destroy();
     }
     let script = format!(
         "window.__TUNEHARBOR_DESKTOP__ = true; window.__TUNEHARBOR_BOOTSTRAP__ = {};",
@@ -349,6 +391,14 @@ fn open_profile(
         })
         .build()
         .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "macos")]
+    tabs_log(&format!(
+        "built label={} title={:?} visible={:?} size={:?}",
+        profile_window.label(),
+        profile_window.title(),
+        profile_window.is_visible(),
+        profile_window.inner_size()
+    ));
     prefer_tabs(&profile_window);
     merge_into_tabs(&app, &profile_window);
     Ok(())
