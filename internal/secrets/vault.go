@@ -45,7 +45,7 @@ func (v *Vault) Save(id, password string) error {
 	_, existingErr := os.Stat(filepath.Join(v.root, id, "mobile-secret"))
 	if len(key) != 32 {
 		if existingErr == nil {
-			return errors.New("existing mobile key unavailable; unlock the OS keychain and try again")
+			return errors.New("existing mobile key unavailable; check the app data folder and try again")
 		}
 		if !os.IsNotExist(existingErr) {
 			return existingErr
@@ -69,7 +69,7 @@ func (v *Vault) Save(id, password string) error {
 	}
 	data := aead.Seal(nonce, nonce, []byte(password), []byte(id))
 	if e = v.store.Set(id, base64.StdEncoding.EncodeToString(key)); e != nil {
-		return errors.New("secure credential storage unavailable; unlock the OS keychain and try again")
+		return errors.New("secure credential storage unavailable; check the app data folder and try again")
 	}
 	dir := filepath.Join(v.root, id)
 	if e = os.MkdirAll(dir, 0700); e != nil {

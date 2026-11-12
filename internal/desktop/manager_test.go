@@ -66,21 +66,21 @@ func TestPortConflictDoesNotStartWorker(t *testing.T) {
 	}
 }
 
-type lockedStore struct{}
+type failingStore struct{}
 
-func (lockedStore) Get(string) (string, error) { return "", errors.New("keychain locked") }
-func (lockedStore) Set(string, string) error   { return errors.New("keychain locked") }
-func (lockedStore) Delete(string) error        { return nil }
+func (failingStore) Get(string) (string, error) { return "", errors.New("storage unavailable") }
+func (failingStore) Set(string, string) error   { return errors.New("storage unavailable") }
+func (failingStore) Delete(string) error        { return nil }
 
-// Without a working OS keychain, the profile still works in the browser; only
-// phone-app sign-in waits until the keychain is available.
-func TestCreateWithoutKeychainKeepsProfile(t *testing.T) {
+// Without a working secrets file, the profile still works in the browser; only
+// phone-app sign-in waits until storage is available.
+func TestCreateWithFailingSecretStoreKeepsProfile(t *testing.T) {
 	root := t.TempDir()
-	m := New(root, Tools{}, secrets.New(root, lockedStore{}))
+	m := New(root, Tools{}, secrets.New(root, failingStore{}))
 	defer m.Close()
 	p, e := m.Create(profiles.Input{Name: "P", Library: t.TempDir(), Username: "owner", Password: "123456"})
 	if e != nil {
-		t.Fatal("keychain failure blocked profile creation:", e)
+		t.Fatal("secret storage failure blocked profile creation:", e)
 	}
 	rows, _ := m.List()
 	if len(rows) != 1 || rows[0].ID != p.ID || rows[0].MobileReady {

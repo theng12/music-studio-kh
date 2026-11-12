@@ -608,8 +608,8 @@ export default function Profiles({
                 />
                 <small>
                   Phone apps such as Amperfy need this profile's password saved,
-                  encrypted, in your computer's keychain. If saving failed
-                  before, unlock the keychain and enter the password here.
+                  encrypted, in this app's own data folder. If saving failed
+                  before, enter the password here.
                 </small>
               </label>
             )}

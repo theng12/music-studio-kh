@@ -2,6 +2,11 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.5 — 2026-11-13
+
+- Phone-app sign-in keys now live in one `secrets.json` file inside the app's own data folder (mode 0600, written atomically) instead of the macOS Keychain — no Keychain reads, writes or prompts. Existing profiles keep working: their key is imported once on first launch.
+- "Create a music profile" sits in Settings, the window opens on Settings, and the separate Users screen stays gone.
+
 ## 0.3.4 — 2026-11-13
 
 - Profile creation now lives in Settings: the separate Users screen is gone, the window opens on Settings with your music profiles, and "New profile" opens the creation form right there.

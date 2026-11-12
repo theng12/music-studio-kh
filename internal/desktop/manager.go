@@ -85,7 +85,7 @@ type Manager struct {
 
 func New(root string, tools Tools, vault *secrets.Vault) *Manager {
 	if vault == nil {
-		vault = secrets.New(root, secrets.OSStore(root))
+		vault = secrets.New(root, secrets.DataStoreFor(root))
 	}
 	return &Manager{root: root, tools: tools, vault: vault, running: map[string]*instance{}, failures: map[string]string{}, log: openLog(root)}
 }
@@ -149,8 +149,8 @@ func (m *Manager) Create(input profiles.Input) (Info, error) {
 	if e != nil {
 		return Info{}, e
 	}
-	// Phone-app sign-in needs the OS keychain. If it is locked or missing, the
-	// profile still works in the browser; Settings can enable phone access later.
+	// Phone-app sign-in needs the local secrets file. If it cannot be written,
+	// the profile still works in the browser; Settings can enable phone access later.
 	if e = m.vault.Save(p.ID, input.Password); e != nil {
 		m.vault.Delete(p.ID)
 	}
