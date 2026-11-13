@@ -515,6 +515,17 @@ fn main() {
             if let Some(window) = app.get_webview_window("main") {
                 prefer_tabs(&window);
             }
+            // Test hook: start closed to the tray so reopen can be exercised without
+            // synthetic window closes, which macOS refuses.
+            if std::env::args().any(|a| a == "--hide-window") {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                    if let Some(window) = handle.get_webview_window("main") {
+                        let _ = window.hide();
+                    }
+                });
+            }
 
             // The tray is a quick menu only; the app window carries everything else.
             let tray_menu = Menu::with_items(

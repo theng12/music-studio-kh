@@ -2,9 +2,10 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
-## 0.3.8 — 2026-11-13
+## 0.3.9 — 2026-11-13
 
 - Clicking the app icon, choosing **Open Music Studio KH** from the app menu, or using the menu-bar item brings the window back after it was closed to the tray. Before this, a closed window stayed hidden until the app was quit.
+- Adds a hidden `--hide-window` flag used by the release test on the test Mac to start in the closed-to-tray state; it changes nothing in normal use.
 
 
 ## 0.3.7 — 2026-11-13
