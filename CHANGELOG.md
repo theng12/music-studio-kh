@@ -2,6 +2,11 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.8 — 2026-11-13
+
+- Clicking the app icon, choosing **Open Music Studio KH** from the app menu, or using the menu-bar item brings the window back after it was closed to the tray. Before this, a closed window stayed hidden until the app was quit.
+
+
 ## 0.3.7 — 2026-11-13
 
 - The app no longer contacts any credential store at all — not even once. Keys live only in the app's own `secrets.json` (0600, atomic). Profiles from earlier releases start without a key: enter the password once in Settings and phone sign-in works again.

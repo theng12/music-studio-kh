@@ -657,13 +657,29 @@ fn main() {
         })
         .build(tauri::generate_context!())
         .expect("Music Studio KH could not initialize")
-        .run(|app, event| {
-            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+        .run(|app, event| match event {
+            // Clicking the app icon while it is hidden is an activation, not a new
+            // process, so the window has to be brought back here.
+            tauri::RunEvent::Reopen { .. } => {
+                show(app);
+                // Activation is dropped while the window is still becoming visible.
+                let handle = app.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(150));
+                    if let Some(window) = handle.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.unminimize();
+                        let _ = window.set_focus();
+                    }
+                });
+            }
+            tauri::RunEvent::ExitRequested { api, .. } => {
                 if !app.state::<Closing>().0.load(Ordering::SeqCst) {
                     api.prevent_exit();
                     quit(app);
                 }
             }
+            _ => {}
         });
 }
 
