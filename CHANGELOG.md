@@ -2,6 +2,11 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.10 — 2026-11-15
+
+- **Check for Updates** now really checks. The app reads the signed Studio update feed, matches Music Studio KH by its own bundle id, and then says exactly what it found: still checking, an update and the version it has, “You’re on the latest version.”, or the reason the check failed. Nothing is guessed and nothing is faked.
+- The same control offers a hand-off to Studio Launcher KH, which stays the only place that installs updates. The hand-off only opens from the Mac itself, never from a phone on the network.
+
 ## 0.3.9 — 2026-11-13
 
 - Clicking the app icon, choosing **Open Music Studio KH** from the app menu, or using the menu-bar item brings the window back after it was closed to the tray. Before this, a closed window stayed hidden until the app was quit.

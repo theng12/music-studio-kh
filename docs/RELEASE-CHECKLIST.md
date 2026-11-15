@@ -39,9 +39,9 @@ A stable release needs every row to be PASS. Until then, builds are **unsigned r
 | Multiple concurrent profiles: own ports, credentials, data, artwork, logs | PASS | Manager lifecycle, port-conflict and log tests; browser smoke runs two profiles on one shared folder. |
 | Profile removal keeps music | PASS | Manager and profile tests. |
 | Browser auth: salted hashes, expiring sessions, sign out everywhere, rate limits, origin checks | PASS | Server auth tests. |
-| Subsonic subset: password and token-and-salt sign-in, browse, search, artwork, stream, seek | PASS (protocol) / BLOCKED (real clients) | Protocol tests and an installed-sidecar token sign-in with OS keychain encryption (`native-rpc-smoke.py`). Real phones are a gate above. |
+| Subsonic subset: password and token-and-salt sign-in, browse, search, artwork, stream, seek | PASS (protocol) / BLOCKED (real clients) | Protocol tests and an installed-sidecar token sign-in with the 0600 secrets file (`native-rpc-smoke.py`). Real phones are a gate above. |
 | Subsonic throttling does not break parallel clients | PASS | Parallel valid-request test; failed attempts throttled separately from the browser. |
-| Mobile secret encrypted with an OS-keychain key; keychain failure does not block profiles | PASS | Vault tests; a locked-keychain test creates a browser-only profile. |
+| Mobile secret kept in a 0600 file, never in an OS keychain (shipped since 0.3.7) | PASS | Vault tests; the app makes no credential-store call at all. |
 | LAN off by default, HTTP-only warning, addresses shown, firewall guidance | PASS | Settings UI; server binds to loopback unless LAN is enabled. |
 | Desktop bootstrap credential is private, single-use, expires, loopback only | PASS | Bootstrap tests; installed-sidecar check. |
 | Tray: close keeps servers, first close explains, Quit stops everything | PASS (Linux) | Desktop E2E checks the explanation, close-to-tray and server exit with the app. On Linux, tools die with a killed server via a parent-death signal test. |
@@ -49,5 +49,5 @@ A stable release needs every row to be PASS. Until then, builds are **unsigned r
 | Single instance | PASS (by construction) | Tauri single-instance plugin focuses the existing window. Not automated. |
 | Actionable errors (disk full, folder unavailable, tool failures, port busy) | PASS | Storage error mapping test, port-conflict test, download failure messages. |
 | Logs exclude secrets | PASS | Log test checks that neither the password nor the bootstrap token appears. |
-| Windows 11, macOS Intel and Apple Silicon, Ubuntu 24.04 runtime | PASS (CI install smoke) / BLOCKED (hands-on) | See the gates above. |
+| Windows 11, macOS Intel and Apple Silicon, Ubuntu 24.04 runtime | PASS (CI install smoke) / NOT CHECKED on real hardware | See the gates above. |
 | Signed and notarized installers | BLOCKED | Needs release credentials. |
