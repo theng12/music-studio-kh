@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Record a verified release in dist/ and rotate older versions out of it.
 
-Run only after the DMG was installed and verified. dist/ keeps the newest three
+Run only after the DMG was installed and verified. dist/ keeps the newest two
 versions; anything older moves automatically to the app's own
 `_trash/<date> <what>/`, without a hand step. The shared release-dist helper
 still does the copy itself.
@@ -30,7 +30,7 @@ HELPER = pathlib.Path(
     or pathlib.Path.home() / "Developer/Shared Tools/portfolio/tools/release-dist.py"
 )
 APP = "Music Studio KH"
-KEEP = 3
+KEEP = 2
 
 
 def sha256(path):
@@ -107,7 +107,7 @@ def keepers(entries, version, keep=KEEP):
     """The versions dist keeps: this one plus the newest others, newest first."""
     others = sorted(
         (rec for rec in entries.values() if rec["version"] != version),
-        key=lambda rec: rec["version"],
+        key=lambda rec: tuple(int(part) for part in rec["version"].split(".")),
         reverse=True,
     )
     return [version] + [rec["version"] for rec in others[: keep - 1]]
@@ -143,7 +143,7 @@ def main():
             "bytes": record["bytes"],
             "evidence": record["evidence"],
         })
-    # A protected version is pinned too, so the helper keeps it past the three.
+    # A protected version is pinned too; the helper must refuse rather than retire it.
     protected = protected_versions()
     held = []
     for record in sorted(older, key=lambda rec: rec["version"], reverse=True):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Retention selection: dist keeps the newest three versions, plus any pinned.
+"""Retention selection: dist keeps the newest two versions, plus any pinned.
 
 Run: python3 -I -B scripts/test-record-dist.py
 """
@@ -18,9 +18,13 @@ def entry(version):
 
 
 class Keepers(unittest.TestCase):
-    def test_newest_three_including_this_version(self):
+    def test_newest_two_including_this_version(self):
         entries = {f"{v}.dmg": entry(v) for v in ("0.3.0", "0.3.1", "0.3.2", "0.3.3")}
-        self.assertEqual(record_dist.keepers(entries, "0.3.3"), ["0.3.3", "0.3.2", "0.3.1"])
+        self.assertEqual(record_dist.keepers(entries, "0.3.3"), ["0.3.3", "0.3.2"])
+
+    def test_previous_version_uses_numeric_order(self):
+        entries = {f"{v}.dmg": entry(v) for v in ("0.3.8", "0.3.9", "0.3.10")}
+        self.assertEqual(record_dist.keepers(entries, "0.3.11"), ["0.3.11", "0.3.10"])
 
     def test_fewer_versions_than_the_limit_keeps_all(self):
         entries = {"0.3.0.dmg": entry("0.3.0"), "0.3.1.dmg": entry("0.3.1")}
@@ -28,10 +32,10 @@ class Keepers(unittest.TestCase):
 
     def test_a_rerun_of_an_old_version_keeps_it_newest(self):
         entries = {f"{v}.dmg": entry(v) for v in ("0.3.0", "0.3.1", "0.3.2")}
-        self.assertEqual(record_dist.keepers(entries, "0.3.0"), ["0.3.0", "0.3.2", "0.3.1"])
+        self.assertEqual(record_dist.keepers(entries, "0.3.0"), ["0.3.0", "0.3.2"])
 
-    def test_the_limit_is_three_by_default(self):
-        self.assertEqual(record_dist.KEEP, 3)
+    def test_the_limit_is_two_by_default(self):
+        self.assertEqual(record_dist.KEEP, 2)
 
 
 if __name__ == "__main__":
