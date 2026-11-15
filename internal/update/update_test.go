@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -42,7 +44,7 @@ func TestCheckSignedFeedByBundleID(t *testing.T) {
 	}))
 	defer server.Close()
 	home := t.TempDir()
-	path := filepath.Join(home, "Library", "KHUpdater")
+	path := filepath.Join(home, "Library", "KHUpdater", "base")
 	if err := os.MkdirAll(path, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -50,15 +52,33 @@ func TestCheckSignedFeedByBundleID(t *testing.T) {
 		"feedURL":   server.URL,
 		"publicKey": base64.StdEncoding.EncodeToString(public),
 	})
-	if err := os.WriteFile(filepath.Join(path, "publisher.json"), publisher, 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(path, "config.json"), publisher, 0600); err != nil {
 		t.Fatal(err)
 	}
 
+	// The publisher's own file must never override this enrolled client's connection.
+	if err := os.WriteFile(filepath.Join(path, "..", "publisher.json"), []byte(`{"feedURL":"http://127.0.0.1:1","publicKey":"wrong"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
 	if got := Check(home, "0.3.9", server.Client()); got.State != "available" || got.Version != "0.4.0" {
 		t.Fatalf("available result = %+v", got)
 	}
 	if got := Check(home, "0.4.0", server.Client()); got.State != "current" {
 		t.Fatalf("current result = %+v", got)
+	}
+}
+
+func TestOpenLauncherReportsLaunchServicesReason(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("Studio Launcher KH is macOS-only")
+	}
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "open"), []byte("#!/bin/sh\n/bin/echo 'Studio Launcher KH is missing' >&2\nexit 1\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	if err := OpenLauncher(); err == nil || !strings.Contains(err.Error(), "Studio Launcher KH is missing") {
+		t.Fatalf("handoff failure must name the app and LaunchServices reason: %v", err)
 	}
 }
 
@@ -76,12 +96,12 @@ func TestCheckRejectsInvalidSignature(t *testing.T) {
 	}))
 	defer server.Close()
 	home := t.TempDir()
-	path := filepath.Join(home, "Library", "KHUpdater")
+	path := filepath.Join(home, "Library", "KHUpdater", "base")
 	if err := os.MkdirAll(path, 0700); err != nil {
 		t.Fatal(err)
 	}
 	publisher, _ := json.Marshal(map[string]string{"feedURL": server.URL, "publicKey": base64.StdEncoding.EncodeToString(public)})
-	if err := os.WriteFile(filepath.Join(path, "publisher.json"), publisher, 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(path, "config.json"), publisher, 0600); err != nil {
 		t.Fatal(err)
 	}
 	if got := Check(home, "0.3.9", server.Client()); got.State != "failed" {

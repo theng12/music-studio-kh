@@ -675,7 +675,7 @@ export default function App() {
                 className="secondary compact-button"
                 onClick={openUpdateStudio}
               >
-                Open Update Studio KH
+                Open Studio Launcher KH
               </button>
             )}
           </div>

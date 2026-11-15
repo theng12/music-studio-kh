@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -43,7 +44,7 @@ type feed struct {
 var versionPattern = regexp.MustCompile(`^\d{1,9}(\.\d{1,9}){0,5}$`)
 
 func Check(home, installed string, client *http.Client) Result {
-	data, err := os.ReadFile(filepath.Join(home, "Library", "KHUpdater", "publisher.json"))
+	data, err := os.ReadFile(filepath.Join(home, "Library", "KHUpdater", "base", "config.json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return Result{State: "failed", Reason: "This Mac is not connected to Update Studio KH yet"}
 	}
@@ -128,5 +129,13 @@ func OpenLauncher() error {
 	if runtime.GOOS != "darwin" {
 		return errors.New("Studio Launcher KH is only available on macOS")
 	}
-	return exec.Command("open", "-b", "com.khupdater.launcher").Run()
+	output, err := exec.Command("open", "-b", "com.khupdater.launcher").CombinedOutput()
+	if err != nil {
+		reason := strings.TrimSpace(string(output))
+		if reason == "" {
+			reason = err.Error()
+		}
+		return fmt.Errorf("Studio Launcher KH could not be opened: %s. Install or repair it from the installer SSD, then try again", reason)
+	}
+	return nil
 }

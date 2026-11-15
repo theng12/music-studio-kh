@@ -20,7 +20,7 @@ func (s *Server) checkUpdates(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) openUpdateStudio(w http.ResponseWriter, r *http.Request) {
 	if ip := net.ParseIP(clientIP(r)); ip == nil || !ip.IsLoopback() {
-		fail(w, http.StatusForbidden, "open Update Studio KH from this Mac")
+		fail(w, http.StatusForbidden, "open Studio Launcher KH from this Mac")
 		return
 	}
 	if err := update.OpenLauncher(); err != nil {
