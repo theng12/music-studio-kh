@@ -2,6 +2,12 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.11 — 2026-11-15
+
+- **Updates no longer cut a download off.** Before Studio Launcher KH replaces this app, it puts the app on hold: no new download starts, the one running is left alone, and if it is still running a moment later it is marked to carry on by itself after the restart. Nothing is cancelled and there is no Retry to press.
+- The hold ends by itself after two minutes, so a cancelled or failed update can never leave the app refusing new downloads.
+- While a hold is in place, pasting a new link says exactly why it waits: “An update is installing, so no new download starts right now.”
+
 ## 0.3.10 — 2026-11-15
 
 - **Check for Updates** now really checks. The app reads the signed Studio update feed, matches Music Studio KH by its own bundle id, and then says exactly what it found: still checking, an update and the version it has, “You’re on the latest version.”, or the reason the check failed. Nothing is guessed and nothing is faked.
