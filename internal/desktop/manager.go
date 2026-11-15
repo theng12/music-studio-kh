@@ -81,6 +81,8 @@ type Manager struct {
 	failures map[string]string
 	closing  bool
 	log      *profileLog
+	holdServer *http.Server
+	holdAddr   string
 }
 
 func New(root string, tools Tools, vault *secrets.Vault) *Manager {
@@ -343,7 +345,14 @@ func (m *Manager) Close() error {
 	for id := range m.running {
 		ids = append(ids, id)
 	}
+	hold := m.holdServer
+	m.holdServer = nil
 	m.mu.Unlock()
+	if hold != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		hold.Shutdown(ctx)
+	}
 	for _, id := range ids {
 		m.Stop(id)
 	}

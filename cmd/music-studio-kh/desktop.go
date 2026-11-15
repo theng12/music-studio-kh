@@ -16,6 +16,8 @@ func runDesktop(root string, args []string, input io.Reader, output io.Writer) e
 		return e
 	}
 	m := desktop.New(root, desktop.ToolPaths(*tools), nil)
+	// The installer's hold lives on one fixed loopback port, whatever profiles run.
+	m.ServeHold()
 	// A terminated server still stops its profiles, downloads and conversions.
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)

@@ -129,6 +129,7 @@ func serveTools(root, toolDir string, output io.Writer) error {
 		tools = desktop.ToolPaths(toolDir)
 	}
 	manager := desktop.New(root, tools, nil)
+	manager.ServeHold()
 	defer manager.Close()
 	if e = manager.Doctor(); e != nil {
 		return e
