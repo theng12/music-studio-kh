@@ -25,10 +25,11 @@ import { isImportableFile } from "./drop";
 import { APP_VERSION } from "./version";
 import { shuffledQueue } from "./playback";
 type UpdateState = {
-  state: "idle" | "checking" | "current" | "available" | "opening" | "error" | "unavailable";
+  state: "idle" | "checking" | "current" | "available" | "opening" | "opened" | "error";
   version?: string;
   message?: string;
 };
+type UpdateResult = { state: "current" | "available" | "failed"; version?: string; reason?: string };
 const defaults: Appearance = {
   theme: "system",
   accent: "mint",
@@ -180,14 +181,30 @@ export default function App() {
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
   }, [appearance]);
-  // One updater per Mac: Update Studio decides versions and installs. Until it
-  // publishes this app, say so plainly instead of pretending to check.
-  const checkUpdates = () =>
-    setUpdate({
-      state: "unavailable",
-      message:
-        "Updates install through Studio Launcher KH. This app is not in its feed yet.",
-    });
+  const checkUpdates = async () => {
+    setUpdate({ state: "checking" });
+    try {
+      const result = await api<UpdateResult>(
+        "/api/updates/check?version=" + encodeURIComponent(APP_VERSION),
+      );
+      if (result.state === "failed") {
+        setUpdate({ state: "error", message: result.reason || "Update check failed." });
+      } else {
+        setUpdate({ state: result.state, version: result.version });
+      }
+    } catch (e) {
+      setUpdate({ state: "error", message: (e as Error).message });
+    }
+  };
+  const openUpdateStudio = async () => {
+    setUpdate({ state: "opening" });
+    try {
+      await api("/api/updates/open", { method: "POST" });
+      setUpdate({ state: "opened" });
+    } catch (e) {
+      setUpdate({ state: "error", message: (e as Error).message });
+    }
+  };
   const saveAppearance = async (value: Appearance) => {
     setAppearance(value);
     try {
@@ -646,10 +663,20 @@ export default function App() {
                 {update.state === "current" && "You’re on the latest version."}
                 {update.state === "available" &&
                   "Update available: " + update.version}
-                {update.state === "opening" && "Opening the update..."}
-                {update.state === "unavailable" && update.message}
+                {update.state === "opening" && "Opening Studio Launcher KH..."}
+                {update.state === "opened" && "Studio Launcher KH opened."}
                 {update.state === "error" && update.message}
               </p>
+            )}
+            {!["idle", "checking", "opening"].includes(update.state) && (
+              <button
+                type="button"
+                id="open-update-studio"
+                className="secondary compact-button"
+                onClick={openUpdateStudio}
+              >
+                Open Update Studio KH
+              </button>
             )}
           </div>
         </aside>

@@ -53,6 +53,31 @@ func login(t *testing.T, s *Server) *http.Cookie {
 	}
 	return w.Result().Cookies()[0]
 }
+func TestUpdateEndpointsRequireAuthentication(t *testing.T) {
+	s, _ := fixture(t)
+	for _, tc := range []struct{ method, path string }{
+		{"GET", "/api/updates/check?version=0.3.9"},
+		{"POST", "/api/updates/open"},
+	} {
+		if w := request(s, tc.method, tc.path, "", nil); w.Code != http.StatusUnauthorized {
+			t.Fatalf("%s %s returned %d", tc.method, tc.path, w.Code)
+		}
+	}
+}
+
+func TestUpdateHandoffIsLocalOnly(t *testing.T) {
+	s, _ := fixture(t)
+	c := login(t, s)
+	r := httptest.NewRequest("POST", "/api/updates/open", nil)
+	r.AddCookie(c)
+	r.RemoteAddr = "192.168.1.5:12345"
+	w := httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, r)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("remote update handoff returned %d", w.Code)
+	}
+}
+
 func TestAuthenticatedStreamingRangesAndProfileIsolation(t *testing.T) {
 	s, track := fixture(t)
 	path := "/api/stream/" + track.ID
