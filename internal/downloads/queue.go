@@ -61,6 +61,9 @@ type Queue struct {
 	cancel   context.CancelFunc
 	closing  bool
 	lease    *flock.Flock
+	// holdUntil fences new claims during an update. In-memory and self-expiring only, so an
+	// install that aborts can never leave this queue refusing work.
+	holdUntil time.Time
 }
 
 func Open(dataDir string, importer Importer, runner Runner) (*Queue, error) {
@@ -95,6 +98,13 @@ func Open(dataDir string, importer Importer, runner Runner) (*Queue, error) {
 		return nil, e
 	}
 	if e = migrateJobColumns(db); e != nil {
+		db.Close()
+		return nil, e
+	}
+	// A job the update hold marked for resend finishes after the restart with no operator
+	// step; anything else left running by a previous process needs a Retry.
+	_, e = db.Exec(`UPDATE jobs SET state='queued',phase='',error='' WHERE state='running' AND phase='resuming'`)
+	if e != nil {
 		db.Close()
 		return nil, e
 	}
@@ -175,6 +185,9 @@ func (q *Queue) Submit(raw string) (Job, error) {
 	defer q.mu.Unlock()
 	if q.closing {
 		return Job{}, errors.New("download service is stopping")
+	}
+	if time.Now().Before(q.holdUntil) {
+		return Job{}, errors.New("An update is installing, so no new download starts right now. Try again in a moment.")
 	}
 	var n int
 	if e = q.db.QueryRow("SELECT COUNT(*) FROM jobs WHERE state IN ('queued','running','paused') AND archived=0").Scan(&n); e != nil {
@@ -321,6 +334,73 @@ func (q *Queue) Retry(id string) error {
 	q.signal()
 	return nil
 }
+// Hold takes the update hold (contract: _orchestra/youtube-stack/update-hold/CONTRACT.md):
+// close the claim path first, wait up to timeout for the running download to settle, and then
+// mark anything still running for resend so the next start re-dispatches it by itself. Queued
+// work stays queued and nothing is cancelled. Returns the ids a restart would still strand;
+// empty means a restart now loses nothing. The pause expires after pause by itself.
+func (q *Queue) Hold(timeout, pause time.Duration) []string {
+	q.mu.Lock()
+	q.holdUntil = time.Now().Add(pause)
+	q.mu.Unlock()
+	q.signal()
+	deadline := time.Now().Add(timeout)
+	for q.InFlight() > 0 && time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	ids, e := q.jobIDs("SELECT id FROM jobs WHERE state='running'")
+	if e != nil {
+		return []string{"download queue unreadable: " + e.Error()}
+	}
+	left := []string{}
+	for _, id := range ids {
+		if _, e := q.db.Exec("UPDATE jobs SET phase='resuming' WHERE id=? AND state='running'", id); e != nil {
+			left = append(left, id)
+		}
+	}
+	return left
+}
+
+// Resume opens the claim path at once, for the installer that finished early.
+func (q *Queue) Resume() {
+	q.mu.Lock()
+	q.holdUntil = time.Time{}
+	q.mu.Unlock()
+	q.signal()
+}
+
+// InFlight is how many downloads are running right now, read from the queue rows.
+func (q *Queue) InFlight() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	ids, e := q.jobIDs("SELECT id FROM jobs WHERE state='running'")
+	if e != nil {
+		return 0
+	}
+	return len(ids)
+}
+
+// jobIDs collects a single-column query. The connection pool holds one connection, so rows
+// are closed before the caller writes anything else.
+func (q *Queue) jobIDs(query string) ([]string, error) {
+	rows, e := q.db.Query(query)
+	if e != nil {
+		return nil, e
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var id string
+		if e := rows.Scan(&id); e != nil {
+			return nil, e
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
 func (q *Queue) Close() error {
 	q.mu.Lock()
 	if q.closing {
@@ -362,6 +442,10 @@ func (q *Queue) worker() {
 func (q *Queue) next() bool {
 	q.mu.Lock()
 	if q.closing {
+		q.mu.Unlock()
+		return false
+	}
+	if time.Now().Before(q.holdUntil) {
 		q.mu.Unlock()
 		return false
 	}
@@ -509,19 +593,29 @@ func (q *Queue) next() bool {
 	var state string
 	q.db.QueryRow("SELECT state FROM jobs WHERE id=?", id).Scan(&state)
 	if state != "canceled" {
+		resend := false
 		if q.closing {
+			var phase string
+			q.db.QueryRow("SELECT phase FROM jobs WHERE id=?", id).Scan(&phase)
+			resend = phase == "resuming"
+		}
+		switch {
+		case resend:
+			// The update hold marked this job for resend: the next start picks it up again.
+			state = "queued"
+		case q.closing:
 			state = "interrupted"
-		} else if paused {
+		case paused:
 			state = "paused"
-		} else if e != nil {
+		case e != nil:
 			state = "failed"
-		} else if expanded {
+		case expanded:
 			state = "waiting"
-		} else {
+		default:
 			state = "completed"
 		}
 		message := ""
-		if e != nil {
+		if e != nil && state != "queued" {
 			message = sanitizeJobError(e)
 		}
 		if state == "paused" {

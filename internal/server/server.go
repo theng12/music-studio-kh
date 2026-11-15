@@ -74,6 +74,8 @@ func New(p profiles.Profile, l *library.Library, options ...Option) *Server {
 	m.HandleFunc("PUT /api/artwork/{id}", s.authorizeAndTrack(s.setArtwork))
 	m.HandleFunc("DELETE /api/artwork/{id}", s.authorizeAndTrack(s.resetArtwork))
 	m.HandleFunc("GET /api/activity", s.authorize(s.activityStatus))
+	m.HandleFunc("POST /api/maintenance/hold", s.maintenanceHold)
+	m.HandleFunc("DELETE /api/maintenance/hold", s.maintenanceResume)
 	m.HandleFunc("/rest/", s.subsonic)
 	files, _ := fs.Sub(web, "web")
 	m.Handle("/", http.FileServer(http.FS(files)))
