@@ -83,6 +83,14 @@ try {
     observations.changeSends = await desktopPage.waitForFunction(() => window.__titles.find(t => t.startsWith('__TH_CMD__:')), null, { timeout: 2000 }).then(h => h.jsonValue()).catch(() => '');
   }
   if (out) await writeFile(join(out, 'folder-missing-smoke.json'), JSON.stringify(observations, null, 2));
+  // INVERT records the old code's wrong behaviour as evidence instead of failing on it.
+  if (process.env.INVERT) {
+    assert.equal(a.folderProblem, 0, 'old code: no folder message');
+    assert.equal(a.emptyLibrary, 1, 'old code: a missing folder reads as the empty library');
+    assert(a.text.includes('Your next favorite starts here'), 'old code: shows the empty-library wording');
+    console.log('folder-missing smoke: OLD BEHAVIOUR CONFIRMED (missing folder reads as an empty library)');
+    return;
+  }
   assert.equal(a.emptyLibrary, 0, 'a missing folder must not read as an empty library');
   assert.equal(a.folderProblem, 1, 'the folder problem must be shown');
   assert(a.text.includes('/Volumes/' + drive + '/Music'), 'the folder is named');
