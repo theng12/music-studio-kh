@@ -252,6 +252,11 @@ fn open_profile(
         let _ = existing.unminimize();
         let _ = existing.set_focus();
         if existing.is_visible().unwrap_or(false) {
+            // The profile server may have restarted (new folder, port), dropping the old sign-in.
+            let _ = existing.eval(&format!(
+                "window.__TUNEHARBOR_BOOTSTRAP__ = {}; window.dispatchEvent(new Event('desktop-bootstrap'));",
+                serde_json::to_string(&opened.bootstrap).map_err(|_| "Invalid bootstrap")?
+            ));
             return Ok(());
         }
         // A window left hidden by an earlier attempt cannot be shown again; replace it.
@@ -336,14 +341,14 @@ fn open_profile(
                             );
                         }
                     }
-                    "manage-profile" => {
+                    "manage-profile" | "relocate-profile" => {
                         if let Some(main) = window.app_handle().get_webview_window("main") {
                             let _ = main.show();
                             let _ = main.unminimize();
                             let _ = main.set_focus();
                             let id = window.label().strip_prefix("profile-").unwrap_or("");
                             let _ = main.eval(&format!(
-                                "window.dispatchEvent(new CustomEvent('manage-profile', {{detail: {:?}}}));", id
+                                "window.dispatchEvent(new CustomEvent({:?}, {{detail: {:?}}}));", cmd, id
                             ));
                         }
                     }

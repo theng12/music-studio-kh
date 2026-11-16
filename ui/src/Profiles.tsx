@@ -52,8 +52,20 @@ export default function Profiles({
       );
       if (profile) setEditing({ ...profile });
     };
+    // Sent from a profile window's library screen: choose its folder, then reopen it.
+    const relocateFromLibrary = (event: Event) => {
+      const profile = profiles.find(
+        (p) => p.id === (event as CustomEvent<string>).detail,
+      );
+      if (profile) relocate(profile, true);
+      else notice("That profile is no longer listed here. Refresh and try again.");
+    };
     window.addEventListener("manage-profile", manage);
-    return () => window.removeEventListener("manage-profile", manage);
+    window.addEventListener("relocate-profile", relocateFromLibrary);
+    return () => {
+      window.removeEventListener("manage-profile", manage);
+      window.removeEventListener("relocate-profile", relocateFromLibrary);
+    };
   }, [profiles]);
 
   useEffect(() => {
@@ -188,19 +200,21 @@ export default function Profiles({
       },
     });
   };
-  const relocate = async (p: Profile) => {
+  const relocate = async (p: Profile, reopen = false) => {
     try {
       const path = await open({
         directory: true,
         multiple: false,
-        title: "Choose a replacement music folder",
+        title: "Choose the music folder for " + p.name,
       });
-      if (typeof path !== "string" || path === p.library) return;
+      if (typeof path !== "string") return;
       setConfirmAsk({
         title: "Use this folder for " + p.name + "?",
         body:
           path +
-          " — the profile restarts and indexes the new folder. Files in the old folder stay where they are.",
+          (path === p.library
+            ? " is already this profile's folder. The profile restarts and reads it again from scratch; favourites and play counts stay."
+            : " — the profile restarts and indexes the new folder, including its subfolders. Files in the old folder stay where they are."),
         confirmLabel: "Use folder",
         run: async () => {
           setBusy(true);
@@ -208,12 +222,18 @@ export default function Profiles({
             await rpc("relocate", { id: p.id, library: path });
             setEditing(null);
             await refresh();
-            notice("Music folder changed. Press Listen to open the library.");
+            notice(
+              reopen
+                ? "Music folder changed. Reopening the library…"
+                : "Music folder changed. Press Listen to open the library.",
+            );
           } catch (e) {
             notice(String(e));
+            return;
           } finally {
             setBusy(false);
           }
+          if (reopen) await listen(p.id);
         },
       });
     } catch (e) {

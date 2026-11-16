@@ -7,6 +7,7 @@ import {
   Job,
   MetadataInput,
   sendDesktopCommand,
+  StorageSummary,
   Track,
 } from "./api";
 import Icon from "./Icon";
@@ -55,6 +56,8 @@ export default function App() {
     [tracks, setTracks] = useState<Track[]>([]),
     [tracksLoaded, setTracksLoaded] = useState(false),
     [tracksError, setTracksError] = useState(""),
+    [folder, setFolder] = useState<StorageSummary | null>(null),
+    [checkingFolder, setCheckingFolder] = useState(false),
     [jobs, setJobs] = useState<Job[]>([]),
     [jobsError, setJobsError] = useState(""),
     [jobsLoaded, setJobsLoaded] = useState(false),
@@ -90,14 +93,40 @@ export default function App() {
   };
   const loadTracks = async () => {
     try {
-      setTracks(await api("/api/tracks"));
+      // The folder check rides along so a missing folder never reads as an empty library.
+      const [rows, store] = await Promise.all([
+        api<Track[]>("/api/tracks"),
+        api<StorageSummary>("/api/storage").catch(() => null),
+      ]);
+      setTracks(rows);
+      setFolder(store);
       setTracksLoaded(true);
       setTracksError("");
+      return store;
     } catch (e) {
       setTracksError((e as Error).message);
       throw e;
     }
   };
+  const retryFolder = async () => {
+    setCheckingFolder(true);
+    try {
+      await api("/api/scan", { method: "POST" }).catch(() => {});
+      const store = await loadTracks();
+      notify(
+        store?.rootAvailable
+          ? "Music folder found. Library refreshed."
+          : "Still can't open the music folder: " +
+              (store?.rootError || "no answer from the music server") +
+              ".",
+      );
+    } catch (e) {
+      notify("Still can't open the music folder: " + (e as Error).message);
+    } finally {
+      setCheckingFolder(false);
+    }
+  };
+  const desktop = !!(window as any).__TUNEHARBOR_DESKTOP__;
   const completed = useRef(new Set<string>());
   const loadJobs = async () => {
     let rows: Job[];
@@ -128,8 +157,19 @@ export default function App() {
       setProfile(null);
       setPlaying(null);
     };
+    // The desktop app hands over a fresh sign-in after it restarts this profile (e.g. a new music folder).
+    const rebootstrap = () => {
+      bootstrapPromise = null;
+      initialProfile()
+        .then(setProfile)
+        .catch(() => {});
+    };
     window.addEventListener("session-expired", expired);
-    return () => window.removeEventListener("session-expired", expired);
+    window.addEventListener("desktop-bootstrap", rebootstrap);
+    return () => {
+      window.removeEventListener("session-expired", expired);
+      window.removeEventListener("desktop-bootstrap", rebootstrap);
+    };
   }, []);
   useEffect(() => {
     if (!profile) return;
@@ -706,7 +746,51 @@ export default function App() {
           {page === "library" && !tracksLoaded && !tracksError && (
             <p role="status">Loading your music library…</p>
           )}
-          {page === "library" && tracksLoaded && (
+          {page === "library" && folder && !folder.rootAvailable && (
+            <div id="folder-problem" className="empty" role="alert">
+              <span className="empty-note">
+                <Icon name="folder" size={38} />
+              </span>
+              <h3>Can't open your music folder</h3>
+              <div className="settings-folder-box" id="folder-problem-path">
+                {profile.library}
+              </div>
+              <p>
+                {folder.rootError || "This folder cannot be read right now"}.{" "}
+                {tracks.length
+                  ? "The songs below are from the last scan and won't play until the folder is back."
+                  : "Until it's back, the library can't list or play its songs."}
+              </p>
+              <div className="action-row empty-actions">
+                {desktop && (
+                  <button
+                    id="folder-problem-change"
+                    className="primary"
+                    onClick={() => sendDesktopCommand("relocate-profile")}
+                  >
+                    Choose the music folder…
+                  </button>
+                )}
+                <button
+                  id="folder-problem-retry"
+                  className="secondary"
+                  disabled={checkingFolder}
+                  onClick={retryFolder}
+                >
+                  {checkingFolder ? "Checking…" : "Try again"}
+                </button>
+              </div>
+              {!desktop && (
+                <small>
+                  To use a different folder, open Music Studio KH on the
+                  computer running it, then Profiles → Edit → Change.
+                </small>
+              )}
+            </div>
+          )}
+          {page === "library" &&
+            tracksLoaded &&
+            (folder?.rootAvailable !== false || tracks.length > 0) && (
             <Library
               notice={notify}
               tracks={tracks}
@@ -719,6 +803,11 @@ export default function App() {
               onArtwork={(track, album) => setArtwork({ track, album })}
               chooseFiles={() => files.current?.click()}
               chooseFolder={() => folders.current?.click()}
+              useFolderInPlace={
+                desktop
+                  ? () => sendDesktopCommand("relocate-profile")
+                  : undefined
+              }
               openCustomImport={() => setCustomImport(true)}
               importFiles={importFiles}
               version={version}

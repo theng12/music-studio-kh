@@ -2,6 +2,12 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.12 — 2026-11-16
+
+- **A missing music folder now says so.** If the library folder was moved, deleted or is on a drive that isn't connected (such as a network share), the library names the folder, says what is wrong in plain words, and offers **Try again** and **Choose the music folder…**. It no longer looks like an empty library with 0 songs.
+- **Use a music folder where it is.** An empty library now offers to point the profile at a folder you already have — on this Mac or a network drive, with any number of artist and album subfolders — instead of copying the files in. The library's folder button is now called **Copy folder**, because that is what it does.
+- After choosing a new folder from the library, the library window reopens on it by itself.
+
 ## 0.3.11 — 2026-11-15
 
 - **Updates no longer cut a download off.** Before Studio Launcher KH replaces this app, it puts the app on hold: no new download starts, the one running is left alone, and if it is still running a moment later it is marked to carry on by itself after the restart. Nothing is cancelled and there is no Retry to press.

@@ -154,7 +154,7 @@ func (l *Library) StorageSummary() (StorageSummary, error) {
 		return s, err
 	}
 	if err := l.Ready(); err != nil {
-		s.RootError = err.Error()
+		s.RootError = folderProblem(l.root, err)
 		return s, nil
 	}
 	s.RootAvailable = true

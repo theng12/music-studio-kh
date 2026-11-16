@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -263,6 +264,22 @@ func TestStorageSummaryIndexedScopeAndRootHonesty(t *testing.T) {
 	}
 	if decoded["indexedFiles"].(float64) != 2 {
 		t.Fatalf("indexed scope lost when root is away: %s", blob)
+	}
+	if !strings.Contains(s3.RootError, "not there any more") {
+		t.Fatalf("missing folder not explained plainly: %q", s3.RootError)
+	}
+}
+
+func TestFolderProblemNamesTheCause(t *testing.T) {
+	cases := map[string]string{
+		folderProblem("/Volumes/No Such Drive 4f1c/Music", errors.New("x")): "The drive “No Such Drive 4f1c” is not connected",
+		folderProblem(filepath.Join(t.TempDir(), "gone"), errors.New("x")):  "not there any more",
+		folderProblem(t.TempDir(), errOtherLibrary):                         "different library",
+	}
+	for got, want := range cases {
+		if !strings.Contains(got, want) {
+			t.Fatalf("got %q, want it to say %q", got, want)
+		}
 	}
 }
 

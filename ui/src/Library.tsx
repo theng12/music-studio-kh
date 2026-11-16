@@ -16,6 +16,8 @@ interface Props {
   onArtwork: (t: Track, album: boolean) => void;
   chooseFiles: () => void;
   chooseFolder: () => void;
+  // Desktop only: point this profile at a folder of music where it already is.
+  useFolderInPlace?: () => void;
   openCustomImport: () => void;
   importFiles: (files: (File | ImportItem)[]) => Promise<void>;
   version: number;
@@ -203,10 +205,10 @@ export default function Library(p: Props) {
               className="secondary compact-button"
               id="choose-folder"
               onClick={p.chooseFolder}
-              title="Import whole album or artist folder"
+              title="Copy an album or artist folder into this library. To play a folder where it is, change the music folder in Settings."
             >
               <Icon name="folder" />
-              Folder
+              Copy folder
             </button>
             <button
               className="secondary compact-button"
@@ -334,9 +336,20 @@ export default function Library(p: Props) {
             <p>
               {p.query
                 ? "Try another title, artist, album, or version."
-                : "Drop music files or album folders here, or choose files or a folder to add to your library."}
+                : p.useFolderInPlace
+                  ? "Already have a music folder (on this Mac or a network drive)? Use it where it is. Or drop files here to copy them in."
+                  : "Drop music files or album folders here, or choose files or a folder to copy into your library."}
             </p>
             <div className="action-row empty-actions">
+              {p.useFolderInPlace && !p.query && (
+                <button
+                  id="empty-use-folder"
+                  className="primary"
+                  onClick={p.useFolderInPlace}
+                >
+                  Use a music folder where it is…
+                </button>
+              )}
               <button
                 id="empty-add"
                 className="secondary"
@@ -349,7 +362,7 @@ export default function Library(p: Props) {
                 className="secondary"
                 onClick={p.chooseFolder}
               >
-                Choose music folder
+                Copy a folder in
               </button>
               <button
                 id="empty-custom-import"

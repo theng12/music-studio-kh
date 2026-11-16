@@ -116,7 +116,7 @@ func (l *Library) checkedRoot() (*os.Root, error) {
 		return nil, errors.New("music folder unavailable; reconnect it or choose a replacement in the profile settings")
 	}
 	if l.marker != "" && marker != l.marker {
-		return nil, errors.New("music folder differs from this profile's library")
+		return nil, errOtherLibrary
 	}
 	if l.marker == "" {
 		if _, err = l.db.Exec("INSERT INTO settings(key,value) VALUES('library_identity',?)", marker); err != nil {
@@ -133,6 +133,31 @@ func (l *Library) checkedRoot() (*os.Root, error) {
 
 // Ready checks that operations still target the originally selected library.
 func (l *Library) Ready() error { _, e := l.checkedRoot(); return e }
+
+var errOtherLibrary = errors.New("music folder differs from this profile's library")
+
+// folderProblem says in plain words why the music folder cannot be used.
+func folderProblem(root string, err error) string {
+	if errors.Is(err, errOtherLibrary) {
+		return "This folder holds a different library from the one this profile was set up with"
+	}
+	if _, e := os.Stat(root); e != nil {
+		// shortcut: only macOS /Volumes drives are named; add /media or drive letters if Linux/Windows users hit this.
+		if parts := strings.Split(filepath.ToSlash(root), "/"); len(parts) > 2 && parts[1] == "Volumes" {
+			if _, e := os.Stat("/Volumes/" + parts[2]); e != nil {
+				return "The drive “" + parts[2] + "” is not connected. Connect it (for a network share, open it in Finder), then try again"
+			}
+		}
+		if os.IsPermission(e) {
+			return "Music Studio KH is not allowed to read this folder"
+		}
+		return "This folder is not there any more. It may have been moved, renamed or deleted, or its drive is disconnected"
+	}
+	if os.IsPermission(err) {
+		return "Music Studio KH is not allowed to read this folder"
+	}
+	return "This folder cannot be opened right now (" + err.Error() + ")"
+}
 
 // removeStaleImports deletes temporary import files left by a crash. Imports
 // hold the folder lock for a temporary file's whole life, and so does the caller.
