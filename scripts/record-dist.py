@@ -165,7 +165,9 @@ def main():
         "apps": [{
             "app": APP,
             "project": str(ROOT),
-            "retirement_trash": str(pathlib.Path.home() / "Desktop/_trash/music-studio-kh"),
+            # Follow the repo's own _trash pointer (one Desktop trash, per-app folder)
+            # instead of a hardcoded name that drifts when the pointer changes.
+            "retirement_trash": str(TRASH.resolve()),
             "releases": releases,
         }],
     }, indent=2) + "\n")
