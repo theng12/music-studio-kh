@@ -49,7 +49,14 @@ try {
     if (desktop) await context.addInitScript(() => {
       window.__TUNEHARBOR_DESKTOP__ = true;
       window.__titles = [];
-      new MutationObserver(() => window.__titles.push(document.title)).observe(document.querySelector('head') || document.documentElement, { subtree: true, childList: true, characterData: true });
+      window.__lastTitle = document.title;
+      // A 10 ms poll catches the app's 60 ms desktop command title, which a head-only observer misses.
+      setInterval(() => {
+        if (document.title !== window.__lastTitle) {
+          window.__lastTitle = document.title;
+          window.__titles.push(document.title);
+        }
+      }, 10);
     });
     const page = await context.newPage();
     await page.goto(origin);
@@ -89,8 +96,8 @@ try {
     assert.equal(a.emptyLibrary, 1, 'old code: a missing folder reads as the empty library');
     assert(a.text.includes('Your next favorite starts here'), 'old code: shows the empty-library wording');
     console.log('folder-missing smoke: OLD BEHAVIOUR CONFIRMED (missing folder reads as an empty library)');
-    return;
-  }
+    process.exitCode = 0;
+  } else {
   assert.equal(a.emptyLibrary, 0, 'a missing folder must not read as an empty library');
   assert.equal(a.folderProblem, 1, 'the folder problem must be shown');
   assert(a.text.includes('/Volumes/' + drive + '/Music'), 'the folder is named');
@@ -120,6 +127,7 @@ try {
   observations.recovered = true;
   if (out) await writeFile(join(out, 'folder-missing-smoke.json'), JSON.stringify(observations, null, 2));
   console.log('folder-missing smoke passed');
+  }
 } finally {
   await browser?.close();
   if (server && server.exitCode === null) await stop();
