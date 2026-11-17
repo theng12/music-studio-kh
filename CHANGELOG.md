@@ -2,6 +2,10 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.13 — 2026-11-17
+
+- **Only the updater can put the app on hold.** Before Studio Launcher KH replaces the app, the app now checks the updater's own credential on every hold request — a private file on this Mac that the Launcher creates and renews. Any other program, and any web page, is refused instead of being able to pause downloads. Nothing changes in normal use.
+
 ## 0.3.12 — 2026-11-16
 
 - **A missing music folder now says so.** If the library folder was moved, deleted or is on a drive that isn't connected (such as a network share), the library names the folder, says what is wrong in plain words, and offers **Try again** and **Choose the music folder…**. It no longer looks like an empty library with 0 songs.
