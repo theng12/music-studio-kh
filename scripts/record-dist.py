@@ -160,6 +160,9 @@ def main():
                 held.append(record["version"])
 
     pins = pathlib.Path(os.environ.get("TMPDIR", "/tmp")) / f"dist-pins-{version}.json"
+    # The owner empties the Desktop trash often; an absent folder is the normal state, not a
+    # reason to refuse the rotation.
+    TRASH.resolve().mkdir(parents=True, exist_ok=True)
     pins.write_text(json.dumps({
         "schema": 1,
         "apps": [{
