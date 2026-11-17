@@ -63,7 +63,10 @@ func TestHoldNeedsTheUpdatersCredential(t *testing.T) {
 	m.SetHoldAddr("127.0.0.1:0")
 	m.ServeHold()
 	base := "http://" + m.HoldAddr() + "/api/maintenance/hold"
-	path := holdTokenPath()
+	// A private temp credential, never the live one on this Mac: writing the Launcher's own
+	// file here would break the next real update.
+	path := filepath.Join(t.TempDir(), "hold-token")
+	t.Setenv(holdTokenFileEnv, path)
 
 	// No file: no credential, so no hold.
 	if status, _ := doHold(t, "POST", base, "anything", ""); status != http.StatusUnauthorized {
