@@ -1,7 +1,7 @@
 {
   "name": "music-studio-kh",
   "private": true,
-  "version": "0.3.13",
+  "version": "0.3.14",
   "scripts": {
     "test:browser": "node scripts/browser-smoke.mjs",
     "test:parser": "node scripts/test-changelog-parser.mjs",
@@ -13,7 +13,7 @@
     "test:android-navigation": "node scripts/android-navigation-smoke.mjs",
     "tauri": "tauri",
     "desktop": "tauri dev",
-    "build:desktop": "tauri build",
+    "build:desktop": "node scripts/build-desktop.mjs",
     "test": "npm run build:web && npm run test:browser"
   },
   "devDependencies": {

@@ -2,6 +2,10 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.14 — 2026-11-19
+
+- **The app no longer carries this Mac's folder names.** Every release build now rewrites the Rust build paths to a neutral `/home/owner`, so the installer no longer reveals the owner's username and folder layout. The release build then reads the finished DMG byte by byte and stops if any of it comes back.
+
 ## 0.3.13 — 2026-11-17
 
 - **Only the updater can put the app on hold.** Before Studio Launcher KH replaces the app, the app now checks the updater's own credential on every hold request — a private file on this Mac that the Launcher creates and renews. Any other program, and any web page, is refused instead of being able to pause downloads. Nothing changes in normal use.

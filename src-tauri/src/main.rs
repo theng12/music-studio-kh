@@ -400,7 +400,9 @@ fn executable(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     if resource.is_file() {
         return Ok(resource);
     }
-    if cfg!(debug_assertions) {
+    // cfg, not cfg!: a release binary must not even carry the build machine's path.
+    #[cfg(debug_assertions)]
+    {
         let suffix = if cfg!(windows) { ".exe" } else { "" };
         let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("binaries")
@@ -513,7 +515,12 @@ fn main() {
             } else if resources.is_dir() {
                 resources
             } else {
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("runtime-tools")
+                // cfg, not cfg!: a release binary must not even carry the build machine's path.
+                #[cfg(debug_assertions)]
+                let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("runtime-tools");
+                #[cfg(not(debug_assertions))]
+                let dev = resources;
+                dev
             };
             let bridge = executable(app.handle()).and_then(|exe| Bridge::spawn(exe, tools, data));
             app.manage(Backend(Mutex::new(bridge)));

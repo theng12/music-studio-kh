@@ -26,7 +26,7 @@ fi
 retire() {
   local target="$1"
   if [ -e "$target" ] || [ -L "$target" ]; then
-    local trash_root="${HOME}/Developer/_trash/music-studio-kh"
+    local trash_root="${HOME}/Desktop/_trash/music-studio-kh/$(date +%Y-%m-%d)"
     local timestamp
     timestamp="$(date +%Y%m%d-%H%M%S)"
     local rel_path="${target#/}"
@@ -303,13 +303,39 @@ cp "$packaged_dmg" "$dmg_path"
 
 step "Verifying DMG payload"
 verify_mount="$(mktemp -d /tmp/dmg-verify.XXXXXX)"
-hdiutil attach -nobrowse -mountpoint "$verify_mount" "$dmg_path"
+hdiutil attach -readonly -nobrowse -mountpoint "$verify_mount" "$dmg_path"
 mounted_app="$verify_mount/${product_name}.app"
 [ -d "$mounted_app" ] || { hdiutil detach "$verify_mount"; retire "$verify_mount"; fail "DMG does not contain ${product_name}.app"; }
 validate_plist "$mounted_app/Contents/Info.plist"
 codesign --verify --deep --strict --verbose=2 "$mounted_app"
+
+step "Scanning the shipped files for owner build paths"
+# Rust embeds absolute source paths unless they are remapped (scripts/build-desktop.mjs
+# does that). Read the DMG payload raw: grep -a on bytes, never strings, which skips
+# local symbol names and has silently passed a leaking build before.
+# The cargo-registry token is checked in our own binary only: bundled third-party
+# tools (deno) carry it as their own build string and reveal nothing of ours.
+owner_markers=("$HOME" "_orchestra")
+leaks=""
+files_checked=0
+while IFS= read -r -d '' file; do
+  files_checked=$((files_checked + 1))
+  grep -aqF -e "${owner_markers[0]}" -e "${owner_markers[1]}" "$file" || continue
+  for marker in "${owner_markers[@]}"; do
+    if grep -aqF -- "$marker" "$file"; then
+      leaks="${leaks}  ${marker} in ${file#"$verify_mount"/}"$'\n'
+    fi
+  done
+done < <(find "$verify_mount" -type f -print0)
+if grep -aqF -- ".cargo/registry" "$mounted_app/Contents/MacOS/$exe_name"; then
+  leaks="${leaks}  .cargo/registry in Contents/MacOS/$exe_name"$'\n'
+fi
+printf 'Checked %s files in the shipped app.\n' "$files_checked"
 hdiutil detach "$verify_mount"
 retire "$verify_mount"
+[ -z "$leaks" ] || fail "owner build paths found in the shipped app:
+$leaks"
+printf 'No owner paths in the shipped app: %s absent\n' "$(printf '%s / ' "${owner_markers[@]}" | sed 's/ \/ $//')"
 
 dest_app="artifacts/${product_name}.app"
 if [ -e "$dest_app" ]; then
