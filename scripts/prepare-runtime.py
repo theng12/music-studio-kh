@@ -18,7 +18,8 @@ def download(url,digest,name):
   temporary=path.with_suffix('.download')
   retrying(lambda:fetch_to(url,temporary))
   if hashlib.sha256(temporary.read_bytes()).hexdigest()!=digest:
-   trash=pathlib.Path.home()/'Developer/_trash/music-studio-kh/artifacts/tool-cache'
+   trash=pathlib.Path.home()/'Desktop/_trash/music-studio-kh/artifacts/tool-cache'
+   if trash.is_symlink() or (trash.exists() and not trash.is_dir()):raise RuntimeError('refusing to write through '+str(trash)+': it is not a real directory')
    trash.mkdir(parents=True,exist_ok=True)
    temporary.replace(trash/(temporary.name+'.'+str(int(time.time()))))
    raise RuntimeError('Checksum mismatch for '+name)

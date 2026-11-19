@@ -1,4 +1,5 @@
 import { chromium, expect } from "@playwright/test";
+import { trashPath } from "./trash.mjs";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rename, writeFile } from "node:fs/promises";
 import { tmpdir, homedir } from "node:os";
@@ -457,7 +458,6 @@ try {
     proc.kill("SIGINT");
     await exited;
   }
-  const trash = join(homedir(), "Developer/_trash/music-studio-kh/test-fixtures");
-  await mkdir(trash, { recursive: true });
+  const trash = await trashPath("test-fixtures");
   await rename(data, join(trash, basename(data)));
 }

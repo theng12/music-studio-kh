@@ -45,7 +45,9 @@ exec /bin/mv "$@"
         path.chmod(0o755)
 
     def tearDown(self):
-        trash = Path.home() / 'Developer/_trash/music-studio-kh/tests'
+        trash = Path.home() / 'Desktop/_trash/music-studio-kh/tests'
+        if trash.is_symlink() or (trash.exists() and not trash.is_dir()):
+            raise RuntimeError(f'refusing to write through {trash}: it is not a real directory')
         trash.mkdir(parents=True, exist_ok=True)
         shutil.move(str(self.root), str(trash / self.root.name))
 

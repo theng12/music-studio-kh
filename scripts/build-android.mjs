@@ -10,6 +10,7 @@ import {
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
+import { trashPath } from "./trash.mjs";
 
 export function hostNames(values) {
   if (!values.length)
@@ -135,9 +136,8 @@ async function main() {
   );
   await mkdir(output, { recursive: true });
   const apk = `${output}/Music Studio KH-${pkg.version}-debug.apk`;
-  const retired = resolve(
-    homedir(),
-    "Developer/_trash/music-studio-kh/android",
+  const retired = await trashPath(
+    "android",
     new Date().toISOString().replaceAll(":", "-"),
   );
   for (const file of [apk, `${apk}.json`]) {
@@ -147,7 +147,6 @@ async function main() {
       if (error.code === "ENOENT") continue;
       throw error;
     }
-    await mkdir(retired, { recursive: true });
     await rename(file, resolve(retired, file.slice(file.lastIndexOf("/") + 1)));
     console.log(`Previous debug output kept in ${retired}`);
   }

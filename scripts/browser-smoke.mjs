@@ -1,4 +1,5 @@
 import { chromium, expect } from '@playwright/test';
+import { trashPath } from './trash.mjs';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rename } from 'node:fs/promises';
 import { tmpdir, homedir } from 'node:os';
@@ -75,4 +76,4 @@ try{
  console.log('PASS: exact artist collaborations, intact band name, contributor links, full song/album editor credits and Subsonic artist browsing');
  await page.locator('#settings-nav').click();await page.locator('.settings-tabs button').filter({hasText:/Session/i}).click();await page.locator('#settings-logout').click();await page.locator('#logout-confirm-dialog').waitFor({state:'visible'});await page.locator('#cancel-logout').click();await page.locator('#logout-confirm-dialog').waitFor({state:'hidden'});await page.locator('#settings-logout').click();await page.locator('#logout-confirm-dialog').waitFor({state:'visible'});await page.locator('#confirm-logout').click();await page.locator('#login-screen').waitFor({state:'visible'});assert.equal(await page.locator('#login-screen .brand').textContent(),'Music Studio KH');
  console.log('PASS: v'+appVersion+' Music Studio KH rebrand, CHANGELOG-backed release notes, duplicate-skipping import, non-overlapping sidebar/player layout, shuffle/repeat/lyrics controls, close-to-background dialog & setting, profile & preferences persistence, desktop/mobile layout, settings button spacing ('+Math.round(buttonGap)+'px), What\'s new modal; concurrent shared-library profiles; confirmed sign-out modal.');
-}finally{if(browser)await browser.close();if(process.exitCode===null&&process.signalCode===null){const exited=new Promise(r=>process.once('exit',r));process.kill('SIGTERM');await exited;}const trash=join(homedir(),'Developer/_trash/music-studio-kh/test-fixtures');await mkdir(trash,{recursive:true});await rename(temp,join(trash,basename(temp)));}
+}finally{if(browser)await browser.close();if(process.exitCode===null&&process.signalCode===null){const exited=new Promise(r=>process.once('exit',r));process.kill('SIGTERM');await exited;}const trash=await trashPath('test-fixtures');await rename(temp,join(trash,basename(temp)));}

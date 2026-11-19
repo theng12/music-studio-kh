@@ -9,7 +9,11 @@ OUTPUT_DIR="$3"
 retire() {
   local target="$1"
   if [ -e "$target" ] || [ -L "$target" ]; then
-    local trash_root="${HOME}/Developer/_trash/music-studio-kh"
+    local trash_root="${HOME}/Desktop/_trash/music-studio-kh"
+    if [ -L "$trash_root" ] || { [ -e "$trash_root" ] && [ ! -d "$trash_root" ]; }; then
+      printf 'Stopped: %s is not a real directory; refusing to write through it.\n' "$trash_root" >&2
+      return 1
+    fi
     local timestamp
     timestamp="$(date +%Y%m%d-%H%M%S)"
     local rel_path="${target#/}"
