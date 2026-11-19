@@ -13,6 +13,7 @@ import re
 import secrets
 import select
 import socket
+import ssl
 import subprocess
 import tempfile
 import time
@@ -23,11 +24,23 @@ import urllib.request
 TOOLS = ("ffmpeg", "ffprobe", "yt-dlp", "deno")
 HELPER = "Contents/Helpers/Music Studio KH Helper.app"
 HELPER_EXECUTABLE = HELPER + "/Contents/MacOS/Music Studio KH Helper"
-CERTIFICATE = "b8f43e85b80ec15c1bad26c6da03461e0bb317a2"
 
 
 def run(*args):
     return subprocess.run(args, check=True, text=True, capture_output=True).stdout
+
+
+def signing_certificate():
+    """The live leaf hash of the studio's signing identity.
+
+    Read from the Keychain, not hardcoded: the identity was reissued on 2026-11-19 and a
+    frozen leaf made every build fail its own signature check.
+    """
+    pem = run("security", "find-certificate", "-c", "KH Studio Local Signing", "-p")
+    return hashlib.sha1(ssl.PEM_cert_to_DER_cert(pem)).hexdigest()
+
+
+CERTIFICATE = signing_certificate()
 
 
 def compare(before, after):
