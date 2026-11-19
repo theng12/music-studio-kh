@@ -1,6 +1,6 @@
 [package]
 name = "music-studio-kh"
-version = "0.3.14"
+version = "0.3.15"
 edition = "2021"
 [lib]
 crate-type = ["staticlib", "cdylib", "rlib"]

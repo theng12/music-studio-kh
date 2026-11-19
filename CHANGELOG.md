@@ -2,6 +2,10 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.15 — 2026-11-19
+
+- **The installer is signed with the studio's current signing identity.** The certificate no longer carries a personal email address. Nothing else changes.
+
 ## 0.3.14 — 2026-11-19
 
 - **The app no longer carries this Mac's folder names.** Every release build now rewrites the Rust build paths to a neutral `/home/owner`, so the installer no longer reveals the owner's username and folder layout. The release build then reads the finished DMG byte by byte and stops if any of it comes back.
