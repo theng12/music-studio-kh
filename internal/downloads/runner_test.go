@@ -23,6 +23,11 @@ func TestMain(m *testing.M) {
 			time.Sleep(10 * time.Second)
 			os.Exit(0)
 		}
+		if mode == "hang" {
+			fmt.Println("progress:10%")
+			time.Sleep(10 * time.Second)
+			os.Exit(0)
+		}
 		if mode == "unavailable" {
 			fmt.Println("ERROR: [youtube] abcdefghijk: This video is unavailable")
 			os.Exit(1)
@@ -71,6 +76,46 @@ func TestRealToolInvocationAndBoundedOutput(t *testing.T) {
 	}
 	if time.Since(start) > 3*time.Second {
 		t.Fatal("tool process did not stop promptly")
+	}
+}
+
+// A tool that goes silent must not hold the single queue slot until the four-hour ceiling.
+func TestRunnerStopsASilentTool(t *testing.T) {
+	t.Setenv("TUNEHARBOR_RUNNER_FIXTURE", "hang")
+	old := stallAfter
+	stallAfter = 500 * time.Millisecond
+	defer func() { stallAfter = old }()
+	r := YTDLP{Path: os.Args[0], FFmpeg: "/tools/ffmpeg"}
+	start := time.Now()
+	_, e := r.Run(context.Background(), "https://youtu.be/abcdefghijk", t.TempDir(), func(Progress) {})
+	if e == nil || e.Error() != "download tool stopped responding" {
+		t.Fatalf("expected the stall error, got %v", e)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("silent tool ran for %v", elapsed)
+	}
+	if got := sanitizeJobError(e); got != "This download made no progress for several minutes and was stopped. Retry to continue." {
+		t.Fatalf("job message: %q", got)
+	}
+}
+
+// Listing a playlist is a handshake and must not spend the download's budget.
+func TestPlaylistListingHasItsOwnCeiling(t *testing.T) {
+	t.Setenv("TUNEHARBOR_RUNNER_FIXTURE", "hang")
+	old := playlistListTimeout
+	playlistListTimeout = 500 * time.Millisecond
+	defer func() { playlistListTimeout = old }()
+	r := YTDLP{Path: os.Args[0], FFmpeg: "/tools/ffmpeg"}
+	start := time.Now()
+	_, e := r.Resolve(context.Background(), "https://www.youtube.com/playlist?list=PLx")
+	if e == nil || e.Error() != "playlist listing timed out" {
+		t.Fatalf("expected the listing ceiling, got %v", e)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("listing ran for %v", elapsed)
+	}
+	if got := sanitizeJobError(e); got != "The playlist did not respond in time. Retry to continue." {
+		t.Fatalf("job message: %q", got)
 	}
 }
 

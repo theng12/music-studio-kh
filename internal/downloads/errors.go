@@ -89,6 +89,10 @@ func sanitizeJobError(err error) string {
 		return "Could not start download tool. Check app permissions."
 	case "download tool failed":
 		return "Download could not finish. Check the source, connection, available storage, and music folder, then retry."
+	case "download tool stopped responding":
+		return "This download made no progress for several minutes and was stopped. Retry to continue."
+	case "playlist listing timed out":
+		return "The playlist did not respond in time. Retry to continue."
 	}
 	if cleaned := cleanToolError(msg); cleaned != "" {
 		return cleaned

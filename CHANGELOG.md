@@ -2,6 +2,11 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.16 — 2026-11-20
+
+- **A download that stops responding no longer blocks the queue.** If YouTube stops sending data for ten minutes, the download stops by itself and says so, so the next track starts instead of the queue waiting out a four-hour limit with the bar motionless.
+- **Reading a playlist has its own short limit.** Listing a playlist now gives up after three minutes and says so, instead of quietly using up the download's time before the first track begins.
+
 ## 0.3.15 — 2026-11-19
 
 - **The installer is signed with the studio's current signing identity.** The certificate no longer carries a personal email address. Nothing else changes.

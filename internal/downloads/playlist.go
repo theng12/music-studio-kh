@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 type Entry struct{ URL, Title string }
@@ -97,7 +98,14 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 	b.data = append(b.data, p...)
 	return len(p), nil
 }
+
+// Listing a playlist is a handshake, not a transfer: it gets its own short ceiling so a hung
+// metadata call cannot spend the job's four-hour download budget before the download starts.
+var playlistListTimeout = 3 * time.Minute
+
 func (r YTDLP) Resolve(ctx context.Context, u string) ([]Entry, error) {
+	ctx, cancel := context.WithTimeout(ctx, playlistListTimeout)
+	defer cancel()
 	cmd := exec.CommandContext(ctx, r.Path, "--ignore-config", "--flat-playlist", "--dump-single-json", "--skip-download", "--no-warnings", "--playlist-end", "1000", "--", u)
 	process.Configure(cmd)
 	out := &limitedBuffer{max: 8 << 20}
@@ -105,6 +113,9 @@ func (r YTDLP) Resolve(ctx context.Context, u string) ([]Entry, error) {
 	cmd.Stdout = out
 	cmd.Stderr = stderr
 	if e := cmd.Run(); e != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return nil, errors.New("playlist listing timed out")
+		}
 		if cleaned := cleanToolError(string(stderr.data)); cleaned != "" {
 			return nil, errors.New(cleaned)
 		}

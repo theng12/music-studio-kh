@@ -16,6 +16,11 @@ import (
 
 type YTDLP struct{ Path, FFmpeg, Deno string }
 
+// A silent tool is stalled, not slow: yt-dlp prints a progress line at least every few
+// seconds while it works, so this much silence means the download will never finish.
+// Without this a hung download held the single queue slot until the four-hour ceiling.
+var stallAfter = 10 * time.Minute
+
 func (r YTDLP) Run(ctx context.Context, u, dir string, progress func(Progress)) (Result, error) {
 	if r.Path == "" || r.FFmpeg == "" {
 		return Result{}, errors.New("download tools unavailable")
@@ -40,11 +45,14 @@ func (r YTDLP) Run(ctx context.Context, u, dir string, progress func(Progress)) 
 	}
 	done := make(chan error, 1)
 	go func() { e := cmd.Wait(); writer.Close(); done <- e }()
+	stall := time.AfterFunc(stallAfter, func() { cmd.Cancel() })
+	defer stall.Stop()
 	result := Result{}
 	scanner := bufio.NewScanner(pipe)
 	scanner.Buffer(make([]byte, 8192), 1<<20)
 	var lastErr string
 	for scanner.Scan() {
+		stall.Reset(stallAfter)
 		line := scanner.Text()
 		if p, ok := parseProgressLine(line); ok {
 			progress(p)
@@ -65,6 +73,9 @@ func (r YTDLP) Run(ctx context.Context, u, dir string, progress func(Progress)) 
 	}
 	pipe.Close()
 	e := <-done
+	if stalled := !stall.Stop() && ctx.Err() == nil; stalled {
+		return Result{}, errors.New("download tool stopped responding")
+	}
 	if e != nil || scanner.Err() != nil {
 		if lastErr != "" {
 			if cleaned := cleanToolError(lastErr); cleaned != "" {
