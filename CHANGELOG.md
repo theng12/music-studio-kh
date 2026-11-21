@@ -2,6 +2,11 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.17 — 2026-11-22
+
+- **Settings now shows where the app keeps its own files.** A row under the music folder shows the app's data folder — settings, artwork and conversion caches, and logs — with a Reveal in Finder button, so you can look at it or tidy it. Your music is not stored there.
+- **There is no Uninstall button, on purpose.** Quitting already leaves nothing running and no login item behind; removing the app is a drag to the Trash, which you can undo.
+
 ## 0.3.16 — 2026-11-20
 
 - **A download that stops responding no longer blocks the queue.** If YouTube stops sending data for ten minutes, the download stops by itself and says so, so the next track starts instead of the queue waiting out a four-hour limit with the bar motionless.

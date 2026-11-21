@@ -46,5 +46,5 @@ shared Updater feed after acceptance.
 
 ## Current version
 
-0.3.16, from the `version` field in `package.json`; the newest `CHANGELOG.md` entry
+0.3.17, from the `version` field in `package.json`; the newest `CHANGELOG.md` entry
 agrees.

@@ -46,6 +46,8 @@ func New(p profiles.Profile, l *library.Library, options ...Option) *Server {
 	m.HandleFunc("POST /api/desktop-bootstrap", s.desktopBootstrap)
 	m.HandleFunc("GET /api/updates/check", s.authorizeAndTrack(s.checkUpdates))
 	m.HandleFunc("POST /api/updates/open", s.authorizeAndTrack(s.openUpdateStudio))
+	m.HandleFunc("GET /api/data", s.authorizeAndTrack(s.dataFolder))
+	m.HandleFunc("POST /api/data/reveal", s.authorizeAndTrack(s.revealDataFolder))
 	m.HandleFunc("POST /api/logout-all", s.authorizeAndTrack(s.logoutAll))
 	m.HandleFunc("GET /api/settings", s.authorizeAndTrack(s.getSettings))
 	m.HandleFunc("PUT /api/settings", s.authorizeAndTrack(s.saveSettings))

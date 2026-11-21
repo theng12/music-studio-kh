@@ -51,6 +51,10 @@ export default function Settings({
   });
   const [storage, setStorage] = useState<StorageSummary | null>(null);
   const [storageError, setStorageError] = useState("");
+  const [dataFolder, setDataFolder] = useState<{
+    path?: string;
+    onThisMac?: boolean;
+  } | null>(null);
   const [systemDark, setSystemDark] = useState(
     () => matchMedia("(prefers-color-scheme:dark)").matches,
   );
@@ -84,6 +88,29 @@ export default function Settings({
   useEffect(() => {
     setSection(normalizeSection(initialSection));
   }, [initialSection]);
+
+  useEffect(() => {
+    let active = true;
+    api<{ path?: string; onThisMac?: boolean }>("/api/data")
+      .then((value) => {
+        if (active) setDataFolder(value);
+      })
+      .catch(() => {
+        if (active) setDataFolder({});
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const revealDataFolder = async () => {
+    try {
+      await api("/api/data/reveal", { method: "POST" });
+      notice("Showed the data folder in Finder");
+    } catch (e: any) {
+      notice(e.message || "The data folder could not be shown");
+    }
+  };
 
   useEffect(() => {
     setName(profile?.name || "");
@@ -226,6 +253,28 @@ export default function Settings({
               </p>
             )}
           </div>
+          <p className="settings-description">
+            App settings, artwork and conversion caches, and logs live in this
+            app's data folder. Your music is not stored here.
+          </p>
+          <div className="settings-folder-box" id="settings-data-folder">
+            {dataFolder === null
+              ? "Loading…"
+              : dataFolder.path ||
+                "On the Mac that runs Music Studio KH"}
+          </div>
+          {(window as any).__TUNEHARBOR_DESKTOP__ && dataFolder?.onThisMac && (
+            <div className="action-row">
+              <button
+                type="button"
+                className="secondary"
+                id="reveal-data-folder"
+                onClick={revealDataFolder}
+              >
+                Reveal in Finder
+              </button>
+            </div>
+          )}
           <p className="settings-description">
             Add files to this folder and they appear automatically, usually
             within about 20 seconds. Downloads save here too.

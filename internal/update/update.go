@@ -125,6 +125,19 @@ func newer(a, b string) bool {
 	return false
 }
 
+// RevealFolder selects path in Finder so the person can see and manage what is
+// there. shortcut: macOS only; add explorer/xdg-open when a Windows or Linux
+// desktop build ships.
+func RevealFolder(path string) error {
+	if runtime.GOOS != "darwin" {
+		return errors.New("Reveal in Finder is only available on macOS")
+	}
+	if err := exec.Command("open", "-R", path).Run(); err != nil {
+		return fmt.Errorf("the data folder could not be shown: %s", err)
+	}
+	return nil
+}
+
 func OpenLauncher() error {
 	if runtime.GOOS != "darwin" {
 		return errors.New("Studio Launcher KH is only available on macOS")

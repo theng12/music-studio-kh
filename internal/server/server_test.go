@@ -58,6 +58,8 @@ func TestUpdateEndpointsRequireAuthentication(t *testing.T) {
 	for _, tc := range []struct{ method, path string }{
 		{"GET", "/api/updates/check?version=0.3.9"},
 		{"POST", "/api/updates/open"},
+		{"GET", "/api/data"},
+		{"POST", "/api/data/reveal"},
 	} {
 		if w := request(s, tc.method, tc.path, "", nil); w.Code != http.StatusUnauthorized {
 			t.Fatalf("%s %s returned %d", tc.method, tc.path, w.Code)
@@ -75,6 +77,45 @@ func TestUpdateHandoffIsLocalOnly(t *testing.T) {
 	s.Handler().ServeHTTP(w, r)
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("remote update handoff returned %d", w.Code)
+	}
+}
+
+func TestDataFolderIsLocalOnly(t *testing.T) {
+	s, _ := fixture(t)
+	c := login(t, s)
+	local := func(method, path string) (*httptest.ResponseRecorder, map[string]any) {
+		r := httptest.NewRequest(method, path, nil)
+		r.AddCookie(c)
+		r.RemoteAddr = "127.0.0.1:12345"
+		w := httptest.NewRecorder()
+		s.Handler().ServeHTTP(w, r)
+		var body map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &body)
+		return w, body
+	}
+	w, body := local("GET", "/api/data")
+	if w.Code != 200 || body["path"] != s.profile.DataDir || body["onThisMac"] != true {
+		t.Fatalf("local data folder returned %d %s", w.Code, w.Body.String())
+	}
+	r := httptest.NewRequest("GET", "/api/data", nil)
+	r.AddCookie(c)
+	r.RemoteAddr = "192.168.1.5:12345"
+	remote := httptest.NewRecorder()
+	s.Handler().ServeHTTP(remote, r)
+	var remoteBody map[string]any
+	_ = json.Unmarshal(remote.Body.Bytes(), &remoteBody)
+	if remote.Code != 200 || remoteBody["path"] != nil || remoteBody["onThisMac"] != false {
+		t.Fatalf("remote data folder returned %d %s", remote.Code, remote.Body.String())
+	}
+	// The local reveal itself opens Finder, which a test must never do on the
+	// owner's desktop; only the refusal is checked here.
+	r = httptest.NewRequest("POST", "/api/data/reveal", nil)
+	r.AddCookie(c)
+	r.RemoteAddr = "192.168.1.5:12345"
+	remote = httptest.NewRecorder()
+	s.Handler().ServeHTTP(remote, r)
+	if remote.Code != http.StatusForbidden {
+		t.Fatalf("remote reveal returned %d", remote.Code)
 	}
 }
 
