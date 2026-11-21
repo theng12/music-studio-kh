@@ -80,6 +80,9 @@ def busy(path):
 
 def relocate(retired, version, before):
     """Move the helper's retirements to `_trash/<date> <what>/` and log them."""
+    # The owner empties the Desktop trash whenever he likes, which leaves this checkout's
+    # _trash link dangling; recreate its target before writing through it.
+    TRASH.resolve().mkdir(parents=True, exist_ok=True)
     today = datetime.date.today().isoformat()
     moves = []
     for entry in retired:
