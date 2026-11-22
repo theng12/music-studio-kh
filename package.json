@@ -1,7 +1,7 @@
 {
   "name": "music-studio-kh",
   "private": true,
-  "version": "0.3.17",
+  "version": "0.3.18",
   "scripts": {
     "test:browser": "node scripts/browser-smoke.mjs",
     "test:parser": "node scripts/test-changelog-parser.mjs",
