@@ -60,11 +60,32 @@ export default function Profiles({
       if (profile) relocate(profile, true);
       else notice("That profile is no longer listed here. Refresh and try again.");
     };
+    // Sent from a profile window's library screen: pick a folder to join into
+    // that profile's library; the profile's main folder stays the import one.
+    const addLibraryRoot = async (event: Event) => {
+      const id = (event as CustomEvent<string>).detail;
+      try {
+        const path = await open({
+          directory: true,
+          multiple: false,
+          title: "Choose a folder to add to the library",
+        });
+        if (typeof path !== "string") return;
+        await rpc("add_library_root", { id, path });
+        notice(
+          "Folder added to the library. Its songs are being indexed now.",
+        );
+      } catch (e) {
+        notice(String(e));
+      }
+    };
     window.addEventListener("manage-profile", manage);
     window.addEventListener("relocate-profile", relocateFromLibrary);
+    window.addEventListener("add-library-root", addLibraryRoot);
     return () => {
       window.removeEventListener("manage-profile", manage);
       window.removeEventListener("relocate-profile", relocateFromLibrary);
+      window.removeEventListener("add-library-root", addLibraryRoot);
     };
   }, [profiles]);
 

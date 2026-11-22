@@ -186,6 +186,30 @@ func (s *Server) recordPlay(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonResponse(w, 200, map[string]any{"playCount": count, "lastPlayedAt": last})
 }
+func (s *Server) listRoots(w http.ResponseWriter, r *http.Request) {
+	jsonResponse(w, 200, s.library.RootsWithStatus())
+}
+func (s *Server) addRoot(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	var body struct{ Path string `json:"path"` }
+	if e := json.NewDecoder(r.Body).Decode(&body); e != nil || strings.TrimSpace(body.Path) == "" {
+		fail(w, 400, "invalid folder")
+		return
+	}
+	root, e := s.library.AddRoot(body.Path)
+	if e != nil {
+		fail(w, 400, e.Error())
+		return
+	}
+	jsonResponse(w, 200, root)
+}
+func (s *Server) removeRoot(w http.ResponseWriter, r *http.Request) {
+	if e := s.library.RemoveRoot(r.PathValue("id")); e != nil {
+		fail(w, 400, e.Error())
+		return
+	}
+	jsonResponse(w, 200, map[string]bool{"ok": true})
+}
 func (s *Server) storageSummary(w http.ResponseWriter, r *http.Request) {
 	summary, e := s.library.StorageSummary()
 	if e != nil {

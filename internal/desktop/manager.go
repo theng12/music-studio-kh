@@ -311,6 +311,33 @@ func (m *Manager) Configure(id string, port int, lan, autostart bool) error {
 	return profiles.Configure(m.root, id, port, lan, autostart)
 }
 
+// AddLibraryRoot joins another folder into a running profile's library and
+// scans it in. The primary folder stays the import destination.
+func (m *Manager) AddLibraryRoot(id, folder string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	i, ok := m.running[id]
+	if !ok {
+		return errors.New("profile is not running")
+	}
+	if _, e := i.library.AddRoot(folder); e != nil {
+		return e
+	}
+	return i.library.Scan()
+}
+
+// RemoveLibraryRoot forgets an extra folder from a running profile. Its files
+// stay on disk; other folders' tracks, favourites and play counts are untouched.
+func (m *Manager) RemoveLibraryRoot(id, rootID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	i, ok := m.running[id]
+	if !ok {
+		return errors.New("profile is not running")
+	}
+	return i.library.RemoveRoot(rootID)
+}
+
 // Relocate stops a profile and moves it to a replacement music folder. The
 // previous folder and its files are left untouched.
 func (m *Manager) Relocate(id, folder string) error {

@@ -60,6 +60,12 @@ export interface Track {
   addedAt?: number;
   downloadedAt?: number;
 }
+export interface LibraryRoot {
+  id: string;
+  path: string;
+  available: boolean;
+  error?: string;
+}
 export interface StorageSummary {
   indexedFiles: number;
   indexedBytes: number;

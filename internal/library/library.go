@@ -138,11 +138,12 @@ func (l *Library) OpenTrack(id string) (*os.File, Track, error) {
 	if err != nil {
 		return nil, t, err
 	}
-	root, err := l.checkedRoot()
+	root, release, err := l.rootForTrack(id)
 	if err != nil {
 		return nil, t, err
 	}
-	f, err := root.Open(t.Path)
+	defer release()
+	f, err := root.Open(trackRelPath(id, t.Path))
 	if err != nil {
 		return nil, t, err
 	}

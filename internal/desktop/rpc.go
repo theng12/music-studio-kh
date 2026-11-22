@@ -99,6 +99,18 @@ func (m *Manager) Call(method string, raw json.RawMessage) (any, error) {
 			return nil, e
 		}
 		return map[string]bool{"ok": true}, m.Configure(input.ID, input.Port, input.LAN, input.AutoStart)
+	case "add_library_root":
+		var input struct{ ID, Path string }
+		if e := json.Unmarshal(raw, &input); e != nil {
+			return nil, e
+		}
+		return map[string]bool{"ok": true}, m.AddLibraryRoot(input.ID, input.Path)
+	case "remove_library_root":
+		var input struct{ ID, RootID string }
+		if e := json.Unmarshal(raw, &input); e != nil {
+			return nil, e
+		}
+		return map[string]bool{"ok": true}, m.RemoveLibraryRoot(input.ID, input.RootID)
 	case "relocate":
 		var input struct{ ID, Library string }
 		if e := json.Unmarshal(raw, &input); e != nil {

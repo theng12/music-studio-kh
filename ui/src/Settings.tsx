@@ -1,5 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { Appearance, api, sendDesktopCommand, StorageSummary } from "./api";
+import {
+  Appearance,
+  api,
+  sendDesktopCommand,
+  StorageSummary,
+  LibraryRoot,
+} from "./api";
 import { useEscape } from "./useEscape";
 import { formatBytes as bytes } from "./format";
 import { APP_VERSION } from "./version";
@@ -51,6 +57,13 @@ export default function Settings({
   });
   const [storage, setStorage] = useState<StorageSummary | null>(null);
   const [storageError, setStorageError] = useState("");
+  const [roots, setRoots] = useState<LibraryRoot[] | null>(null);
+  const [newRootPath, setNewRootPath] = useState("");
+  const [addingRoot, setAddingRoot] = useState(false);
+  const [confirmRemoveRoot, setConfirmRemoveRoot] = useState<LibraryRoot | null>(
+    null,
+  );
+  const [removingRoot, setRemovingRoot] = useState(false);
   const [dataFolder, setDataFolder] = useState<{
     path?: string;
     onThisMac?: boolean;
@@ -116,6 +129,68 @@ export default function Settings({
     setName(profile?.name || "");
     setUsername(profile?.username || "");
   }, [profile?.name, profile?.username]);
+
+  const loadRoots = () =>
+    api<LibraryRoot[]>("/api/roots")
+      .then((value) => setRoots(value))
+      .catch(() => setRoots([]));
+  useEffect(() => {
+    if (section !== "library") return;
+    loadRoots();
+    // Picking a folder happens in the main window (native dialog); poll so the
+    // list updates shortly after the owner confirms there.
+    const timer = setInterval(() => {
+      api<LibraryRoot[]>("/api/roots")
+        .then((value) => setRoots(value))
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [section, rescanning]);
+
+  const addRoot = async () => {
+    setAddingRoot(true);
+    try {
+      if ((window as any).__TUNEHARBOR_DESKTOP__) {
+        sendDesktopCommand("add-library-root");
+        notice("Choose a folder in the Music Studio KH window.");
+      } else {
+        const path = newRootPath.trim();
+        if (!path) return;
+        await api("/api/roots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path }),
+        });
+        setNewRootPath("");
+        await loadRoots();
+        await handleRescan();
+        notice("Folder added to the library.");
+      }
+    } catch (e) {
+      notice((e as Error).message);
+    } finally {
+      setAddingRoot(false);
+    }
+  };
+
+  const executeRemoveRoot = async () => {
+    if (!confirmRemoveRoot) return;
+    setRemovingRoot(true);
+    try {
+      await api("/api/roots/" + encodeURIComponent(confirmRemoveRoot.id), {
+        method: "DELETE",
+      });
+      setConfirmRemoveRoot(null);
+      await loadRoots();
+      notice(
+        "Folder removed from the library. Its files stay on disk, and other songs are untouched.",
+      );
+    } catch (e) {
+      notice((e as Error).message);
+    } finally {
+      setRemovingRoot(false);
+    }
+  };
 
   const selectSection = (id: string) => {
     setSection(id);
@@ -277,8 +352,77 @@ export default function Settings({
           )}
           <p className="settings-description">
             Add files to this folder and they appear automatically, usually
-            within about 20 seconds. Downloads save here too.
+            within about 20 seconds. Downloads save here too. This is the
+            profile's <strong>main folder</strong>: new songs, downloads and
+            edits always land here.
           </p>
+          <h3>Extra music folders</h3>
+          <p className="settings-description">
+            Join more folders into this library. Their songs play alongside the
+            main folder's, and keep their favourites and play counts. Extra
+            folders are only read from — nothing is written to them. A folder
+            that is unplugged keeps its songs listed until you remove it.
+          </p>
+          <div id="extra-roots-list">
+            {(roots || []).map((root) => (
+              <div
+                key={root.id}
+                className="settings-folder-box extra-root-row"
+              >
+                <span className="extra-root-path">{root.path}</span>
+                {root.available ? (
+                  <span className="state-pill completed">Available</span>
+                ) : (
+                  <span className="state-pill failed" role="alert">
+                    Unavailable
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="secondary compact-button"
+                  aria-label={"Remove " + root.path + " from the library"}
+                  onClick={() => setConfirmRemoveRoot(root)}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            {roots !== null && roots.length === 0 && (
+              <p className="muted">No extra folders yet.</p>
+            )}
+          </div>
+          <div className="action-row">
+            {(window as any).__TUNEHARBOR_DESKTOP__ ? (
+              <button
+                type="button"
+                className="secondary"
+                id="add-library-root"
+                disabled={addingRoot}
+                onClick={addRoot}
+              >
+                Add a folder…
+              </button>
+            ) : (
+              <>
+                <input
+                  id="add-root-path"
+                  type="text"
+                  placeholder="/path/to/folder on the server computer"
+                  value={newRootPath}
+                  onChange={(e) => setNewRootPath(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="secondary"
+                  id="add-library-root"
+                  disabled={addingRoot || !newRootPath.trim()}
+                  onClick={addRoot}
+                >
+                  Add folder
+                </button>
+              </>
+            )}
+          </div>
           {!(window as any).__TUNEHARBOR_DESKTOP__ && (
             <p className="settings-description">
               To choose a different folder or change phone access, open this
@@ -679,6 +823,62 @@ export default function Settings({
             download tools update together through a new installer. Profiles and
             music are preserved.
           </p>
+        </div>
+      )}
+
+      {confirmRemoveRoot && (
+        <div
+          className="modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !removingRoot)
+              setConfirmRemoveRoot(null);
+          }}
+        >
+          <section
+            className="settings-card whats-new-dialog"
+            id="remove-root-confirm-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="remove-root-confirm-title"
+          >
+            <button
+              type="button"
+              className="close-dialog"
+              aria-label="Cancel removing folder"
+              onClick={() => setConfirmRemoveRoot(null)}
+            >
+              ×
+            </button>
+            <h2 id="remove-root-confirm-title">
+              Remove this folder from the library?
+            </h2>
+            <p>
+              {confirmRemoveRoot.path} will stop being part of this library and
+              its songs will leave the song list. The files themselves stay on
+              disk, and the main folder and other extra folders are untouched.
+              Adding the folder back later re-indexes it fresh.
+            </p>
+            <div className="action-row">
+              <button
+                type="button"
+                className="secondary"
+                id="cancel-remove-root"
+                disabled={removingRoot}
+                onClick={() => setConfirmRemoveRoot(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="primary danger-button"
+                id="confirm-remove-root"
+                disabled={removingRoot}
+                onClick={executeRemoveRoot}
+              >
+                {removingRoot ? "Removing…" : "Remove folder"}
+              </button>
+            </div>
+          </section>
         </div>
       )}
 

@@ -24,7 +24,7 @@ func TestScanRootResolutionFailurePreservesIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	resolveErr := errors.New("root resolution failed")
-	err = l.scan(root, func(string) (string, error) { return "", resolveErr })
+	_, err = l.collectTracks(root, l.root, "", map[string]Track{}, l.loadOverrides(), func(string) (string, error) { return "", resolveErr })
 	if !errors.Is(err, resolveErr) {
 		t.Fatalf("expected root resolution error, got %v", err)
 	}

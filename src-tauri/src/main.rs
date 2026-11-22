@@ -341,7 +341,7 @@ fn open_profile(
                             );
                         }
                     }
-                    "manage-profile" | "relocate-profile" => {
+                    "manage-profile" | "relocate-profile" | "add-library-root" => {
                         if let Some(main) = window.app_handle().get_webview_window("main") {
                             let _ = main.show();
                             let _ = main.unminimize();

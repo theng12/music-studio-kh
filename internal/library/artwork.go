@@ -83,11 +83,12 @@ func (l *Library) Artwork(id string) ([]byte, string, error) {
 		}
 	}
 	for _, name := range []string{"cover.png", "cover.jpg", "cover.jpeg", "cover.webp", "folder.png", "folder.jpg", "folder.jpeg", "artwork.png", "artwork.jpg", "front.png", "front.jpg"} {
-		rel := filepath.Join(filepath.Dir(t.Path), name)
-		root, rootErr := l.checkedRoot()
+		rel := filepath.Join(filepath.Dir(trackRelPath(id, t.Path)), name)
+		root, release, rootErr := l.rootForTrack(id)
 		if rootErr != nil {
 			return nil, "", rootErr
 		}
+		defer release()
 		f, e := root.Open(rel)
 		if e != nil {
 			continue

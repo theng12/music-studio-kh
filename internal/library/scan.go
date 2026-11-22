@@ -27,10 +27,6 @@ func (l *Library) Scan() error {
 	if err != nil {
 		return err
 	}
-	return l.scan(root, filepath.EvalSymlinks)
-}
-
-func (l *Library) scan(root *os.Root, resolve func(string) (string, error)) error {
 	previous, e := l.Tracks("")
 	if e != nil {
 		return e
@@ -40,6 +36,64 @@ func (l *Library) scan(root *os.Root, resolve func(string) (string, error)) erro
 		known[track.ID] = track
 	}
 	overrides := l.loadOverrides()
+	tracks := []Track{}
+	// The primary folder keeps plain ids, so every existing id, favourite and
+	// play count survives unchanged. Extra folders prefix ids with their root
+	// id, so the same relative path in two folders stays two distinct tracks.
+	ts, err := l.collectTracks(root, l.root, "", known, overrides, filepath.EvalSymlinks)
+	if err != nil {
+		return err
+	}
+	tracks = append(tracks, ts...)
+	scanned := []string{}
+	for _, r := range l.ExtraRoots() {
+		h, e := l.extraRootHandle(r)
+		if e != nil {
+			// An unavailable or replaced extra folder keeps its indexed tracks;
+			// only the folders actually scanned are rebuilt.
+			continue
+		}
+		ts, e := l.collectTracks(h, r.Path, r.ID+"-", known, overrides, filepath.EvalSymlinks)
+		h.Close()
+		if e != nil {
+			continue
+		}
+		tracks = append(tracks, ts...)
+		scanned = append(scanned, r.ID+"-%")
+	}
+	if _, err = l.checkedRoot(); err != nil {
+		return err
+	}
+	tx, err := l.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.Exec("DELETE FROM tracks WHERE LENGTH(id)=32"); err != nil {
+		return err
+	}
+	for _, pattern := range scanned {
+		if _, err = tx.Exec("DELETE FROM tracks WHERE id LIKE ?", pattern); err != nil {
+			return err
+		}
+	}
+	stmt, err := tx.Prepare("INSERT INTO tracks(id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified,content_hash,lyrics,album_artist,added_at,downloaded_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	for _, t := range tracks {
+		if _, err = stmt.Exec(t.ID, t.Title, t.Artist, t.Album, t.Version, t.Year, t.TrackNumber, t.Folder, t.Path, t.Format, t.Size, t.Duration, t.Modified, t.ContentHash, t.Lyrics, t.AlbumArtist, t.AddedAt, t.DownloadedAt); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// collectTracks walks one library folder and returns its tracks. prefix is
+// "" for the primary folder or the extra folder's "<rootid>-"; rel paths stay
+// relative to that folder, and ids are prefix + hash(rel).
+func (l *Library) collectTracks(root *os.Root, absRoot, prefix string, known map[string]Track, overrides map[string]MetadataUpdate, resolve func(string) (string, error)) ([]Track, error) {
 	tracks := []Track{}
 	// Manual recursion instead of fs.WalkDir so directory symlinks are followed:
 	// alias-style libraries keep Artist folders as links to the real folders.
@@ -51,7 +105,7 @@ func (l *Library) scan(root *os.Root, resolve func(string) (string, error)) erro
 	var realRoot string
 	var walkDir func(dir string) error
 	walkDir = func(dir string) error {
-		real, e := resolve(filepath.Join(l.root, dir))
+		real, e := resolve(filepath.Join(absRoot, dir))
 		if e != nil {
 			if dir == "." {
 				return e
@@ -109,42 +163,27 @@ func (l *Library) scan(root *os.Root, resolve func(string) (string, error)) erro
 				continue
 			}
 			frel := filepath.FromSlash(rel)
+			id := prefix + trackID(frel)
 			var prev *Track
-			if old, ok := known[trackID(frel)]; ok {
+			if old, ok := known[id]; ok {
 				prev = &old
 			}
-			if t, e := readTrack(root, frel, info, prev, overrides[trackID(frel)]); e == nil {
+			if t, e := readTrack(root, frel, info, prev, overrides[id]); e == nil {
+				if prefix != "" {
+					t.ID = prefix + t.ID
+					// The path column is UNIQUE across the whole index; the root
+					// prefix keeps the same relative path in two folders distinct.
+					t.Path = strings.TrimSuffix(prefix, "-") + "/" + t.Path
+				}
 				tracks = append(tracks, t)
 			}
 		}
 		return nil
 	}
-	err := walkDir(".")
-	if err != nil {
-		return err
+	if err := walkDir("."); err != nil {
+		return nil, err
 	}
-	if _, err = l.checkedRoot(); err != nil {
-		return err
-	}
-	tx, err := l.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err = tx.Exec("DELETE FROM tracks"); err != nil {
-		return err
-	}
-	stmt, err := tx.Prepare("INSERT INTO tracks(id,title,artist,album,version,year,track_number,folder,path,format,size,duration,modified,content_hash,lyrics,album_artist,added_at,downloaded_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	for _, t := range tracks {
-		if _, err = stmt.Exec(t.ID, t.Title, t.Artist, t.Album, t.Version, t.Year, t.TrackNumber, t.Folder, t.Path, t.Format, t.Size, t.Duration, t.Modified, t.ContentHash, t.Lyrics, t.AlbumArtist, t.AddedAt, t.DownloadedAt); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
+	return tracks, nil
 }
 
 func trackID(rel string) string {
@@ -328,7 +367,8 @@ func applyOverride(t *Track, o MetadataUpdate) {
 	}
 }
 
-// indexFile adds or refreshes a single file without walking the library.
+// indexFile adds or refreshes a single primary-folder file without walking the
+// library; imports and downloads always target the primary folder.
 func (l *Library) indexFile(rel string) (Track, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()

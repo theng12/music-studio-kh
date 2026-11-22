@@ -749,6 +749,21 @@ main {
   line-height: 1.55;
   margin: 6px 0 16px;
 }
+.extra-root-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.extra-root-path {
+  flex: 1;
+  min-width: 0;
+}
+.extra-root-row .state-pill {
+  flex-shrink: 0;
+}
+.extra-root-row .compact-button {
+  flex-shrink: 0;
+}
 .muted {
   font-size: 13px;
   margin-top: 20px;
