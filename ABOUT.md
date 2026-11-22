@@ -9,6 +9,10 @@ tools are not needed.
 
 - Creates independent profiles with their own port, login, database, artwork,
   downloads and settings; two profiles can share one music folder.
+- Reads several music folders in one profile: the main folder stays the import
+  and download destination, and extra folders join its library as read-only
+  sources with their own favourites and play counts. Linked folders and a
+  library reached through an alias or mounted volume scan normally.
 - Imports files and folders by drag-and-drop without moving or overwriting
   originals, and keeps YouTube download queues with progress, cancel and retry.
 - Indexes large libraries in SQLite, continues past unreadable folders and rescans
@@ -46,5 +50,5 @@ shared Updater feed after acceptance.
 
 ## Current version
 
-0.3.17, from the `version` field in `package.json`; the newest `CHANGELOG.md` entry
+0.3.18, from the `version` field in `package.json`; the newest `CHANGELOG.md` entry
 agrees.
