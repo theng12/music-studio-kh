@@ -173,7 +173,7 @@ export async function runSettingsLayoutSmoke({ baselineOnly = false } = {}) {
           // Check input & select heights
           const appearanceTabBtn = page.locator('.settings-tabs button').filter({ hasText: /Appearance/i }).first();
           await appearanceTabBtn.click();
-          const selectBox = await page.locator('#theme').boundingBox();
+          const selectBox = await page.locator('#reduceTransparency').boundingBox();
 
           await profileTabBtn.click();
           const inputBox = await page.locator('#pref-profile-name').boundingBox();

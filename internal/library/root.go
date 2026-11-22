@@ -55,7 +55,13 @@ func readMarker(root *os.Root) (string, error) {
 func (l *Library) checkedRoot() (*os.Root, error) {
 	l.rootMu.Lock()
 	defer l.rootMu.Unlock()
-	info, err := os.Lstat(l.root)
+	// The root may be reached through a symlink (macOS volume aliases, base
+	// folders); resolve it so Lstat sees the real directory, not the link.
+	root := l.root
+	if resolved, e := filepath.EvalSymlinks(l.root); e == nil {
+		root = resolved
+	}
+	info, err := os.Lstat(root)
 	if err != nil || !info.IsDir() {
 		return nil, errors.New("music folder unavailable or replaced")
 	}
@@ -70,7 +76,7 @@ func (l *Library) checkedRoot() (*os.Root, error) {
 		l.handle.Close()
 		l.handle, l.rootInfo = nil, nil
 	}
-	lock, err := folderLock(l.root)
+	lock, err := folderLock(root)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +84,7 @@ func (l *Library) checkedRoot() (*os.Root, error) {
 		return nil, err
 	}
 	defer lock.Unlock()
-	handle, err := os.OpenRoot(l.root)
+	handle, err := os.OpenRoot(root)
 	if err != nil {
 		return nil, err
 	}

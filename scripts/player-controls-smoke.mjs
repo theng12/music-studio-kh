@@ -350,6 +350,7 @@ try {
         title: rect(document.querySelector("#playing-title")),
         progress: rect(document.querySelector("#seek")),
         elapsed: rect(document.querySelector("#elapsed")),
+        duration: rect(document.querySelector("#duration")),
       };
     });
     assert.deepEqual(layout.transport, [
@@ -384,9 +385,33 @@ try {
           b.height >= (width > 680 ? 32 : 40),
       ),
     );
+    // Both time labels stay visible at every width: flanking the bar above
+    // 880px, stacked under it below. The seek keeps a usable width in both
+    // modes (and inside the player's horizontal scroll below 680px).
+    assert(layout.elapsed.width > 0, `elapsed must be visible at ${width}px`);
+    assert(layout.duration.width > 0, `duration must be visible at ${width}px`);
+    if (width > 880)
+      assert(
+        layout.elapsed.right <= layout.progress.x + 1 &&
+          layout.duration.x >= layout.progress.right - 1 &&
+          Math.abs(
+            layout.elapsed.y +
+              layout.elapsed.height / 2 -
+              (layout.progress.y + layout.progress.height / 2),
+          ) < 1,
+        `times must flank the seek control on the same row at ${width}px`,
+      );
+    else if (width > 680)
+      assert(
+        layout.elapsed.y >= layout.progress.bottom - 1 &&
+          layout.elapsed.x >= layout.progress.x - 1 &&
+          layout.duration.y >= layout.progress.bottom - 1 &&
+          layout.duration.right <= layout.progress.right + 1,
+        `times must sit under the seek bar at ${width}px`,
+      );
     assert(
-      layout.elapsed.y >= layout.progress.bottom - 1,
-      "times must sit under progress",
+      layout.progress.width >= (width > 680 ? 60 : 120),
+      `seek control must stay usable at ${width}px`,
     );
     if (width > 680)
       assert(
@@ -449,7 +474,7 @@ try {
     ) + "\n",
   );
   console.log(
-    "PASS: player keyboard/typing guards, actual audio seek/volume, fullscreen, Media Session callback dispatch, Help/tooltips, favourite/options, mini exit and one-row responsive geometry",
+    "PASS: player keyboard/typing guards, actual audio seek/volume, fullscreen, Media Session callback dispatch, Help/tooltips, favourite/options, mini exit and responsive geometry with visible time labels",
   );
 } finally {
   if (browser) await browser.close();

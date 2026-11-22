@@ -27,6 +27,10 @@ func (l *Library) Scan() error {
 	if err != nil {
 		return err
 	}
+	return l.scan(root, filepath.EvalSymlinks)
+}
+
+func (l *Library) scan(root *os.Root, resolve func(string) (string, error)) error {
 	previous, e := l.Tracks("")
 	if e != nil {
 		return e
@@ -37,44 +41,85 @@ func (l *Library) Scan() error {
 	}
 	overrides := l.loadOverrides()
 	tracks := []Track{}
-	err = fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			// Unreadable entries (lost+found, System Volume Information) are skipped
-			// so they never stop the rest of the library from indexing.
-			if path == "." {
-				return walkErr
-			}
-			if d != nil && d.IsDir() {
-				return filepath.SkipDir
+	// Manual recursion instead of fs.WalkDir so directory symlinks are followed:
+	// alias-style libraries keep Artist folders as links to the real folders.
+	// os.Root keeps every open contained, so a link escaping the folder fails
+	// to Stat and is skipped like an unreadable entry. seen keys directories by
+	// their resolved real path, so a folder reachable both directly and through
+	// a link is indexed once and symlink cycles terminate.
+	seen := map[string]bool{}
+	var realRoot string
+	var walkDir func(dir string) error
+	walkDir = func(dir string) error {
+		real, e := resolve(filepath.Join(l.root, dir))
+		if e != nil {
+			if dir == "." {
+				return e
 			}
 			return nil
 		}
-		if path == "." {
+		if dir == "." {
+			realRoot = real
+		} else {
+			rel, err := filepath.Rel(realRoot, real)
+			if err != nil || !filepath.IsLocal(rel) {
+				return nil
+			}
+			dir = filepath.ToSlash(rel)
+		}
+		if seen[real] {
 			return nil
 		}
-		if strings.HasPrefix(d.Name(), ".") {
+		seen[real] = true
+		entries, e := fs.ReadDir(root.FS(), dir)
+		if e != nil {
+			// Unreadable subfolders (lost+found, System Volume Information) are
+			// skipped so they never stop the rest of the library from indexing;
+			// an unreadable root aborts the scan so the index is not wiped.
+			if dir == "." {
+				return e
+			}
+			return nil
+		}
+		for _, d := range entries {
+			name := d.Name()
+			if strings.HasPrefix(name, ".") {
+				continue
+			}
+			rel := name
+			if dir != "." {
+				rel = dir + "/" + name
+			}
+			if d.Type()&os.ModeSymlink != 0 {
+				if info, e := root.Stat(rel); e != nil || !info.IsDir() {
+					continue
+				}
+				walkDir(rel)
+				continue
+			}
 			if d.IsDir() {
-				return filepath.SkipDir
+				walkDir(rel)
+				continue
 			}
-			return nil
-		}
-		if d.Type()&os.ModeSymlink != 0 || d.IsDir() || audioFormat(d.Name()) == "" {
-			return nil
-		}
-		info, e := d.Info()
-		if e != nil || !info.Mode().IsRegular() {
-			return nil
-		}
-		rel := filepath.FromSlash(path)
-		var prev *Track
-		if old, ok := known[trackID(rel)]; ok {
-			prev = &old
-		}
-		if t, e := readTrack(root, rel, info, prev, overrides[trackID(rel)]); e == nil {
-			tracks = append(tracks, t)
+			if audioFormat(name) == "" {
+				continue
+			}
+			info, e := d.Info()
+			if e != nil || !info.Mode().IsRegular() {
+				continue
+			}
+			frel := filepath.FromSlash(rel)
+			var prev *Track
+			if old, ok := known[trackID(frel)]; ok {
+				prev = &old
+			}
+			if t, e := readTrack(root, frel, info, prev, overrides[trackID(frel)]); e == nil {
+				tracks = append(tracks, t)
+			}
 		}
 		return nil
-	})
+	}
+	err := walkDir(".")
 	if err != nil {
 		return err
 	}

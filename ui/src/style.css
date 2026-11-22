@@ -2356,7 +2356,7 @@ input { caret-color: var(--accent); }
 .brand-mark { display: inline-flex; align-items: center; justify-content: center; }
 .app { padding-bottom: var(--player-clearance, 144px); }
 .lyrics-panel, .player-queue { position: fixed; bottom: var(--player-clearance, 144px); z-index: 25; max-height: max(100px, calc(100dvh - var(--player-clearance, 144px) - 24px)); }
-.player { --control-size: 32px; --control-gap: 6px; z-index: 7; left: 242px; right: 16px; bottom: 16px; height: auto; min-height: 96px; padding: 14px 18px; border: 0; border-radius: 16px; background: var(--glass); box-shadow: 0 10px 32px #0003, inset 0 1px var(--glass-highlight); display: grid; grid-template-columns: max-content minmax(180px, 1fr) max-content; column-gap: 22px; align-items: center; overflow-x: auto; }
+.player { --control-size: 32px; --control-gap: 6px; z-index: 7; left: 242px; right: 16px; bottom: 16px; height: auto; min-height: 96px; padding: 14px 18px; border: 0; border-radius: 16px; background: var(--glass); box-shadow: 0 10px 32px #0003, inset 0 1px var(--glass-highlight); display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; column-gap: 22px; align-items: center; overflow-x: auto; }
 .player .playback-actions, .player .player-extras { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: var(--control-gap); margin: 0; width: auto; min-width: max-content; }
 .player .icon-button, .player .play-button { display: inline-flex; width: var(--control-size); height: var(--control-size); min-width: var(--control-size); min-height: var(--control-size); padding: 0; border-radius: 8px; flex: 0 0 var(--control-size); transition: background-color .15s, color .15s, filter .15s; }
 .player .play-button { box-shadow: none; }
@@ -2371,7 +2371,7 @@ input { caret-color: var(--accent); }
 .player .playing-text span { font-size: 11px; line-height: 16px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player .playback-actions { gap: 8px; padding-right: 8px; border-right: 1px solid var(--border); }
 .player .player-extras { gap: 6px; padding-left: 8px; }
-/* Elapsed sits left of the bar, total right of it: one time per side, never stacked. */
+/* Elapsed sits left of the bar, total right of it; below 880px they stack under it instead. */
 .player .timeline { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; align-items: center; gap: 10px; width: 100%; max-width: none; margin: 0; }
 .player .timeline input[type="range"] { display: block; width: 100%; min-width: 0; height: 10px; padding: 0; margin: 0; accent-color: var(--accent); }
 .player .timeline-times { display: contents; }
@@ -2423,15 +2423,27 @@ html[data-reduce-transparency="true"] .sidebar, html[data-reduce-transparency="t
   .player { left: 16px; gap: 12px; }
 }
 @media (max-width: 800px) {
-  .player { --control-gap: 0px; gap: 8px; }
-  .player .playing-cover { width: 32px; height: 32px; }
+  .player { --control-gap: 0px; gap: 8px; padding: 10px 12px; }
   .player .playing-info { gap: 8px; }
+  .player .playback-actions { gap: 4px; padding-right: 4px; }
+  .player .player-extras { gap: 4px; padding-left: 4px; }
+  .player .timeline { gap: 6px; }
+}
+/* Below ~880px the cover cannot share the button row (15 controls at 32px
+   already fill it), so it hides and the times stack under a full-width bar. */
+@media (max-width: 880px) {
+  html:not([data-mini="true"]) .player .playing-cover { display: none; }
+  html:not([data-mini="true"]) .player .timeline input[type="range"] { grid-column: 1 / -1; }
+  html:not([data-mini="true"]) .player .timeline-times span:first-child { grid-column: 1; grid-row: 2; }
+  html:not([data-mini="true"]) .player .timeline-times span:last-child { grid-column: 3; grid-row: 2; }
 }
 @media (max-width: 680px) {
   .sidebar { padding: 12px; gap: 2px; flex-wrap: wrap; }
   .sidebar .brand { margin: 0 0 6px; gap: 6px; font-size: 13px; width: 100%; }
   .nav-item { min-width: 40px; width: 40px; padding: 8px; }
-  .player { --control-size: 40px; left: 8px; right: 8px; bottom: 8px; gap: 12px; }
+  /* 40px touch targets fill the button row below 680px, so the player scrolls;
+     the 180px floor keeps the seek and both time labels reachable in that scroll. */
+  .player { --control-size: 40px; left: 8px; right: 8px; bottom: 8px; gap: 12px; grid-template-columns: max-content minmax(180px, 1fr) max-content; }
   .player .playing-cover { display: none; }
 }
 html[data-mini="true"] .player { display: grid; grid-template-columns: 1fr; grid-template-rows: auto auto auto; gap: 8px; padding: 12px; overflow: auto; border-radius: 0; }
