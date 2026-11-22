@@ -8,6 +8,8 @@ All notable changes to Music Studio KH are documented in this file.
 - **Linked folders now play.** A library reached through an alias or a mounted volume scans normally, and artist folders kept as links inside the library are followed. Favourites and play counts survive a link being moved or removed.
 - **The player bar stays usable on narrow windows.** The seek bar and both time labels keep their place from full width down to the phone layout.
 
+## 0.3.17 — 2026-11-22
+
 - **Settings now shows where the app keeps its own files.** A row under the music folder shows the app's data folder — settings, artwork and conversion caches, and logs — with a Reveal in Finder button, so you can look at it or tidy it. Your music is not stored there.
 - **There is no Uninstall button, on purpose.** Quitting already leaves nothing running and no login item behind; removing the app is a drag to the Trash, which you can undo.
 
