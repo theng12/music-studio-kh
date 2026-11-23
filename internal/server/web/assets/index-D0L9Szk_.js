@@ -14,12 +14,13 @@ All notable changes to Music Studio KH are documented in this file.
 
 ## 0.3.20 — 2026-11-23
 
-- **The app now really updates itself.** 0.3.19 could be installed by hand but could never update: its updater read the updater's sign-in file as a literal \`~/…\` path instead of a home-folder path, so it refused to start and no update was ever offered. This build ships the fixed updater. If you are on 0.3.19, install this one by hand once; from here the app updates itself.
+- **The app updates itself from this version on.** A new version installs in the background and the app reopens by itself. Before anything is replaced it stops taking new downloads, lets the one running settle, and then carries on — nothing is cancelled and there is no button to press.
+- **0.3.19 could be installed but not updated.** Its updater read the updater's sign-in file as a literal \`~/...\` path instead of a home-folder path, so it stopped before checking for a version at all. If you are on 0.3.19, install this version by hand once; from here the app updates itself.
 
 ## 0.3.19 — 2026-11-23
 
 - **Your settings and profiles move with the app's new name.** The app keeps its own files in a folder named after it; on first launch after this update it moves the old folder across by itself and says so in the log. If the move cannot finish, your files stay where they are and the app keeps using them — nothing is copied twice and nothing is lost.
-- **Music Studio KH now updates itself.** A new version installs in the background and the app reopens by itself. Before anything is replaced it stops taking new downloads, lets the one running settle, and then carries on — nothing is cancelled and there is no button to press. Update checks start when the public update page is live.
+- **Self-update begins at 0.3.20.** This version ships the updater but cannot read the Mac’s updater credential, so an update check stops before it downloads anything. Install a newer version by hand; 0.3.20 is the first version that updates itself.
 
 ## 0.3.18 — 2026-11-23
 
