@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"github.com/gofrs/flock"
+	"github.com/theng12/music-studio-kh/internal/legacy"
 	"io"
 	"os"
 	"path/filepath"
@@ -27,6 +28,12 @@ func folderLock(path string) (*flock.Flock, error) {
 		return nil, err
 	}
 	dir = filepath.Join(dir, "MusicStudioKH", "locks")
+	// Lock files follow the data folder's rename; if the move fails, keep
+	// using the old folder so concurrent writers still share one lock.
+	oldLocks := filepath.Join(filepath.Dir(filepath.Dir(dir)), "TuneHarbor", "locks")
+	if _, e := legacy.Move(dir, oldLocks); e != nil {
+		dir = oldLocks
+	}
 	if err = os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}

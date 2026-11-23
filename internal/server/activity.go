@@ -202,7 +202,8 @@ func parseBrowserUA(ua string) string {
 
 	browser := ""
 	switch {
-	case strings.Contains(ua, "MusicStudioKH") || strings.Contains(ua, "MusicStudioKH"):
+	// Shipped clients still send the pre-rename token, so it stays a real alternative.
+	case strings.Contains(ua, "MusicStudioKH") || strings.Contains(ua, "TuneHarbor"):
 		browser = "Music Studio KH"
 	case strings.Contains(ua, "Edg/"):
 		browser = "Edge"

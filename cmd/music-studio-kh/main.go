@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/theng12/music-studio-kh/internal/desktop"
+	"github.com/theng12/music-studio-kh/internal/legacy"
 	"github.com/theng12/music-studio-kh/internal/profiles"
 	"golang.org/x/term"
 	"io"
@@ -30,9 +31,21 @@ func run(args []string, input io.Reader, output io.Writer) error {
 	}
 	global := flag.NewFlagSet("music-studio-kh", flag.ContinueOnError)
 	global.SetOutput(output)
-	root := global.String("data", filepath.Join(base, "MusicStudioKH", "profiles"), "profile data directory")
+	defaultRoot := filepath.Join(base, "MusicStudioKH", "profiles")
+	root := global.String("data", defaultRoot, "profile data directory")
 	if err = global.Parse(args); err != nil {
 		return err
+	}
+	// One-time move from the pre-rename folder; a failed move keeps using the
+	// old folder so a profile never starts empty.
+	if *root == defaultRoot {
+		oldRoot := filepath.Join(base, "TuneHarbor", "profiles")
+		if moved, e := legacy.Move(*root, oldRoot); e != nil {
+			fmt.Fprintf(output, "Could not move the old profile folder (%v); using it in place.\n", e)
+			*root = oldRoot
+		} else if moved {
+			fmt.Fprintf(output, "Moved profile data from %s to %s\n", oldRoot, *root)
+		}
 	}
 	args = global.Args()
 	if len(args) == 0 {
