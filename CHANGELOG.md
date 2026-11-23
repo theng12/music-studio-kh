@@ -2,6 +2,10 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.20 — 2026-11-23
+
+- **The app now really updates itself.** 0.3.19 could be installed by hand but could never update: its updater read the updater's sign-in file as a literal `~/…` path instead of a home-folder path, so it refused to start and no update was ever offered. This build ships the fixed updater. If you are on 0.3.19, install this one by hand once; from here the app updates itself.
+
 ## 0.3.19 — 2026-11-23
 
 - **Your settings and profiles move with the app's new name.** The app keeps its own files in a folder named after it; on first launch after this update it moves the old folder across by itself and says so in the log. If the move cannot finish, your files stay where they are and the app keeps using them — nothing is copied twice and nothing is lost.
