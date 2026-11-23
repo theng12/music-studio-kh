@@ -20,6 +20,9 @@ fn main() {
         println!("cargo:rustc-link-lib=framework=Sparkle");
         println!("cargo:rustc-link-lib=framework=Foundation");
         println!("cargo:rustc-link-arg=-Wl,-rpath,@executable_path/../Frameworks");
+        // Test binaries live under target/, not in a bundle: point them at the vendored
+        // framework. Tests only — never the shipped app, which must carry no owner path.
+        println!("cargo:rustc-link-arg-tests=-Wl,-rpath,{}", vendor.display());
     }
     tauri_build::build()
 }
