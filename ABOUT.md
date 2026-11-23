@@ -27,6 +27,11 @@ tools are not needed.
   phone apps, and confines streaming to paths inside the library.
 - Shows recent authenticated clients and open audio requests in Settings; a player
   can keep playing buffered audio after its request ends.
+- Keeps its own files (settings, profiles, caches, logs) in `~/Library/Application Support/MusicStudioKH`,
+  and on first launch after 0.3.19 moves them there from the older `TuneHarbor` folder by itself —
+  one rename, logged, and left in place if the move cannot finish.
+- Updates itself through Sparkle 2: it asks the app's own hold route before anything is downloaded,
+  installs in the background and reopens by itself; the appcast is served from the public Pages site.
 - Leaves saved playlists, scrobbling and favorites unimplemented; real
   phone-client interoperability, Intel Mac installs and installer signing remain
   release checks.
@@ -50,5 +55,5 @@ shared Updater feed after acceptance.
 
 ## Current version
 
-0.3.18, from the `version` field in `package.json`; the newest `CHANGELOG.md` entry
+0.3.19, from the `version` field in `package.json`; the newest `CHANGELOG.md` entry
 agrees.

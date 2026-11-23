@@ -2098,7 +2098,7 @@ dependencies = [
 
 [[package]]
 name = "music-studio-kh"
-version = "0.3.18"
+version = "0.3.19"
 dependencies = [
  "objc2-app-kit",
  "serde",

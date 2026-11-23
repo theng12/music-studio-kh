@@ -2,6 +2,11 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.19 — 2026-11-23
+
+- **Your settings and profiles move with the app's new name.** The app keeps its own files in a folder named after it; on first launch after this update it moves the old folder across by itself and says so in the log. If the move cannot finish, your files stay where they are and the app keeps using them — nothing is copied twice and nothing is lost.
+- **Music Studio KH now updates itself.** A new version installs in the background and the app reopens by itself. Before anything is replaced it stops taking new downloads, lets the one running settle, and then carries on — nothing is cancelled and there is no button to press. Update checks start when the public update page is live.
+
 ## 0.3.18 — 2026-11-23
 
 - **Several music folders in one library.** Settings → Library gains **Extra music folders**: add more folders (a native folder picker in the app, or a typed path in the browser) and their songs join the library alongside the main folder's. Extra folders are only read from — new songs, downloads and edits still land in the main folder. A folder that is unplugged keeps its songs listed until you remove it, and removing a folder never touches the files on disk or the other folders' songs.
