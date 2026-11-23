@@ -3,4 +3,4 @@
 # applies [env] to the test executables it runs; the shipped app is unaffected and
 # still carries no owner path.
 [env]
-DYLD_FRAMEWORK_PATH = { value = "vendor/khsparkle", relative = true }
+DYLD_FRAMEWORK_PATH = { value = "src-tauri/vendor/khsparkle", relative = true }
