@@ -2,9 +2,10 @@
 <!-- Music Studio KH appcast. Served from Pages at
      https://theng12.github.io/music-studio-kh/appcast.xml once this repo is public.
 
-     Regenerate the item for EVERY release, from the exact published DMG bytes:
-       SIGN=/Users/vengtheng/Developer/_orchestra/developer-system/sparkle-shim-20261123/vendor/bin/sign_update
-       $SIGN --ed-key-file ~/.kh-sparkle/app.tuneharbor.desktop/private.key -p "dist/Music Studio KH-<version>.dmg"
+     Regenerate the item for EVERY release, from the exact published DMG bytes. The signer is
+     named by the machine holding the key, never by this file:
+       : "${SPARKLE_SIGN_TOOL:?set SPARKLE_SIGN_TOOL to the shim's sign_update}"
+       "$SPARKLE_SIGN_TOOL" --ed-key-file ~/.kh-sparkle/app.tuneharbor.desktop/private.key -p "dist/Music Studio KH-<version>.dmg"
      A re-cut DMG must regenerate the item: a stale signature fails silently. The key is per app
      (app.tuneharbor.desktop) and is never regenerated while an install trusts it. -->
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
