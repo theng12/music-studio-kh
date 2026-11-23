@@ -1,0 +1,6 @@
+# cargo test binaries live under target/, not inside a bundle, so the rpath the app
+# uses (@executable_path/../Frameworks) cannot reach the vendored Sparkle. Cargo
+# applies [env] to the test executables it runs; the shipped app is unaffected and
+# still carries no owner path.
+[env]
+DYLD_FRAMEWORK_PATH = { value = "vendor/khsparkle", relative = true }
