@@ -330,6 +330,8 @@ cp -R "$app" "$dmg_stage/${product_name}.app"
 hdiutil create -volname "${product_name} ${version}" -srcfolder "$dmg_stage" -format UDZO -ov "$dmg_path" >/dev/null \
   || { retire "$dmg_stage"; fail "hdiutil could not build the DMG"; }
 retire "$dmg_stage"
+# The packager used to sign the image; hdiutil does not, so sign and verify the artifact itself.
+codesign --force --sign "$sign_id" "$dmg_path" || fail "could not sign the DMG"
 codesign --verify --verbose=2 "$dmg_path"
 
 step "Verifying DMG payload"
