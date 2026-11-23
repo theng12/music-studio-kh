@@ -58,11 +58,12 @@ const DEMO = [
   ['Copper Sky', 'Ada Fields', 'Field Notes'],
   ['Lantern Song', 'Ada Fields', 'Field Notes'],
 ];
-const wav = Buffer.alloc(44 + 8000);
+const SAMPLES = 8000 * 30; // 30 s, so the player shows a real position
+const wav = Buffer.alloc(44 + SAMPLES * 2);
 wav.write('RIFF'); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8);
 wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
-wav.writeUInt32LE(8000, 24); wav.writeUInt32LE(8000, 28); wav.writeUInt16LE(2, 32);
-wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(8000, 40);
+wav.writeUInt32LE(8000, 24); wav.writeUInt32LE(16000, 28); wav.writeUInt16LE(2, 32);
+wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(SAMPLES * 2, 40);
 for (let i = 44; i < wav.length; i += 2) wav.writeInt16LE(Math.round(Math.sin((i - 44) / 2 * 2 * Math.PI * 330 / 8000) * 600), i);
 
 const written = [];
@@ -74,12 +75,19 @@ try {
   await page.locator('#password').fill('demo-pass');
   await page.getByRole('button', { name: 'Open library' }).click();
   await page.locator('#app').waitFor({ state: 'visible' });
-  for (const [title, artist, album] of DEMO) {
+  for (const [index, [title, artist, album]] of DEMO.entries()) {
+    // Identical bytes hash the same and the import skips them as duplicates; one byte each keeps them apart.
     const audio = Buffer.from(wav);
+    audio[audio.length - 1] = 40 + index;
     const response = await page.request.post(address + '/api/import', { multipart: {
       title, artist, album, file: { name: title + '.wav', mimeType: 'audio/wav', buffer: audio } } });
     assert(response.ok(), `demo import failed for ${title}`);
   }
+  // Imports land in the index, not in this page's state; load the library the way a person would.
+  await page.reload();
+  await page.locator('#app').waitFor({ state: 'visible' });
+  await page.waitForFunction(() => document.querySelectorAll('.track-card').length >= 6);
+
   const setTheme = async theme => {
     await page.locator('#settings-nav').click();
     await page.locator('.settings-tabs button').filter({ hasText: /Appearance/i }).click();
@@ -100,19 +108,21 @@ try {
   await shot('library-light.png');
 
   await page.getByRole('button', { name: 'Play Harbor Lights', exact: true }).click();
-  await page.waitForFunction(() => document.getElementById('audio')?.currentTime > 0);
+  await page.waitForFunction(() => document.getElementById('audio')?.currentTime > 1.5);
   await shot('playing-light.png');
 
   await setTheme('Dark');
   await page.waitForFunction(() => document.querySelectorAll('.track-card').length >= 6);
   await page.getByRole('button', { name: 'Play Harbor Lights', exact: true }).click();
-  await page.waitForFunction(() => document.getElementById('audio')?.currentTime > 0);
+  await page.waitForFunction(() => document.getElementById('audio')?.currentTime > 1.5);
   await shot('playing-dark.png');
 
+  // Appearance, not Library: the Library tab prints the real data folder path, which the public
+  // scrub forbids in an image. Appearance carries the theme, accent and density decisions.
   await page.locator('#settings-nav').click();
-  await page.locator('.settings-tabs button').filter({ hasText: /Library/i }).click();
-  await page.locator('#settings-data-folder').waitFor();
-  await shot('settings-dark.png');
+  await page.locator('.settings-tabs button').filter({ hasText: /Appearance/i }).click();
+  await page.getByRole('group', { name: 'Theme' }).waitFor();
+  await shot('settings-appearance-dark.png');
 } finally {
   await browser.close();
   server.kill('SIGTERM');

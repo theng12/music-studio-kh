@@ -8,6 +8,14 @@ Music Studio KH is a music library and server for Windows, macOS, and Linux. The
 
 Music Studio KH is a desktop app with its own music server. Install it, create a profile, choose a music folder, and listen in the app, in a browser, or in a Subsonic phone app such as Amperfy on the same Wi-Fi. Docker, a terminal and separately installed tools are not needed: yt-dlp, FFmpeg and Deno ship inside the app.
 
+## What it looks like
+
+![The library in the light theme: folders and songs in the middle, navigation on the left, player along the bottom](docs/screenshots/library-light.png)
+
+![The player in the dark theme with a song playing: title, seek bar and controls along the bottom](docs/screenshots/playing-dark.png)
+
+More: [the player in the light theme](docs/screenshots/playing-light.png) · [appearance settings, where the theme, accent and density are chosen](docs/screenshots/settings-appearance-dark.png)
+
 What works:
 
 - **Profiles:** independently authenticated servers running at the same time on separate ports, with shared or separate music folders. Each profile has its own database, artwork, downloads, settings and logs. If a folder disappears, the profile can switch to a replacement folder.

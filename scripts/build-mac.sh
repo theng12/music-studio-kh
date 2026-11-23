@@ -161,6 +161,9 @@ if [ "${1:-}" = "--check" ] || [ "${1:-}" = "--dry-run" ]; then
     printf 'Native FFmpeg cache: invalid or minos > 13.0 (will be automatically retired and rebuilt on full run)\n'
   fi
 
+  # RELEASE-POLICY 5d: no release ships without its screenshots.
+  node scripts/check-screenshots.mjs || fail "screenshots: docs/screenshots must hold 3-4 PNGs under 400 KB, named <screen>-<light|dark>.png and referenced from README.md"
+
   printf '\n\033[32mPreflight check passed. All versions match %s. Ready to build.\033[0m\n' "$version"
   exit 0
 fi
