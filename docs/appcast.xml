@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Music Studio KH appcast. Served from Pages at
+     https://theng12.github.io/music-studio-kh/appcast.xml once this repo is public.
+
+     Regenerate the item for EVERY release, from the exact published DMG bytes:
+       SIGN=/Users/vengtheng/Developer/_orchestra/developer-system/sparkle-shim-20261123/vendor/bin/sign_update
+       $SIGN --ed-key-file ~/.kh-sparkle/app.tuneharbor.desktop/private.key -p "dist/Music Studio KH-<version>.dmg"
+     A re-cut DMG must regenerate the item: a stale signature fails silently. The key is per app
+     (app.tuneharbor.desktop) and is never regenerated while an install trusts it. -->
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Music Studio KH</title>
+    <link>https://theng12.github.io/music-studio-kh/appcast.xml</link>
+    <description>Music Studio KH updates</description>
+    <language>en</language>
+    <item>
+      <title>0.3.18</title>
+      <pubDate>Mon, 23 Nov 2026 04:24:28 +0000</pubDate>
+      <sparkle:version>0.3.18</sparkle:version>
+      <sparkle:shortVersionString>0.3.18</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<p>Several music folders in one library; linked folders play; the player bar stays usable on narrow windows.</p>]]></description>
+      <enclosure
+        url="https://github.com/theng12/kh-releases/releases/download/music-studio-0.3.18/d3f837148bd2-Music.Studio.KH-0.3.18.dmg"
+        length="129691709"
+        type="application/octet-stream"
+        sparkle:edSignature="rl6YArDcPnRyAhOfd1+wI2+9y1joa9r6s/ZcKpR2RLypherBzp8FmJ8BNw8ZfwDHisYpIVowORG6l/NLJuKnBg==" />
+    </item>
+  </channel>
+</rss>

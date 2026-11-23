@@ -251,7 +251,7 @@ step "Collecting dependency notices"
 python3 scripts/collect-notices.py
 
 step "Building .app bundle via Tauri"
-npm run build:desktop -- --config src-tauri/tauri.macos-local.conf.json --bundles app,dmg
+npm run build:desktop -- --config src-tauri/tauri.macos-local.conf.json --bundles app
 
 app="src-tauri/target/release/bundle/macos/${product_name}.app"
 if [ ! -d "$app" ]; then
@@ -268,6 +268,36 @@ validate_plist() {
 }
 
 validate_plist "$app/Contents/Info.plist"
+
+step "Embedding Sparkle and signing nested code first"
+fw_src="src-tauri/vendor/khsparkle/Sparkle.framework"
+[ -d "$fw_src" ] || fail "the vendored Sparkle.framework is missing (src-tauri/vendor/khsparkle/)"
+mkdir -p "$app/Contents/Frameworks"
+cp -R "$fw_src" "$app/Contents/Frameworks/" || fail "could not copy the vendored Sparkle.framework into Contents/Frameworks"
+# Nested code first, the app last (INTEGRATION.md §3A). A nested binary signed after
+# the app is what breaks `codesign --verify --deep --strict`.
+sign_id="KH Studio Local Signing"
+fw="$app/Contents/Frameworks/Sparkle.framework/Versions/B"
+for nested in "$fw/XPCServices/Downloader.xpc" "$fw/XPCServices/Installer.xpc" "$fw/Updater.app" "$fw/Autoupdate"; do
+  [ -e "$nested" ] || fail "the vendored Sparkle framework has no $(basename "$nested")"
+  codesign --force --sign "$sign_id" --timestamp=none "$nested" || fail "could not sign $(basename "$nested")"
+done
+codesign --force --sign "$sign_id" --timestamp=none "$fw" || fail "could not sign the Sparkle framework"
+app_exe="$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$app/Contents/Info.plist")"
+[ -x "$app/Contents/MacOS/$app_exe" ] || fail "app executable $app_exe not found"
+codesign --force --sign "$sign_id" --timestamp=none "$app/Contents/MacOS/$app_exe" || fail "could not sign the app binary"
+codesign --force --sign "$sign_id" --timestamp=none "$app" || fail "could not sign the app"
+codesign --verify --deep --strict --verbose=2 "$app" || fail "the app's signature is broken after embedding Sparkle"
+otool -l "$app/Contents/MacOS/$app_exe" | grep -q '@executable_path/../Frameworks' || fail "the binary carries no @executable_path/../Frameworks rpath"
+python3 - "$app/Contents/Info.plist" <<'PY'
+import plistlib, sys
+p = plistlib.load(open(sys.argv[1], "rb"))
+assert p.get("SUFeedURL") == "https://theng12.github.io/music-studio-kh/appcast.xml", "SUFeedURL missing"
+assert len(p.get("SUPublicEDKey", "")) == 44, "SUPublicEDKey missing or malformed"
+assert p.get("KHHoldURL") == "http://127.0.0.1:8645/api/maintenance/hold", "KHHoldURL missing"
+assert p.get("KHHoldTokenFile") == "~/Library/KHUpdater/state/hold-token", "KHHoldTokenFile missing"
+print("Sparkle keys present: SUFeedURL, SUPublicEDKey, KHHoldURL, KHHoldTokenFile")
+PY
 
 step "Verifying packaged signatures (helper app + packager binaries)"
 exe_name="$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$app/Contents/Info.plist")"
@@ -289,17 +319,18 @@ codesign --verify --deep --strict --verbose=2 "$app"
 python3 -I scripts/test-ytdlp-startup.py "$app/Contents/MacOS/yt-dlp" --budget-seconds 15 --receipt "artifacts/yt-dlp-startup-${version}.json"
 python3 -I scripts/verify-macos-signing.py --app "$app" --receipt "artifacts/signing-${version}.json"
 
-step "Retaining packager-created DMG"
+step "Building the DMG from the signed bundle"
+# The DMG is made here, not by the packager, because the bundle now carries Sparkle
+# and must be signed (nested first, app last) before it is sealed into the image.
 mkdir -p artifacts
 dmg_path="artifacts/${product_name}-${version}.dmg"
 [ ! -e "$dmg_path" ] || fail "artifact already exists; preserve it and choose a fresh release version: $dmg_path"
-bundle_dir="$(dirname "$(dirname "$app")")"
-packaged_dmgs=("$bundle_dir/dmg/${product_name}_${version}_"*.dmg)
-[ "${#packaged_dmgs[@]}" -eq 1 ] || fail "expected exactly one packaged DMG for $version"
-packaged_dmg="${packaged_dmgs[0]}"
-[ -f "$packaged_dmg" ] || fail "packager DMG missing: $packaged_dmg"
-codesign --verify --verbose=2 "$packaged_dmg"
-cp "$packaged_dmg" "$dmg_path"
+dmg_stage="$(mktemp -d /tmp/music-dmg-src.XXXXXX)"
+cp -R "$app" "$dmg_stage/${product_name}.app"
+hdiutil create -volname "${product_name} ${version}" -srcfolder "$dmg_stage" -format UDZO -ov "$dmg_path" >/dev/null \
+  || { retire "$dmg_stage"; fail "hdiutil could not build the DMG"; }
+retire "$dmg_stage"
+codesign --verify --verbose=2 "$dmg_path"
 
 step "Verifying DMG payload"
 verify_mount="$(mktemp -d /tmp/dmg-verify.XXXXXX)"

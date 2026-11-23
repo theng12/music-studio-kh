@@ -10,7 +10,50 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
-use music-studio-kh::bridge::{validate_profile_url, Bridge};
+use music_studio_kh::bridge::{validate_profile_url, Bridge};
+
+/// Sparkle through the shared shim: one C call, one state flag, no Tauri types in between.
+#[cfg(target_os = "macos")]
+mod sparkle {
+    use std::sync::atomic::{AtomicU8, Ordering};
+
+    extern "C" {
+        fn kh_sparkle_start() -> i32;
+        fn kh_sparkle_last_error() -> *const std::ffi::c_char;
+        fn kh_sparkle_set_state_callback(cb: extern "C" fn(i32));
+    }
+
+    static STATE: AtomicU8 = AtomicU8::new(0);
+
+    extern "C" fn on_state(state: i32) {
+        STATE.store(state.clamp(0, 2) as u8, Ordering::SeqCst);
+    }
+
+    /// True while Sparkle is installing or relaunching: the app must not refuse its own quit then.
+    pub fn updating() -> bool {
+        STATE.load(Ordering::SeqCst) >= 1
+    }
+
+    /// Called once, after the tray and window exist. A refusal lands in the log with its reason.
+    pub fn start() {
+        unsafe {
+            kh_sparkle_set_state_callback(on_state);
+            let rc = kh_sparkle_start();
+            if rc != 0 {
+                let reason = std::ffi::CStr::from_ptr(kh_sparkle_last_error()).to_string_lossy();
+                eprintln!("kh-sparkle: refused to start ({rc}): {reason}");
+            }
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+mod sparkle {
+    pub fn updating() -> bool {
+        false
+    }
+    pub fn start() {}
+}
 
 struct Backend(Mutex<Result<Bridge, String>>);
 struct Closing(AtomicBool);
@@ -564,7 +607,7 @@ fn main() {
                 })
                 .build(app)?;
 
-            let app_menu_music-studio-kh = Submenu::with_items(
+            let app_menu_music_studio_kh = Submenu::with_items(
                 app,
                 "Music Studio KH",
                 true,
@@ -629,7 +672,7 @@ fn main() {
             let app_menu = Menu::with_items(
                 app,
                 &[
-                    &app_menu_music-studio-kh,
+                    &app_menu_music_studio_kh,
                     &app_menu_edit,
                     &app_menu_controls,
                     &app_menu_window,
@@ -647,6 +690,9 @@ fn main() {
                     let _ = window.hide();
                 }
             }
+            // Started last, once the tray and window exist; the shim holds the app
+            // before it checks or downloads anything.
+            sparkle::start();
             Ok(())
         })
         .on_menu_event(|app, event| handle_menu_action(app, event.id.as_ref()))
@@ -697,7 +743,8 @@ fn main() {
                 });
             }
             tauri::RunEvent::ExitRequested { api, .. } => {
-                if !app.state::<Closing>().0.load(Ordering::SeqCst) {
+                // While Sparkle installs, it terminates the app itself: never refuse that.
+                if !sparkle::updating() && !app.state::<Closing>().0.load(Ordering::SeqCst) {
                     api.prevent_exit();
                     quit(app);
                 }
