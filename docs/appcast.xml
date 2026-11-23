@@ -3,11 +3,12 @@
      https://theng12.github.io/music-studio-kh/appcast.xml once this repo is public.
 
      Regenerate the item for EVERY release, from the exact published DMG bytes. The signer is
-     named by the machine holding the key, never by this file:
-       : "${SPARKLE_SIGN_TOOL:?set SPARKLE_SIGN_TOOL to the shim's sign_update}"
-       "$SPARKLE_SIGN_TOOL" --ed-key-file ~/.kh-sparkle/app.tuneharbor.desktop/private.key -p "dist/Music Studio KH-<version>.dmg"
-     A re-cut DMG must regenerate the item: a stale signature fails silently. The key is per app
-     (app.tuneharbor.desktop) and is never regenerated while an install trusts it. -->
+     named by the machine holding the key, never by this file: point SPARKLE_SIGN_TOOL at the
+     shim's sign_update, give it the app's private key and the DMG path (see the app's
+     BACKLOG for the exact invocation). A re-cut DMG must regenerate the item: a stale signature
+     fails silently. The key is per app (app.tuneharbor.desktop) and is never regenerated while
+     an install trusts it. Never put two hyphens inside a comment such as this one: that breaks
+     the XML and Sparkle reads no item at all. -->
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
     <title>Music Studio KH</title>
@@ -15,17 +16,17 @@
     <description>Music Studio KH updates</description>
     <language>en</language>
     <item>
-      <title>0.3.18</title>
-      <pubDate>Mon, 23 Nov 2026 04:24:28 +0000</pubDate>
-      <sparkle:version>0.3.18</sparkle:version>
-      <sparkle:shortVersionString>0.3.18</sparkle:shortVersionString>
+      <title>0.3.19</title>
+      <pubDate>Mon, 23 Nov 2026 14:49:59 +0000</pubDate>
+      <sparkle:version>0.3.19</sparkle:version>
+      <sparkle:shortVersionString>0.3.19</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[<p>Several music folders in one library; linked folders play; the player bar stays usable on narrow windows.</p>]]></description>
+      <description><![CDATA[<p>The app updates itself now. Your data folder moves to its new name once, on first launch, and keeps every profile.</p>]]></description>
       <enclosure
-        url="https://github.com/theng12/kh-releases/releases/download/music-studio-0.3.18/d3f837148bd2-Music.Studio.KH-0.3.18.dmg"
-        length="129691709"
+        url="https://github.com/theng12/music-studio-kh/releases/download/music-studio-0.3.19/20f07446cf03-Music.Studio.KH-0.3.19.dmg"
+        length="141238385"
         type="application/octet-stream"
-        sparkle:edSignature="rl6YArDcPnRyAhOfd1+wI2+9y1joa9r6s/ZcKpR2RLypherBzp8FmJ8BNw8ZfwDHisYpIVowORG6l/NLJuKnBg==" />
+        sparkle:edSignature="ejvACtBGmk3vmDjOaAU/LeQNxynemfyXFiCHXq/+QjoyAur4fxRidrOXYiJFA8Il9xhWuTFTremYvKSA2qIfAQ==" />
     </item>
   </channel>
 </rss>
