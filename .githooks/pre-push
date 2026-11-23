@@ -13,6 +13,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import xml.etree.ElementTree as ElementTree
 
 
 def output(*args):
@@ -189,6 +190,12 @@ try:
         run("git", "diff", "--exit-code", "--", "internal/server/web")
         if output("git", "status", "--porcelain", "--", "internal/server/web"):
             raise SystemExit("FAIL: internal/server/web is out of sync with ui/. Commit the built assets.")
+        # The appcast is an install's only update path: it must parse and carry a signed item.
+        items = [element for element in ElementTree.parse("docs/appcast.xml").getroot().iter()
+                 if element.tag == "item"]
+        enclosure = next((e for e in items[0] if e.tag == "enclosure"), None) if items else None
+        if enclosure is None or not any(k.endswith("edSignature") for k in enclosure.attrib):
+            raise SystemExit("FAIL: docs/appcast.xml must hold an item with a signed enclosure.")
         triple = output("rustc", "-vV").split("host: ")[1].splitlines()[0]
         Path("src-tauri/binaries").mkdir(exist_ok=True)
         Path("src-tauri/runtime-tools").mkdir(exist_ok=True)
