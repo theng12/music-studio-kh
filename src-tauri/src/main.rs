@@ -9,19 +9,27 @@ use std::sync::{
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use music_studio_kh::bridge::{validate_profile_url, Bridge};
 
 /// Sparkle through the shared shim: one C call, one state flag, no Tauri types in between.
 #[cfg(target_os = "macos")]
 mod sparkle {
+    use std::net::{SocketAddr, TcpStream};
     use std::sync::atomic::{AtomicU8, Ordering};
+    use std::time::{Duration, Instant};
+    use tauri::Manager;
 
     extern "C" {
         fn kh_sparkle_start() -> i32;
         fn kh_sparkle_last_error() -> *const std::ffi::c_char;
         fn kh_sparkle_set_state_callback(cb: extern "C" fn(i32));
     }
+
+    const HOLD_ADDR: ([u8; 4], u16) = ([127, 0, 0, 1], 8645);
+    const HOLD_WAIT_TIMEOUT: Duration = Duration::from_secs(5);
+    const HOLD_WAIT_POLL: Duration = Duration::from_millis(50);
 
     static STATE: AtomicU8 = AtomicU8::new(0);
 
@@ -34,7 +42,22 @@ mod sparkle {
         STATE.load(Ordering::SeqCst) >= 1
     }
 
-    /// Called once, after the tray and window exist. A refusal lands in the log with its reason.
+    /// Wait until the Go helper's hold server accepts a TCP connection (bounded), avoiding
+    /// a cold-start ECONNREFUSED race between Bridge::spawn() and kh_sparkle_start().
+    pub fn wait_for_hold_port(addr: SocketAddr, timeout: Duration, poll: Duration) -> bool {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if TcpStream::connect_timeout(&addr, Duration::from_millis(200)).is_ok() {
+                return true;
+            }
+            if Instant::now() >= deadline {
+                return false;
+            }
+            std::thread::sleep(poll);
+        }
+    }
+
+    /// Called once on the main thread, after the hold server is listening. A refusal lands in the log with its reason.
     pub fn start() {
         unsafe {
             kh_sparkle_set_state_callback(on_state);
@@ -45,6 +68,23 @@ mod sparkle {
             }
         }
     }
+
+    /// Wait off the main thread for :8645 to bind, then dispatch start() on the main thread.
+    pub fn start_when_ready(app: tauri::AppHandle) {
+        std::thread::spawn(move || {
+            let addr = SocketAddr::from(HOLD_ADDR);
+            if !wait_for_hold_port(addr, HOLD_WAIT_TIMEOUT, HOLD_WAIT_POLL) {
+                eprintln!(
+                    "kh-sparkle: hold server at {addr} not ready after {}s; attempting start anyway",
+                    HOLD_WAIT_TIMEOUT.as_secs()
+                );
+            }
+            if app.state::<super::Closing>().0.load(Ordering::SeqCst) {
+                return;
+            }
+            let _ = app.run_on_main_thread(start);
+        });
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -52,11 +92,170 @@ mod sparkle {
     pub fn updating() -> bool {
         false
     }
-    pub fn start() {}
+    pub fn start_when_ready(_app: tauri::AppHandle) {}
 }
 
 struct Backend(Mutex<Result<Bridge, String>>);
 struct Closing(AtomicBool);
+
+const AUTOSTART_MOVE_ERR: &str =
+    "Move Music Studio KH to Applications before turning on start at login.";
+
+fn path_is_inside(candidate: &std::path::Path, dir: &std::path::Path) -> bool {
+    candidate != dir && candidate.starts_with(dir)
+}
+
+fn is_in_applications_dir(exe: &std::path::Path, home: Option<&std::path::Path>) -> bool {
+    let system_apps = std::path::Path::new("/Applications");
+    if path_is_inside(exe, system_apps) {
+        return true;
+    }
+    if let Ok(canon) = std::fs::canonicalize(system_apps) {
+        if path_is_inside(exe, &canon) {
+            return true;
+        }
+    }
+    if let Some(home_dir) = home {
+        let user_apps = home_dir.join("Applications");
+        if path_is_inside(exe, &user_apps) {
+            return true;
+        }
+        if let Ok(canon_home) = std::fs::canonicalize(home_dir) {
+            if path_is_inside(exe, &canon_home.join("Applications")) {
+                return true;
+            }
+        }
+        if let Ok(canon_user_apps) = std::fs::canonicalize(&user_apps) {
+            if path_is_inside(exe, &canon_user_apps) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn unescape_xml_entities(raw: &str) -> String {
+    raw.replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+}
+
+fn parse_plist_xml_program_arg0(xml: &str) -> Option<String> {
+    let key_idx = xml.find("<key>ProgramArguments</key>")?;
+    let after_key = &xml[key_idx + "<key>ProgramArguments</key>".len()..];
+    let arr_start = after_key.find("<array>")?;
+    let after_arr = &after_key[arr_start + "<array>".len()..];
+    let arr_end = after_arr.find("</array>")?;
+    let array_body = &after_arr[..arr_end];
+    let str_start = array_body.find("<string>")?;
+    let after_str = &array_body[str_start + "<string>".len()..];
+    let str_end = after_str.find("</string>")?;
+    let value = unescape_xml_entities(after_str[..str_end].trim());
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+fn read_plist_program_arg0(plist_path: &std::path::Path) -> Option<String> {
+    if let Ok(content) = std::fs::read_to_string(plist_path) {
+        if let Some(arg0) = parse_plist_xml_program_arg0(&content) {
+            return Some(arg0);
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let out = std::process::Command::new("/usr/libexec/PlistBuddy")
+            .args(["-c", "Print :ProgramArguments:0"])
+            .arg(plist_path)
+            .output()
+            .ok()?;
+        if out.status.success() {
+            let value = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !value.is_empty() {
+                return Some(value);
+            }
+        }
+    }
+    None
+}
+
+fn should_heal_launch_agent(
+    exe: &std::path::Path,
+    home: Option<&std::path::Path>,
+    plist_path: &std::path::Path,
+) -> bool {
+    if !is_in_applications_dir(exe, home) || !plist_path.is_file() {
+        return false;
+    }
+    let Some(arg0) = read_plist_program_arg0(plist_path) else {
+        return false;
+    };
+    let arg0_path = std::path::Path::new(&arg0);
+    if arg0_path == exe {
+        return false;
+    }
+    if let Ok(canon_arg0) = std::fs::canonicalize(arg0_path) {
+        if canon_arg0 == exe {
+            return false;
+        }
+    }
+    true
+}
+
+#[cfg(target_os = "macos")]
+fn current_exe_canonical() -> Result<PathBuf, String> {
+    let exe = std::env::current_exe().map_err(|_| AUTOSTART_MOVE_ERR.to_string())?;
+    Ok(std::fs::canonicalize(&exe).unwrap_or(exe))
+}
+
+#[cfg(target_os = "macos")]
+fn heal_launch_agent_if_stale(app: &tauri::AppHandle) {
+    let Ok(exe) = current_exe_canonical() else {
+        return;
+    };
+    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
+        return;
+    };
+    let plist_path = home
+        .join("Library")
+        .join("LaunchAgents")
+        .join("Music Studio KH.plist");
+    if should_heal_launch_agent(&exe, Some(&home), &plist_path) {
+        eprintln!(
+            "autostart: healing stale LaunchAgent plist to {}",
+            exe.display()
+        );
+        if let Err(e) = app.autolaunch().enable() {
+            eprintln!("autostart: failed to heal LaunchAgent plist: {e}");
+        }
+    }
+}
+
+#[tauri::command]
+fn set_autostart(
+    window: WebviewWindow,
+    app: tauri::AppHandle,
+    enabled: bool,
+) -> Result<(), String> {
+    only_manager(&window)?;
+    if enabled {
+        #[cfg(target_os = "macos")]
+        {
+            let exe = current_exe_canonical()?;
+            let home = std::env::var_os("HOME").map(PathBuf::from);
+            if !is_in_applications_dir(&exe, home.as_deref()) {
+                return Err(AUTOSTART_MOVE_ERR.to_string());
+            }
+        }
+        app.autolaunch().enable().map_err(|e| e.to_string())
+    } else {
+        app.autolaunch().disable().map_err(|e| e.to_string())
+    }
+}
 
 fn only_manager(window: &WebviewWindow) -> Result<(), String> {
     if window.label() != "main" {
@@ -540,7 +739,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             request,
             open_profile,
-            open_support_page
+            open_support_page,
+            set_autostart
         ])
         .setup(|app| {
             let data = app.path().config_dir()?.join("MusicStudioKH").join("profiles");
@@ -690,9 +890,12 @@ fn main() {
                     let _ = window.hide();
                 }
             }
-            // Started last, once the tray and window exist; the shim holds the app
-            // before it checks or downloads anything.
-            sparkle::start();
+            #[cfg(target_os = "macos")]
+            heal_launch_agent_if_stale(app.handle());
+
+            // Started last, once the tray and window exist; wait off the main thread for
+            // the helper's hold listener (:8645) before invoking kh_sparkle_start().
+            sparkle::start_when_ready(app.handle().clone());
             Ok(())
         })
         .on_menu_event(|app, event| handle_menu_action(app, event.id.as_ref()))
@@ -755,6 +958,9 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use std::path::Path;
+
     #[test]
     fn test_desktop_cmd_parsing() {
         assert_eq!(
@@ -802,6 +1008,118 @@ mod tests {
         let mini_height = 220.0;
         assert!(normal_height > 320.0);
         assert!(mini_height <= 320.0);
+    }
+
+    #[test]
+    fn autostart_allows_applications_dirs_and_refuses_others() {
+        let home = Path::new("/Users/tester");
+        // Allowed: /Applications and $HOME/Applications
+        assert!(is_in_applications_dir(
+            Path::new("/Applications/Music Studio KH.app/Contents/MacOS/Music Studio KH"),
+            Some(home)
+        ));
+        assert!(is_in_applications_dir(
+            Path::new("/Users/tester/Applications/Music Studio KH.app/Contents/MacOS/Music Studio KH"),
+            Some(home)
+        ));
+        // Refused: build, artifacts, target, Volumes (mounted DMG), temp, sibling prefix, bare dir
+        for bad in [
+            "/Users/tester/dev/music-studio-kh/app/artifacts/Music Studio KH.app/Contents/MacOS/Music Studio KH",
+            "/Users/tester/dev/music-studio-kh/app/src-tauri/target/release/bundle/macos/Music Studio KH.app/Contents/MacOS/Music Studio KH",
+            "/Users/tester/dev/music-studio-kh/app/build/Music Studio KH.app/Contents/MacOS/Music Studio KH",
+            "/Volumes/Music Studio KH/Music Studio KH.app/Contents/MacOS/Music Studio KH",
+            "/tmp/Music Studio KH.app/Contents/MacOS/Music Studio KH",
+            "/Applications-staging/Music Studio KH.app/Contents/MacOS/Music Studio KH",
+            "/Applications",
+            "/Users/tester/Applications",
+        ] {
+            assert!(
+                !is_in_applications_dir(Path::new(bad), Some(home)),
+                "expected {bad} to be refused"
+            );
+        }
+    }
+
+    #[test]
+    fn stale_launch_agent_heal_predicate_handles_absent_matching_and_stale() {
+        let tmp = std::env::temp_dir().join(format!(
+            "music-studio-kh-autostart-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        let home = tmp.join("home");
+        let app_exe = Path::new("/Applications/Music Studio KH.app/Contents/MacOS/Music Studio KH");
+        let dev_exe = Path::new(
+            "/Users/tester/app/artifacts/Music Studio KH.app/Contents/MacOS/Music Studio KH",
+        );
+        let plist_path = tmp.join("Music Studio KH.plist");
+
+        // 1. Absent plist -> never create one
+        assert!(!should_heal_launch_agent(app_exe, Some(&home), &plist_path));
+
+        // 2. Existing plist matching current exe -> no-op
+        let matching_xml = format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+             <plist version=\"1.0\"><dict>\n\
+             <key>Label</key><string>Music Studio KH</string>\n\
+             <key>ProgramArguments</key><array>\n\
+             <string>{}</string>\n\
+             <string>--autostart</string>\n\
+             </array></dict></plist>\n",
+            app_exe.display()
+        );
+        std::fs::write(&plist_path, &matching_xml).unwrap();
+        assert!(!should_heal_launch_agent(app_exe, Some(&home), &plist_path));
+
+        // 3. Existing plist pointing at stale artifacts path, running from /Applications -> heal
+        let stale_xml = format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+             <plist version=\"1.0\"><dict>\n\
+             <key>Label</key><string>Music Studio KH</string>\n\
+             <key>ProgramArguments</key><array>\n\
+             <string>{}</string>\n\
+             <string>--autostart</string>\n\
+             </array></dict></plist>\n",
+            dev_exe.display()
+        );
+        std::fs::write(&plist_path, &stale_xml).unwrap();
+        assert!(should_heal_launch_agent(app_exe, Some(&home), &plist_path));
+
+        // 4. Running from a non-Applications path -> never heal
+        assert!(!should_heal_launch_agent(dev_exe, Some(&home), &plist_path));
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn sparkle_wait_for_hold_port_waits_for_delayed_listener_and_times_out() {
+        // Reserve an ephemeral port, drop it, then bind it after a delay on a background thread.
+        let probe = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = probe.local_addr().unwrap();
+        drop(probe);
+
+        // Unbound port times out cleanly.
+        assert!(!sparkle::wait_for_hold_port(
+            addr,
+            std::time::Duration::from_millis(120),
+            std::time::Duration::from_millis(20),
+        ));
+
+        // Delayed bind succeeds once the listener comes up.
+        let handle = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            let listener = std::net::TcpListener::bind(addr).unwrap();
+            let _ = listener.accept();
+        });
+        assert!(sparkle::wait_for_hold_port(
+            addr,
+            std::time::Duration::from_secs(2),
+            std::time::Duration::from_millis(25),
+        ));
+        let _ = handle.join();
     }
 }
 

@@ -2,6 +2,11 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.22 — 2026-11-25
+
+- **Start at login only points at Applications.** Turning on "Start this profile when I sign in" is now refused unless Music Studio KH is running from Applications (or your user Applications folder), so temporary or test copies can never overwrite your Mac's login item. When an installed copy in Applications starts and finds an older login item pointing elsewhere, it repairs it automatically without creating one if you had it off.
+- **Automatic update checks no longer miss cold starts.** Startup now waits off the main thread for the app's own update-hold server to start listening before starting the updater, eliminating the cold-start race that could skip update checks on launch.
+
 ## 0.3.21 — 2026-11-24
 
 - **Nothing about the app changed.** This is the same app as 0.3.20: no fixes, no new features. It exists because a fresh release was asked for. If you are on 0.3.20, updating gains you nothing.

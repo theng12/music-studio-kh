@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useEscape } from "./useEscape";
 import { open } from "@tauri-apps/plugin-dialog";
-import { enable, disable } from "@tauri-apps/plugin-autostart";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Profile, rpc } from "./api";
@@ -214,7 +213,8 @@ export default function Profiles({
           const rows: Profile[] = await rpc("profiles");
           setProfiles(rows);
           // Launch at sign-in only while some remaining profile asks for it.
-          if (!rows.some((r) => r.autoStart)) await disable().catch(() => {});
+          if (!rows.some((r) => r.autoStart))
+            await invoke("set_autostart", { enabled: false }).catch(() => {});
         } catch (e) {
           notice(String(e));
         }
@@ -282,8 +282,9 @@ export default function Profiles({
       });
       const rows: Profile[] = await rpc("profiles");
       try {
-        if (rows.some((p) => p.autoStart)) await enable();
-        else await disable();
+        await invoke("set_autostart", {
+          enabled: rows.some((p) => p.autoStart),
+        });
       } catch (e) {
         const previous = profiles.find((p) => p.id === editing.id);
         if (previous)

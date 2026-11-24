@@ -4,5 +4,5 @@
   "description": "Only the locally bundled profile manager may use native administration and folder dialogs.",
   "platforms": ["linux", "macOS", "windows"],
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:allow-open", "autostart:default"]
+  "permissions": ["core:default", "dialog:allow-open"]
 }

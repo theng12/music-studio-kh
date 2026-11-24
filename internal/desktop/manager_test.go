@@ -1,11 +1,16 @@
 package desktop
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/theng12/music-studio-kh/internal/profiles"
 	"github.com/theng12/music-studio-kh/internal/secrets"
+	"io"
 	"net"
+	"net/http"
+	"net/http/cookiejar"
 	"os"
 	"path/filepath"
 	"strings"
@@ -205,5 +210,117 @@ func TestCloseReleasesEveryListeningPort(t *testing.T) {
 			t.Fatalf("port %d not rebindable after quit: %v", port, e)
 		}
 		listener.Close()
+	}
+}
+
+// Adding a second music folder scans both roots into the profile library and
+// serves HTTP audio streams (full 200 and ranged 206) for tracks from each root.
+func TestAddLibraryRootScansAndStreamsBothRoots(t *testing.T) {
+	root, primary, extra := t.TempDir(), t.TempDir(), t.TempDir()
+	primaryWAV := append(append([]byte{}, testWAV[:len(testWAV)-4]...), 1, 2, 3, 4)
+	extraWAV := append(append([]byte{}, testWAV[:len(testWAV)-4]...), 5, 6, 7, 8)
+	if e := os.WriteFile(filepath.Join(primary, "Primary Song.wav"), primaryWAV, 0600); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(extra, "Extra Song.wav"), extraWAV, 0600); e != nil {
+		t.Fatal(e)
+	}
+
+	m := New(root, Tools{}, secrets.New(root, memoryStore{}))
+	defer m.Close()
+	p, e := m.Create(profiles.Input{Name: "Multi", Library: primary, Username: "owner", Password: "123456"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	opened, e := m.Start(p.ID)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e := m.AddLibraryRoot(p.ID, extra); e != nil {
+		t.Fatalf("AddLibraryRoot: %v", e)
+	}
+
+	jar, e := cookiejar.New(nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	client := &http.Client{Jar: jar}
+	base := strings.TrimRight(opened.URL, "/")
+
+	bootBody, _ := json.Marshal(map[string]string{"token": opened.Bootstrap})
+	resp, e := client.Post(base+"/api/desktop-bootstrap", "application/json", bytes.NewReader(bootBody))
+	if e != nil {
+		t.Fatal(e)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("bootstrap status = %d", resp.StatusCode)
+	}
+
+	resp, e = client.Get(base + "/api/tracks")
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("/api/tracks status = %d", resp.StatusCode)
+	}
+	var tracks []struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+		Path  string `json:"path"`
+	}
+	if e := json.NewDecoder(resp.Body).Decode(&tracks); e != nil {
+		t.Fatal(e)
+	}
+	byTitle := map[string]string{}
+	for _, tr := range tracks {
+		byTitle[tr.Title] = tr.ID
+	}
+	if len(tracks) != 2 || byTitle["Primary Song"] == "" || byTitle["Extra Song"] == "" {
+		t.Fatalf("expected tracks from both roots, got: %+v", tracks)
+	}
+
+	cases := []struct {
+		name string
+		id   string
+		want []byte
+	}{
+		{name: "primary", id: byTitle["Primary Song"], want: primaryWAV},
+		{name: "extra", id: byTitle["Extra Song"], want: extraWAV},
+	}
+	for _, tc := range cases {
+		// Full stream -> 200 with exact bytes
+		r, e := client.Get(base + "/api/stream/" + tc.id)
+		if e != nil {
+			t.Fatalf("%s stream GET: %v", tc.name, e)
+		}
+		got, e := io.ReadAll(r.Body)
+		r.Body.Close()
+		if e != nil {
+			t.Fatalf("%s stream read: %v", tc.name, e)
+		}
+		if r.StatusCode != http.StatusOK || len(got) == 0 || !bytes.Equal(got, tc.want) {
+			t.Fatalf("%s full stream: status=%d len=%d wantLen=%d", tc.name, r.StatusCode, len(got), len(tc.want))
+		}
+
+		// Ranged stream -> 206 with exact slice
+		req, e := http.NewRequest(http.MethodGet, base+"/api/stream/"+tc.id, nil)
+		if e != nil {
+			t.Fatal(e)
+		}
+		req.Header.Set("Range", "bytes=0-15")
+		r, e = client.Do(req)
+		if e != nil {
+			t.Fatalf("%s ranged stream GET: %v", tc.name, e)
+		}
+		part, e := io.ReadAll(r.Body)
+		r.Body.Close()
+		if e != nil {
+			t.Fatalf("%s ranged stream read: %v", tc.name, e)
+		}
+		if r.StatusCode != http.StatusPartialContent || len(part) != 16 || !bytes.Equal(part, tc.want[:16]) {
+			t.Fatalf("%s ranged stream: status=%d len=%d", tc.name, r.StatusCode, len(part))
+		}
 	}
 }
