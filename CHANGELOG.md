@@ -2,6 +2,10 @@
 
 All notable changes to Music Studio KH are documented in this file.
 
+## 0.3.21 — 2026-11-24
+
+- **Nothing about the app changed.** This is the same app as 0.3.20: no fixes, no new features. It exists because a fresh release was asked for. If you are on 0.3.20, updating gains you nothing.
+
 ## 0.3.20 — 2026-11-23
 
 - **The app updates itself from this version on.** A new version installs in the background and the app reopens by itself. Before anything is replaced it stops taking new downloads, lets the one running settle, and then carries on — nothing is cancelled and there is no button to press.
