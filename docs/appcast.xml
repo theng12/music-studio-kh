@@ -28,18 +28,5 @@
         type="application/octet-stream"
         sparkle:edSignature="+naRzGS5zQJ04GnMplEgnsgl3nPNuB6/lRFqCKV3fz+aWRoHJYpFeykW0Q45rf3kXLb3IldnhITqqBYgpdmFCQ==" />
     </item>
-    <item>
-      <title>0.3.19</title>
-      <pubDate>Mon, 23 Nov 2026 14:49:59 +0000</pubDate>
-      <sparkle:version>0.3.19</sparkle:version>
-      <sparkle:shortVersionString>0.3.19</sparkle:shortVersionString>
-      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[<p>Your data folder moves to its new name once, on first launch, and keeps every profile. This version cannot update itself; install a newer version by hand.</p>]]></description>
-      <enclosure
-        url="https://github.com/theng12/music-studio-kh/releases/download/music-studio-0.3.19/20f07446cf03-Music.Studio.KH-0.3.19.dmg"
-        length="141238385"
-        type="application/octet-stream"
-        sparkle:edSignature="ejvACtBGmk3vmDjOaAU/LeQNxynemfyXFiCHXq/+QjoyAur4fxRidrOXYiJFA8Il9xhWuTFTremYvKSA2qIfAQ==" />
-    </item>
   </channel>
 </rss>
