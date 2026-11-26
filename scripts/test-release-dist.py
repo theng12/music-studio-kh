@@ -30,6 +30,12 @@ class RetentionTest(unittest.TestCase):
         uname.chmod(0o755)
         self.env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ['PATH'], RELEASE_DIST_HELPER=str(HELPER))
 
+    def trash(self):
+        """The one trash, on the Desktop (owner 2026-11-18), inside this fixture.
+
+        realpath: $TMPDIR is /var/folders/…, and the helper refuses a symlinked component."""
+        return Path(os.path.realpath(self.root / 'Desktop' / '_trash' / 'music-studio-kh' / 'dist'))
+
     def pins(self, versions):
         releases = []
         for version in versions:
@@ -37,7 +43,13 @@ class RetentionTest(unittest.TestCase):
             source = self.root / ('Music Studio KH-' + version + '.dmg')
             source.write_bytes(data)
             releases.append(dict(version=version, source=str(source), sha256=hashlib.sha256(data).hexdigest(), bytes=len(data), evidence='mock installed/native acceptance'))
-        return dict(schema=1, apps=[dict(app='Music Studio KH', project=str(self.project), releases=releases)])
+        # `retirement_trash` must exist when the helper validates it, so make it before writing the pin.
+        # Without this key the helper refuses a checkout (release-dist.py `_trash_dir`, d5a8c590) and
+        # falls back to `<project>/_trash/dist` anywhere else — the folder the 2026-11-18 rule retires.
+        trash = self.trash().parent
+        trash.mkdir(parents=True, exist_ok=True)
+        return dict(schema=1, apps=[dict(app='Music Studio KH', project=str(self.project),
+                                         retirement_trash=str(trash), releases=releases)])
 
     def run_flow(self, pins):
         path = self.root / 'accepted-pins.json'
@@ -57,7 +69,9 @@ class RetentionTest(unittest.TestCase):
         self.assertEqual(len(summary['retired']), 2)
         self.assertEqual({p.name for p in self.dist.glob('*.dmg')}, {'Music Studio KH-0.2.8.dmg', 'Music Studio KH-0.2.7.dmg'})
         self.assertEqual((self.dist / 'android/client.apk').read_bytes(), b'unmanaged Android fixture')
-        self.assertEqual(len(list((self.project / '_trash/dist').glob('*.dmg'))), 2)
+        self.assertEqual(len(list(self.trash().glob('*.dmg'))), 2)
+        # One trash, on the Desktop: nothing may be written inside the checkout.
+        self.assertFalse((self.project / '_trash').exists(), 'retired an installer into the project')
         before = self.snapshot()
         repeated = self.run_flow(pins)
         self.assertEqual(repeated.returncode, 0, repeated.stderr)
