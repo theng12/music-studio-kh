@@ -106,6 +106,10 @@ class RetentionTest(unittest.TestCase):
         self.assertNotEqual(refused.returncode, 0, refused.stdout)
         self.assertIn('retirement_trash', refused.stderr)
         self.assertFalse((self.project / '_trash').exists(), 'built a trash inside a checkout')
+        # The copy step ran before the refusal, so the new release is already in dist. Asserting this
+        # separates a checkout refusal from an earlier pin-validation refusal, which satisfies
+        # "no _trash" just as well and would pass a weaker test.
+        self.assertTrue((self.dist / 'Music Studio KH-0.2.7.dmg').is_file(), 'refused before the copy step')
         self.assertTrue((self.dist / 'Music Studio KH-0.2.5.dmg').is_file(), 'retired an installer with no pin')
 
 
