@@ -36,7 +36,7 @@ class RetentionTest(unittest.TestCase):
         realpath: $TMPDIR is /var/folders/…, and the helper refuses a symlinked component."""
         return Path(os.path.realpath(self.root / 'Desktop' / '_trash' / 'music-studio-kh' / 'dist'))
 
-    def pins(self, versions):
+    def pins(self, versions, pin_trash=True):
         releases = []
         for version in versions:
             data = ('mock accepted ' + version).encode()
@@ -46,10 +46,12 @@ class RetentionTest(unittest.TestCase):
         # `retirement_trash` must exist when the helper validates it, so make it before writing the pin.
         # Without this key the helper refuses a checkout (release-dist.py `_trash_dir`, d5a8c590) and
         # falls back to `<project>/_trash/dist` anywhere else — the folder the 2026-11-18 rule retires.
-        trash = self.trash().parent
-        trash.mkdir(parents=True, exist_ok=True)
-        return dict(schema=1, apps=[dict(app='Music Studio KH', project=str(self.project),
-                                         retirement_trash=str(trash), releases=releases)])
+        app = dict(app='Music Studio KH', project=str(self.project), releases=releases)
+        if pin_trash:
+            trash = self.trash().parent
+            trash.mkdir(parents=True, exist_ok=True)
+            app['retirement_trash'] = str(trash)
+        return dict(schema=1, apps=[app])
 
     def run_flow(self, pins):
         path = self.root / 'accepted-pins.json'
@@ -89,6 +91,22 @@ class RetentionTest(unittest.TestCase):
         self.assertIn('pinned', failed.stderr)
         self.assertEqual(self.snapshot(), before)
         self.assertFalse((self.project / '_trash').exists())
+
+    def test_a_checkout_without_a_pin_is_refused_and_retires_nothing_into_it(self):
+        """The class that used to build a trash inside a live checkout.
+
+        The accepted copy is saved to the ledger before the retire step, so only the trash
+        claim is honest here — asserting a clean tree would be asserting something the
+        helper does not do (measured 2026-11-26)."""
+        # Two accepted releases first, so the next run has one obsolete managed file to retire —
+        # the helper only reaches `_trash_dir` when there is something to move.
+        self.assertEqual(self.run_flow(self.pins(['0.2.6', '0.2.5'])).returncode, 0)
+        (self.project / '.git').mkdir()
+        refused = self.run_flow(self.pins(['0.2.7', '0.2.6'], pin_trash=False))
+        self.assertNotEqual(refused.returncode, 0, refused.stdout)
+        self.assertIn('retirement_trash', refused.stderr)
+        self.assertFalse((self.project / '_trash').exists(), 'built a trash inside a checkout')
+        self.assertTrue((self.dist / 'Music Studio KH-0.2.5.dmg').is_file(), 'retired an installer with no pin')
 
 
 if __name__ == '__main__':
