@@ -3,7 +3,7 @@
 
 Run only after the DMG was installed and verified. dist/ keeps the newest two
 versions; anything older moves automatically to the app's own
-`_trash/<date> <what>/`, without a hand step. The shared release-dist helper
+`~/Desktop/_trash/music-studio-kh/<date> <what>/`, without a hand step. The shared release-dist helper
 still does the copy itself.
 
 Guards (owner): a version named by release.json or previous-release.json, by a
@@ -24,7 +24,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DIST = ROOT / "dist"
 MANIFEST = DIST / ".release-dist.json"
-TRASH = ROOT / "_trash"
+TRASH = pathlib.Path.home() / "Desktop" / "_trash" / "music-studio-kh"
 HELPER = pathlib.Path(
     os.environ.get("RELEASE_DIST_HELPER", "")
     or pathlib.Path.home() / "Developer/Shared Tools/portfolio/tools/release-dist.py"
@@ -79,10 +79,9 @@ def busy(path):
 
 
 def relocate(retired, version, before):
-    """Move the helper's retirements to `_trash/<date> <what>/` and log them."""
-    # The owner empties the Desktop trash whenever he likes, which leaves this checkout's
-    # _trash link dangling; recreate its target before writing through it.
-    TRASH.resolve().mkdir(parents=True, exist_ok=True)
+    """Move the helper's retirements to `~/Desktop/_trash/music-studio-kh/<date> <what>/`."""
+    # One trash, on the Desktop (owner 2026-11-18): never a `_trash` link inside the checkout.
+    TRASH.mkdir(parents=True, exist_ok=True)
     today = datetime.date.today().isoformat()
     moves = []
     for entry in retired:
@@ -165,15 +164,13 @@ def main():
     pins = pathlib.Path(os.environ.get("TMPDIR", "/tmp")) / f"dist-pins-{version}.json"
     # The owner empties the Desktop trash often; an absent folder is the normal state, not a
     # reason to refuse the rotation.
-    TRASH.resolve().mkdir(parents=True, exist_ok=True)
+    TRASH.mkdir(parents=True, exist_ok=True)
     pins.write_text(json.dumps({
         "schema": 1,
         "apps": [{
             "app": APP,
             "project": str(ROOT),
-            # Follow the repo's own _trash pointer (one Desktop trash, per-app folder)
-            # instead of a hardcoded name that drifts when the pointer changes.
-            "retirement_trash": str(TRASH.resolve()),
+            "retirement_trash": str(TRASH),
             "releases": releases,
         }],
     }, indent=2) + "\n")
